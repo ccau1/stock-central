@@ -4,3 +4,4 @@
 .terraform.lock.hcl
 *.tfvars
 !terraform.tfvars.example
+ssl/
