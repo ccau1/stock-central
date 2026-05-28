@@ -135,7 +135,7 @@ jobs:
             cd /opt/stock-central
 
             # Authenticate to GHCR so the server can pull private images
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Set image references and pull latest
             export SERVER_IMAGE="${{ env.IMAGE_BASE }}/server:latest"

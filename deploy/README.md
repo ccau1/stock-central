@@ -104,35 +104,41 @@ terraform destroy
 
 Go to **Settings → Secrets and variables → Actions** in your GitHub repo and add:
 
-| Secret Name | What it is | How to get it |
-|-------------|-----------|---------------|
-| `HETZNER_HOST` | Your server's public IP | `terraform output server_ip` |
-| `HETZNER_USER` | SSH username | `root` (Hetzner Ubuntu cloud images default to root) |
-| `HETZNER_SSH_KEY` | **Private** SSH key | Full contents of `~/.ssh/id_ed25519` |
-| `ENV_FILE` | Production environment variables | Copy `deploy/.env.example`, fill in real values |
-| `GHCR_PAT` | GitHub Personal Access Token | See below |
-
-### Creating the GHCR_PAT
-
-The server needs to pull Docker images from GitHub Container Registry (GHCR). `GITHUB_TOKEN` only works inside GitHub Actions, not on external servers.
-
-1. Go to **GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)**
-2. Generate new token (classic)
-3. Scopes needed: **`read:packages`**
-4. Save the token as `GHCR_PAT` in your repo secrets
-
-> **Note:** If your repo is public, you can skip `GHCR_PAT` and make the packages public. Go to the package settings after the first push and change visibility to public.
+| Secret | Value | How to get it |
+|--------|-------|---------------|
+| `HETZNER_HOST` | Your server IP | `terraform output server_ip` |
+| `HETZNER_USER` | `root` | Hetzner Ubuntu images default to root |
+| `HETZNER_SSH_KEY` | Your **private** SSH key | `cat ~/.ssh/id_ed25519` — paste the full thing |
+| `ENV_FILE` | Production env vars | See format below |
+| `GH_TOKEN` | GitHub token | See below |
 
 ### ENV_FILE format
 
 ```bash
 POSTGRES_USER=stockcentral
-POSTGRES_PASSWORD=super_strong_random_password_here
+POSTGRES_PASSWORD=change_me_to_a_very_strong_password
 POSTGRES_DB=stockcentral
 CORS_ORIGIN=https://stocks.tribalorigin.com
 ```
 
 If you're not using a domain yet, replace with `http://YOUR_SERVER_IP`.
+
+### Creating the GH_TOKEN (Fine-Grained PAT)
+
+The server needs to pull Docker images from GitHub Container Registry (GHCR). `GITHUB_TOKEN` only works inside GitHub Actions, not on external servers.
+
+1. Go to **GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens**
+2. Click **Generate new token**
+3. Set:
+   - **Token name**: `stock-central-ghcr-read`
+   - **Expiration**: 90 days (or No expiration)
+   - **Description**: Read access to GHCR packages for deployment
+4. Under **Repository access**, select **Only select repositories** and choose your `stock-central` repo
+5. Under **Repository permissions**, find **Packages** and set it to **Read**
+6. Click **Generate token**
+7. Copy the token and save it as `GH_TOKEN` in your GitHub repo secrets
+
+> **Note:** If your repo is public, you can skip `GH_TOKEN` entirely and make the packages public. Go to the package settings after the first push and change visibility to public.
 
 ---
 
