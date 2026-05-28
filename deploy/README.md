@@ -9,7 +9,7 @@ A single Hetzner server runs everything via Docker Compose:
 │         Hetzner Cloud VM             │
 │  ┌──────┐ ┌────────┐ ┌───────────┐  │
 │  │ nginx│ │ server │ │  postgres │  │
-│  │ :80  │ │ :8000  │ │   :5432   │  │
+│  │ :443 │ │ :8000  │ │   :5432   │  │
 │  └──┬───┘ └────┬───┘ └─────┬─────┘  │
 │     └──────────┴───────────┘         │
 │           Docker Network             │
@@ -100,16 +100,69 @@ terraform destroy
 
 ---
 
-## 3. GitHub Secrets Setup
+## 3. SSL Certificate Setup (Cloudflare Origin CA)
+
+Since we're using Cloudflare proxy, we use a **Cloudflare Origin CA certificate** — free, trusted by Cloudflare, and valid for 15 years.
+
+Terraform creates this automatically, scoped to only your two subdomains.
+
+### 3a. Extract the Certificate and Key
+
+After `terraform apply`, run:
+
+```bash
+cd deploy/terraform
+
+# Create SSL directory
+mkdir -p ../ssl
+
+# Extract certificate (safe to view, not sensitive)
+terraform output -raw stockcentral_origin_certificate > ../ssl/cloudflare-origin.pem
+
+# Extract private key (sensitive — never commit to git)
+terraform output -raw stockcentral_origin_private_key > ../ssl/cloudflare-origin.key
+
+# Set permissions
+chmod 600 ../ssl/cloudflare-origin.key
+chmod 644 ../ssl/cloudflare-origin.pem
+```
+
+### 3b. Upload to Server
+
+```bash
+# SSH to your server
+ssh root@YOUR_SERVER_IP
+
+# Create SSL directory
+mkdir -p /opt/stock-central/ssl
+
+# From your local machine, copy the files
+scp deploy/ssl/cloudflare-origin.pem deploy/ssl/cloudflare-origin.key root@YOUR_SERVER_IP:/opt/stock-central/ssl/
+
+# SSH back in and set permissions
+ssh root@YOUR_SERVER_IP
+chmod 600 /opt/stock-central/ssl/cloudflare-origin.key
+chmod 644 /opt/stock-central/ssl/cloudflare-origin.pem
+```
+
+### 3c. Set Cloudflare SSL/TLS Mode
+
+Go to **SSL/TLS** → **Overview** and set the mode to **"Full (strict)"**.
+
+This tells Cloudflare to connect to your origin via HTTPS and validate the Origin CA certificate.
+
+---
+
+## 4. GitHub Secrets Setup
 
 Go to **Settings → Secrets and variables → Actions** in your GitHub repo and add:
 
 | Secret | Value | How to get it |
 |--------|-------|---------------|
-| `HETZNER_HOST` | Your server IP | `terraform output server_ip` |
+| `HETZNER_HOST` | Your server's public IP | `terraform output server_ip` |
 | `HETZNER_USER` | `root` | Hetzner Ubuntu images default to root |
 | `HETZNER_SSH_KEY` | Your **private** SSH key | `cat ~/.ssh/id_ed25519` — paste the full thing |
-| `ENV_FILE` | Production env vars | See format below |
+| `ENV_FILE` | Production environment variables | See format below |
 | `GH_TOKEN` | GitHub token | See below |
 
 ### ENV_FILE format
@@ -123,26 +176,22 @@ CORS_ORIGIN=https://stocks.tribalorigin.com
 
 If you're not using a domain yet, replace with `http://YOUR_SERVER_IP`.
 
-### Creating the GH_TOKEN (Fine-Grained PAT)
+### Creating the GH_TOKEN (Classic PAT)
 
 The server needs to pull Docker images from GitHub Container Registry (GHCR). `GITHUB_TOKEN` only works inside GitHub Actions, not on external servers.
 
-1. Go to **GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens**
-2. Click **Generate new token**
-3. Set:
-   - **Token name**: `stock-central-ghcr-read`
-   - **Expiration**: 90 days (or No expiration)
-   - **Description**: Read access to GHCR packages for deployment
-4. Under **Repository access**, select **Only select repositories** and choose your `stock-central` repo
-5. Under **Repository permissions**, find **Packages** and set it to **Read**
-6. Click **Generate token**
-7. Copy the token and save it as `GH_TOKEN` in your GitHub repo secrets
+1. Go to **GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)**
+2. Generate new token (classic)
+3. Scopes needed: **`read:packages`**
+4. Save the token as `GH_TOKEN` in your repo secrets
 
-> **Note:** If your repo is public, you can skip `GH_TOKEN` entirely and make the packages public. Go to the package settings after the first push and change visibility to public.
+> **Note:** If your repo is public, you can skip `GH_TOKEN` and make the packages public. Go to the package settings after the first push and change visibility to public.
+
+> **Fine-grained tokens don't work with GHCR** — this is a known GitHub limitation. Use classic tokens.
 
 ---
 
-## 4. First Deploy
+## 5. First Deploy
 
 Push to `main` or trigger manually:
 
@@ -173,7 +222,7 @@ Then open `https://stocks.tribalorigin.com` in your browser.
 
 ---
 
-## 5. Costs
+## 6. Costs
 
 | Component | Specs | Monthly Cost |
 |-----------|-------|--------------|
@@ -183,12 +232,13 @@ Then open `https://stocks.tribalorigin.com` in your browser.
 | Bandwidth | 20 TB included | **Free** |
 | GHCR (images) | Public repos = free | **Free** |
 | Cloudflare Proxy | Free plan | **Free** |
+| Cloudflare Origin CA | Free | **Free** |
 
 **Total: ~€4-8/month** depending on server size.
 
 ---
 
-## 6. Backup Strategy
+## 7. Backup Strategy
 
 ### Option A: Hetzner Snapshots (easiest)
 
@@ -215,23 +265,6 @@ crontab -e
 ### Option C: Both
 
 Snapshots for disaster recovery + pg_dump for granular restore.
-
----
-
-## 7. HTTPS (Free with Cloudflare Proxy)
-
-If you enabled Cloudflare DNS via Terraform with `cloudflare_proxied = true` (the default), you already have HTTPS:
-
-- Browser → Cloudflare: **HTTPS** (Cloudflare handles the SSL certificate)
-- Cloudflare → Your Server: **HTTP** on port 80
-
-This means **you don't need Caddy, certbot, or any server-side SSL setup**. Both `https://stocks.tribalorigin.com` and `https://stock-central.tribalorigin.com` will work out of the box.
-
-> In your Cloudflare dashboard, make sure SSL/TLS mode is set to **"Flexible"** (since the origin server only serves HTTP on port 80).
-
-### If you're NOT using Cloudflare
-
-The setup uses plain HTTP on port 80. For HTTPS without Cloudflare, you'd need to add **Caddy** or **Let's Encrypt + certbot** to your server. This is more work — Cloudflare proxy is the easiest path.
 
 ---
 

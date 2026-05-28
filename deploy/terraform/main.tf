@@ -81,3 +81,77 @@ resource "cloudflare_record" "stock_central" {
   ttl     = 1
   proxied = var.cloudflare_proxied
 }
+
+# ── Cloudflare Origin CA Certificate ───────────────────────────
+
+resource "tls_private_key" "stockcentral" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_cert_request" "stockcentral" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  private_key_pem = tls_private_key.stockcentral[0].private_key_pem
+
+  subject {
+    common_name = "stocks.tribalorigin.com"
+  }
+}
+
+resource "cloudflare_origin_ca_certificate" "stockcentral" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  csr                = tls_cert_request.stockcentral[0].cert_request_pem
+  hostnames          = ["stocks.tribalorigin.com", "stock-central.tribalorigin.com"]
+  request_type       = "origin-rsa"
+  requested_validity = 5475  # 15 years
+}
+
+# ── Cloudflare Origin CA Certificate ───────────────────────────
+
+resource "tls_private_key" "origin" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_cert_request" "origin" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  private_key_pem = tls_private_key.origin[0].private_key_pem
+
+  subject {
+    common_name = "tribalorigin.com"
+    organization = "Stock Central"
+  }
+}
+
+resource "cloudflare_origin_ca_certificate" "origin" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  csr                = tls_cert_request.origin[0].cert_request_pem
+  hostnames          = ["tribalorigin.com", "*.tribalorigin.com"]
+  request_type       = "origin-rsa"
+  requested_validity = 5475  # 15 years
+}
+
+# Write certificate files locally so you can SCP them to the server
+resource "local_file" "origin_cert" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  content         = cloudflare_origin_ca_certificate.origin[0].certificate
+  filename        = "${path.module}/ssl/cloudflare-origin.pem"
+  file_permission = "0644"
+}
+
+resource "local_file" "origin_key" {
+  count = var.cloudflare_zone_id != "" ? 1 : 0
+
+  content         = tls_private_key.origin[0].private_key_pem
+  filename        = "${path.module}/ssl/cloudflare-origin.key"
+  file_permission = "0600"
+}

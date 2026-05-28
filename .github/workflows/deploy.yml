@@ -120,7 +120,7 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          source: "deploy/docker-compose.prod.yml,deploy/.env"
+          source: "deploy/docker-compose.prod.yml,deploy/.env,deploy/nginx.ssl.conf"
           target: "/opt/stock-central"
           strip_components: 1
 
@@ -149,14 +149,17 @@ jobs:
 
       - name: Health check
         run: |
+          HEALTH_URL="http://${{ secrets.HETZNER_HOST }}/health"
+          echo "Testing health endpoint: $HEALTH_URL"
           echo "Waiting for containers to start..."
           for i in {1..12}; do
             sleep 5
-            if curl -sf http://${{ secrets.HETZNER_HOST }}/health; then
-              echo "Health check passed"
+            echo "Attempt $i/12: curl -sf $HEALTH_URL"
+            if curl -sf "$HEALTH_URL"; then
+              echo "Health check passed: $HEALTH_URL"
               exit 0
             fi
             echo "Attempt $i/12 failed, retrying..."
           done
-          echo "Health check failed after 60 seconds"
+          echo "Health check failed after 60 seconds: $HEALTH_URL"
           exit 1
