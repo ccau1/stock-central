@@ -4,6 +4,7 @@ import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { dataApi } from "../lib/api";
 import type { TickerDetail, PricePoint } from "../lib/api";
+import { useSvgContainerSize } from "../hooks/useSvgContainerSize";
 
 function PriceChart({ points, loading }: { points: PricePoint[]; loading: boolean }) {
   if (points.length < 2) return null;
@@ -12,8 +13,9 @@ function PriceChart({ points, loading }: { points: PricePoint[]; loading: boolea
   const max = Math.max(...points.map((p) => p.price));
   const range = max - min || 1;
 
-  const W = 800;
-  const H = 320;
+  const { ref: containerRef, size } = useSvgContainerSize(800, 320);
+  const W = size.width;
+  const H = size.height;
   const padL = 56;
   const padR = 12;
   const padT = 12;
@@ -50,7 +52,8 @@ function PriceChart({ points, loading }: { points: PricePoint[]; loading: boolea
         <h2 className="text-sm font-bold text-gray-900">Price History</h2>
         {loading && <RefreshCw size={12} className="text-gray-400 animate-spin" />}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+      <div ref={containerRef} className="w-full h-80">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
         {gridYs.map((y, i) => {
           const { sy } = toSvg(0, y);
           return (
@@ -70,7 +73,8 @@ function PriceChart({ points, loading }: { points: PricePoint[]; loading: boolea
           r="3"
           fill={strokeColor}
         />
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 }

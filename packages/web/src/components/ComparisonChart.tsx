@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import type { PricePoint } from "../lib/api";
+import { useSvgContainerSize } from "../hooks/useSvgContainerSize";
 
 const CHART_COLORS = [
   "#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6",
@@ -28,6 +29,7 @@ export default function ComparisonChart({ data, symbols, className = "", mode = 
   const [hovered, setHovered] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const { ref: containerRef, size } = useSvgContainerSize(800, 320);
 
   const activeSymbols = symbols.filter((s) => data && data[s] && data[s].length > 0);
   if (!data || activeSymbols.length === 0) return null;
@@ -46,8 +48,8 @@ export default function ComparisonChart({ data, symbols, className = "", mode = 
   const rangeY = maxY - minY || 1;
 
   const maxLen = Math.max(...series.map((n) => n.points.length));
-  const W = 800;
-  const H = 320;
+  const W = size.width;
+  const H = size.height;
   const padL = 44;
   const padR = 12;
   const padT = 12;
@@ -67,7 +69,7 @@ export default function ComparisonChart({ data, symbols, className = "", mode = 
   const gridYs = Array.from({ length: gridLines + 1 }, (_, i) => minY + (rangeY * i) / gridLines);
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current || maxLen <= 1) return;
+    if (!svgRef.current || maxLen <= 1 || W <= 0) return;
     const rect = svgRef.current.getBoundingClientRect();
     const svgX = ((e.clientX - rect.left) / rect.width) * W;
     let idx = Math.round((svgX - padL) / xScale);
@@ -127,12 +129,11 @@ export default function ComparisonChart({ data, symbols, className = "", mode = 
         ))}
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div ref={containerRef} className="flex-1 min-h-0">
         <svg
           ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
           className="w-full h-full"
-          preserveAspectRatio="xMidYMid meet"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >

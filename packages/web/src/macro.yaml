@@ -105,7 +105,7 @@ panels:
     inputs:
       benchmark: SPY
       lookback: 3m
-      trail_length: 20
+      trail_length: 5
     refresh_interval: 300
 
   - id: metric-card
