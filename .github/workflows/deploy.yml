@@ -149,7 +149,14 @@ jobs:
 
       - name: Health check
         run: |
-          echo "Waiting 10s for containers to start..."
-          sleep 10
-          curl -sf http://${{ secrets.HETZNER_HOST }}/health || exit 1
-          echo "Health check passed"
+          echo "Waiting for containers to start..."
+          for i in {1..12}; do
+            sleep 5
+            if curl -sf http://${{ secrets.HETZNER_HOST }}/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i/12 failed, retrying..."
+          done
+          echo "Health check failed after 60 seconds"
+          exit 1
