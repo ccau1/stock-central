@@ -1,0 +1,55 @@
+id: comparisons
+name: Comparisons
+filters:
+  tickers:
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - TSLA
+    - NVDA
+panels:
+  - id: comparison-chart
+    type: comparison-chart
+    title: "% Changes"
+    layout: { x: 0, y: 0, w: 12, h: 10 }
+    inputs:
+      time_range: 1y
+    refresh_interval: 60
+
+  - id: rsi-comparison
+    type: rsi-comparison
+    title: RSI (14) Comparison
+    layout: { x: 0, y: 10, w: 6, h: 10 }
+    inputs:
+      time_range: 1y
+    refresh_interval: 60
+
+  - id: eps-beat
+    type: eps-beat
+    title: EPS Beat / Miss (%)
+    layout: { x: 6, y: 10, w: 6, h: 10 }
+    inputs: {}
+    refresh_interval: 120
+
+  - id: comparison-grid
+    type: comparison-grid
+    title: Ticker Metrics
+    layout: { x: 0, y: 20, w: 12, h: 14 }
+    inputs: {}
+    refresh_interval: 120
+
+  - id: line-chart
+    type: line-chart
+    title: Price History
+    layout: { x: 0, y: 34, w: 6, h: 10 }
+    inputs:
+      time_range: 1y
+    refresh_interval: 60
+
+  - id: forward-pe
+    type: forward-pe
+    title: Forward PE Comparison
+    layout: { x: 6, y: 34, w: 6, h: 10 }
+    inputs: {}
+    refresh_interval: 300

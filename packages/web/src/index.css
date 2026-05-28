@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+.react-grid-item {
+  @apply bg-white rounded-lg shadow border border-gray-200 overflow-hidden;
+}
+
+.react-grid-item.react-grid-placeholder {
+  @apply bg-blue-100 opacity-50 rounded-lg;
+}
+
+/* Subtle resize handles — no blue backgrounds, just subtle gray indicators */
+.react-resizable-handle {
+  z-index: 10;
+}
+
+.react-resizable-handle-se::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
+  border-radius: 0 0 2px 0;
+}
+
+.react-resizable-handle-e::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 14px;
+  border-left: 2px solid #9ca3af;
+  border-right: 2px solid #9ca3af;
+  border-radius: 2px;
+}
+
+.react-resizable-handle-s::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 3px;
+  border-top: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
+  border-radius: 2px;
+}

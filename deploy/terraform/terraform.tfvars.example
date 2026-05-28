@@ -1,0 +1,18 @@
+# Copy this to terraform.tfvars and fill in your values
+hcloud_token = "YOUR_HETZNER_CLOUD_API_TOKEN"
+
+# Optional overrides
+# ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+# server_type         = "cx23"
+# location            = "nbg1"
+# enable_backups      = false
+
+# ── Cloudflare DNS (optional) ─────────────────────────────────
+# Get these from your Cloudflare dashboard:
+#   - Zone ID: Domain Overview → Zone ID (right sidebar)
+#   - API Token: My Profile → API Tokens → Create Token
+#     Use the "Edit zone DNS" template, select your domain
+#
+# cloudflare_api_token = "YOUR_CLOUDFLARE_API_TOKEN"
+# cloudflare_zone_id   = "YOUR_CLOUDFLARE_ZONE_ID"
+# cloudflare_proxied   = true
