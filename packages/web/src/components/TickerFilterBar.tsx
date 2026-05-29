@@ -1,4 +1,4 @@
-import { X, Search, RefreshCw, Eye, EyeOff, Trash2, Lock, Unlock } from "lucide-react";
+import { X, Search, RefreshCw, Eye, EyeOff, Trash2, Lock, Unlock, Plus } from "lucide-react";
 import type { TickerSearchResult } from "../lib/api";
 
 interface TickerFilterBarProps {
@@ -21,6 +21,7 @@ interface TickerFilterBarProps {
   onSelectSearchResult: (symbol: string) => void;
   searchRef: React.RefObject<HTMLDivElement | null>;
   extraControls?: React.ReactNode;
+  onAddPanel?: () => void;
 }
 
 export default function TickerFilterBar({
@@ -43,11 +44,12 @@ export default function TickerFilterBar({
   onSelectSearchResult,
   searchRef,
   extraControls,
+  onAddPanel,
 }: TickerFilterBarProps) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 px-4 py-2 bg-white border-b border-gray-200 shrink-0">
-      <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2 py-1.5 border border-gray-200">
-        <span className="text-xs text-gray-500 font-medium mr-1">Tickers:</span>
+    <header className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 py-2 bg-white border-b border-gray-200 shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 bg-gray-50 rounded-lg px-2 py-1.5 border border-gray-200">
+        <span className="text-xs text-gray-500 font-medium mr-1 shrink-0">Tickers:</span>
         {tickers.map((t) => {
           const isDisabled = disabledTickers.has(t);
           return (
@@ -83,7 +85,7 @@ export default function TickerFilterBar({
               title="Show all"
             >
               <Eye size={10} />
-              All
+              <span className="hidden sm:inline">All</span>
             </button>
             <button
               onClick={onHideAll}
@@ -91,7 +93,7 @@ export default function TickerFilterBar({
               title="Hide all"
             >
               <EyeOff size={10} />
-              All
+              <span className="hidden sm:inline">All</span>
             </button>
             <button
               onClick={onClear}
@@ -99,7 +101,7 @@ export default function TickerFilterBar({
               title="Clear all tickers"
             >
               <Trash2 size={10} />
-              Clear
+              <span className="hidden sm:inline">Clear</span>
             </button>
           </div>
         )}
@@ -107,9 +109,9 @@ export default function TickerFilterBar({
         {/* Search input with dropdown */}
         <div ref={searchRef} className="relative ml-1">
           <div className="flex items-center">
-            <Search size={10} className="text-gray-400 mr-1" />
+            <Search size={10} className="text-gray-400 mr-1 shrink-0" />
             <input
-              className="w-24 bg-transparent text-xs focus:outline-none placeholder:text-gray-300"
+              className="w-20 sm:w-24 bg-transparent text-xs focus:outline-none placeholder:text-gray-300"
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value.toUpperCase())}
@@ -126,7 +128,7 @@ export default function TickerFilterBar({
               }}
             />
             {searchLoading && (
-              <RefreshCw size={10} className="text-gray-400 animate-spin ml-1" />
+              <RefreshCw size={10} className="text-gray-400 animate-spin ml-1 shrink-0" />
             )}
           </div>
 
@@ -150,13 +152,24 @@ export default function TickerFilterBar({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 ml-auto">
         {extraControls}
+
+        {onAddPanel && (
+          <button
+            onClick={onAddPanel}
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            title="Add Panel"
+          >
+            <Plus size={12} />
+            <span className="hidden sm:inline">Add Panel</span>
+          </button>
+        )}
 
         {/* Edit mode toggle */}
         <button
           onClick={onToggleEditMode}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+          className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
             isEditMode
               ? "bg-blue-600 text-white hover:bg-blue-700"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -164,16 +177,17 @@ export default function TickerFilterBar({
           title={isEditMode ? "Disable edit mode" : "Enable edit mode"}
         >
           {isEditMode ? <Unlock size={12} /> : <Lock size={12} />}
-          {isEditMode ? "Edit On" : "Edit Off"}
+          <span className="hidden sm:inline">{isEditMode ? "Edit On" : "Edit Off"}</span>
         </button>
 
         {/* Global Refresh */}
         <button
           onClick={onRefreshAll}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+          title="Refresh All"
         >
           <RefreshCw size={12} />
-          Refresh All
+          <span className="hidden sm:inline">Refresh All</span>
         </button>
       </div>
     </header>

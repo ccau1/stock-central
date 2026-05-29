@@ -2,6 +2,7 @@ import { Responsive, useContainerWidth } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useCallback } from "react";
+import { X } from "lucide-react";
 import type { PanelConfig } from "../lib/api";
 import { PanelRenderer } from "../panels/core";
 import type { DashboardFilters } from "../panels/core";
@@ -54,6 +55,7 @@ interface DashboardGridProps {
   onLayoutChange: (layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
   isEditMode: boolean;
   panelWrapperClassName?: string;
+  onRemovePanel?: (panelId: string) => void;
 }
 
 export default function DashboardGrid({
@@ -64,6 +66,7 @@ export default function DashboardGrid({
   onRefreshPanel,
   onLayoutChange,
   isEditMode,
+  onRemovePanel,
   panelWrapperClassName = "bg-white rounded-lg shadow border border-gray-200 overflow-hidden",
 }: DashboardGridProps) {
   const { width, containerRef } = useContainerWidth();
@@ -91,7 +94,16 @@ export default function DashboardGrid({
         resizeConfig={{ enabled: isEditMode, handles: ["se", "e", "s"] }}
       >
         {panels.map((panel) => (
-          <div key={panel.id} className={panelWrapperClassName}>
+          <div key={panel.id} className={`${panelWrapperClassName} relative group`}>
+            {isEditMode && onRemovePanel && (
+              <button
+                onClick={() => onRemovePanel(panel.id)}
+                className="absolute top-1 right-1 z-10 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Remove panel"
+              >
+                <X size={12} />
+              </button>
+            )}
             <PanelRenderer
               panel={panel}
               filters={filters}

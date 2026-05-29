@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Tooltip } from "react-tooltip";
 import "react-tooltip/dist/react-tooltip.css";
 import Layout from "./components/Layout";
@@ -10,26 +10,31 @@ import HeatmapPage from "./pages/HeatmapPage";
 import DashboardPage from "./pages/DashboardPage";
 import DashboardListPage from "./pages/DashboardListPage";
 
+const router = createBrowserRouter([
+  {
+    element: <Layout />,
+    children: [
+      { path: "/", element: <MacroPage /> },
+      { path: "/rrg", element: <RrgPage /> },
+      { path: "/comparisons", element: <ComparisonsPage /> },
+      { path: "/ticker/:symbol", element: <TickerDetailPage /> },
+      { path: "/heatmap", element: <HeatmapPage /> },
+      { path: "/dashboards", element: <DashboardListPage /> },
+      { path: "/dashboard/:id", element: <DashboardPage /> },
+    ],
+  },
+]);
+
 function App() {
   return (
-    <BrowserRouter>
+    <>
       <Tooltip
         id="filter-tooltip"
         className="!bg-gray-900 !text-white !text-[11px] !px-2.5 !py-1.5 !rounded-lg !max-w-[240px] !z-[9999] !shadow-lg"
         classNameArrow="!bg-gray-900"
       />
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<MacroPage />} />
-          <Route path="/rrg" element={<RrgPage />} />
-          <Route path="/comparisons" element={<ComparisonsPage />} />
-          <Route path="/ticker/:symbol" element={<TickerDetailPage />} />
-          <Route path="/heatmap" element={<HeatmapPage />} />
-          <Route path="/dashboards" element={<DashboardListPage />} />
-          <Route path="/dashboard/:id" element={<DashboardPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+      <RouterProvider router={router} />
+    </>
   );
 }
 

@@ -170,13 +170,13 @@ export default function RrgPage() {
           <h1 className="text-xl font-bold text-gray-900">Relative Rotation Graph</h1>
           <p className="text-xs text-gray-500 mt-0.5">Relative rotation vs {benchmark}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Search */}
           <div ref={searchRef} className="relative">
             <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5">
-              <Search size={12} className="text-gray-400" />
+              <Search size={12} className="text-gray-400 shrink-0" />
               <input
-                className="w-28 bg-transparent text-xs focus:outline-none placeholder:text-gray-300"
+                className="w-24 sm:w-28 bg-transparent text-xs focus:outline-none placeholder:text-gray-300"
                 placeholder="Add ticker..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value.toUpperCase())}
@@ -186,7 +186,7 @@ export default function RrgPage() {
                   }
                 }}
               />
-              {searchLoading && <RefreshCw size={10} className="text-gray-400 animate-spin" />}
+              {searchLoading && <RefreshCw size={10} className="text-gray-400 animate-spin shrink-0" />}
             </div>
             {showDropdown && searchResults.length > 0 && (
               <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-60 overflow-auto">
@@ -209,20 +209,21 @@ export default function RrgPage() {
 
           <button
             onClick={fetchRrg}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+            title="Refresh"
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
         <div className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1.5 border border-gray-200">
-          <Settings2 size={12} className="text-gray-400" />
-          <span className="text-[10px] text-gray-500 font-medium">Benchmark:</span>
-          <HelpCircle size={10} className="text-gray-400 cursor-help" data-tooltip-id="filter-tooltip" data-tooltip-content="The reference index used to calculate relative strength and momentum for each ticker." />
+          <Settings2 size={12} className="text-gray-400 shrink-0" />
+          <span className="hidden sm:inline text-[10px] text-gray-500 font-medium">Benchmark:</span>
+          <HelpCircle size={10} className="text-gray-400 cursor-help shrink-0" data-tooltip-id="filter-tooltip" data-tooltip-content="The reference index used to calculate relative strength and momentum for each ticker." />
           <select
             className="text-xs bg-transparent focus:outline-none"
             value={benchmark}
@@ -235,8 +236,8 @@ export default function RrgPage() {
           </select>
         </div>
         <div className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1.5 border border-gray-200">
-          <span className="text-[10px] text-gray-500 font-medium">Lookback:</span>
-          <HelpCircle size={10} className="text-gray-400 cursor-help" data-tooltip-id="filter-tooltip" data-tooltip-content="Time period over which relative strength and momentum are calculated." />
+          <span className="hidden sm:inline text-[10px] text-gray-500 font-medium">Lookback:</span>
+          <HelpCircle size={10} className="text-gray-400 cursor-help shrink-0" data-tooltip-id="filter-tooltip" data-tooltip-content="Time period over which relative strength and momentum are calculated." />
           <select
             className="text-xs bg-transparent focus:outline-none"
             value={lookback}
@@ -249,8 +250,8 @@ export default function RrgPage() {
           </select>
         </div>
         <div className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1.5 border border-gray-200">
-          <span className="text-[10px] text-gray-500 font-medium">Trail:</span>
-          <HelpCircle size={10} className="text-gray-400 cursor-help" data-tooltip-id="filter-tooltip" data-tooltip-content="Number of historical data points shown as a trailing path on the chart." />
+          <span className="hidden sm:inline text-[10px] text-gray-500 font-medium">Trail:</span>
+          <HelpCircle size={10} className="text-gray-400 cursor-help shrink-0" data-tooltip-id="filter-tooltip" data-tooltip-content="Number of historical data points shown as a trailing path on the chart." />
           <input
             type="range"
             min={1}
@@ -258,13 +259,13 @@ export default function RrgPage() {
             step={1}
             value={trailLength}
             onChange={(e) => setTrailLength(Number(e.target.value))}
-            className="w-24 h-1 accent-gray-900 cursor-pointer"
+            className="w-16 sm:w-24 h-1 accent-gray-900 cursor-pointer"
           />
           <span className="text-xs font-medium text-gray-700 w-5 text-right">{trailLength}</span>
         </div>
         <div className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1.5 border border-gray-200">
-          <span className="text-[10px] text-gray-500 font-medium">Group:</span>
-          <HelpCircle size={10} className="text-gray-400 cursor-help" data-tooltip-id="filter-tooltip" data-tooltip-content="Preset collection of tickers to analyze together." />
+          <span className="hidden sm:inline text-[10px] text-gray-500 font-medium">Group:</span>
+          <HelpCircle size={10} className="text-gray-400 cursor-help shrink-0" data-tooltip-id="filter-tooltip" data-tooltip-content="Preset collection of tickers to analyze together." />
           <select
             className="text-xs bg-transparent focus:outline-none"
             value={group}
@@ -316,7 +317,7 @@ export default function RrgPage() {
                 title="Show all"
               >
                 <Eye size={10} />
-                All
+                <span className="hidden sm:inline">All</span>
               </button>
               <button
                 onClick={hideAllTickers}
@@ -324,7 +325,7 @@ export default function RrgPage() {
                 title="Hide all"
               >
                 <EyeOff size={10} />
-                All
+                <span className="hidden sm:inline">All</span>
               </button>
               <button
                 onClick={clearTickers}
@@ -332,7 +333,7 @@ export default function RrgPage() {
                 title="Clear all tickers"
               >
                 <Trash2 size={10} />
-                Clear
+                <span className="hidden sm:inline">Clear</span>
               </button>
             </div>
           )}

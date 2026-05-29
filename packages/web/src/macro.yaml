@@ -52,10 +52,10 @@ panels:
   # Row 6: Stock heatmap (full width)
   - id: stock-heatmap
     type: stock-heatmap
-    title: Nasdaq 100 Heat Map
+    title: S&P 500 Heat Map
     layout: { x: 0, y: 6, w: 12, h: 14 }
     inputs:
-      universe: nasdaq100
+      universe: sp500
     refresh_interval: 300
 
   # Row 20: Market internals

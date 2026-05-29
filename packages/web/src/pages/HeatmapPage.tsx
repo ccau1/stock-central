@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { RefreshCw, ChevronDown } from "lucide-react";
+import { RefreshCw, ChevronDown, LayoutGrid, List } from "lucide-react";
 import { dataApi } from "../lib/api";
 import type { HeatmapData, HeatmapUniverse } from "../lib/api";
 import StockTreemap from "../components/StockTreemap";
 
 export default function HeatmapPage() {
-  const [universe, setUniverse] = useState<string>("nasdaq100");
+  const [universe, setUniverse] = useState<string>("sp500");
   const [groupBy, setGroupBy] = useState<"sector" | "industry">("industry");
   const [universes, setUniverses] = useState<HeatmapUniverse[]>([]);
   const [data, setData] = useState<HeatmapData | null>(null);
@@ -17,9 +17,9 @@ export default function HeatmapPage() {
   useEffect(() => {
     dataApi.getHeatmapUniverses().then(setUniverses).catch(() => {
       setUniverses([
+        { id: "sp500", name: "S&P 500 Index" },
         { id: "nasdaq100", name: "Nasdaq 100 Index" },
         { id: "nasdaqComposite", name: "Nasdaq Composite Index" },
-        { id: "sp500", name: "S&P 500 Index" },
         { id: "dowjones30", name: "Dow Jones Industrial Average" },
         { id: "dowjones20", name: "Dow Jones Transportation Average" },
         { id: "dowjones15", name: "Dow Jones Utility Average" },
@@ -70,14 +70,14 @@ export default function HeatmapPage() {
           <h1 className="text-xl font-bold text-gray-900">Stock Heatmap</h1>
           <p className="text-xs text-gray-500 mt-0.5">Market-cap weighted performance by {groupBy}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Universe dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
+              className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
             >
-              <span className="truncate max-w-[180px]">{selectedName}</span>
+              <span className="truncate max-w-[120px] sm:max-w-[180px]">{selectedName}</span>
               <ChevronDown size={12} />
             </button>
             {showDropdown && (
@@ -104,28 +104,33 @@ export default function HeatmapPage() {
           <div className="flex items-center bg-white border border-gray-200 rounded-lg px-1 py-1">
             <button
               onClick={() => setGroupBy("sector")}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                 groupBy === "sector" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
               }`}
+              title="Sector"
             >
-              Sector
+              <LayoutGrid size={12} />
+              <span className="hidden sm:inline">Sector</span>
             </button>
             <button
               onClick={() => setGroupBy("industry")}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                 groupBy === "industry" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
               }`}
+              title="Industry"
             >
-              Industry
+              <List size={12} />
+              <span className="hidden sm:inline">Industry</span>
             </button>
           </div>
 
           <button
             onClick={fetchHeatmap}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+            title="Refresh"
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </div>

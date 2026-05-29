@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 )
@@ -102,6 +103,15 @@ type ChartPoint struct {
 	Price float64 `json:"price"`
 }
 
+type Candle struct {
+	Date   string  `json:"date"`
+	Open   float64 `json:"open"`
+	High   float64 `json:"high"`
+	Low    float64 `json:"low"`
+	Close  float64 `json:"close"`
+	Volume int64   `json:"volume"`
+}
+
 func GetChart(symbol, rangeVal, interval string) ([]ChartPoint, error) {
 	if interval == "" {
 		interval = mapRangeToInterval(rangeVal)
@@ -130,7 +140,11 @@ func GetChart(symbol, rangeVal, interval string) ([]ChartPoint, error) {
 				Timestamp []int64 `json:"timestamp"`
 				Indicators  struct {
 					Quote []struct {
+						Open  []float64 `json:"open"`
+						High  []float64 `json:"high"`
+						Low   []float64 `json:"low"`
 						Close []float64 `json:"close"`
+						Volume []int64   `json:"volume"`
 					} `json:"quote"`
 				} `json:"indicators"`
 			} `json:"result"`
@@ -154,18 +168,95 @@ func GetChart(symbol, rangeVal, interval string) ([]ChartPoint, error) {
 	if len(r.Indicators.Quote) == 0 || len(r.Indicators.Quote[0].Close) == 0 {
 		return nil, fmt.Errorf("no price data for %s", symbol)
 	}
-	closes := r.Indicators.Quote[0].Close
+	q := r.Indicators.Quote[0]
 
 	var points []ChartPoint
 	for i, ts := range timestamps {
-		if i < len(closes) {
+		if i < len(q.Close) && q.Close[i] != 0 {
 			points = append(points, ChartPoint{
 				Date:  time.Unix(ts, 0).Format("2006-01-02"),
-				Price: closes[i],
+				Price: q.Close[i],
 			})
 		}
 	}
 	return points, nil
+}
+
+func GetCandles(symbol, rangeVal, interval string) ([]Candle, error) {
+	if interval == "" {
+		interval = mapRangeToInterval(rangeVal)
+	}
+	yahooRange := ToYahooRange(rangeVal)
+	u := fmt.Sprintf(
+		"https://query1.finance.yahoo.com/v8/finance/chart/%s?range=%s&interval=%s",
+		url.QueryEscape(symbol),
+		url.QueryEscape(yahooRange),
+		url.QueryEscape(interval),
+	)
+	body, err := yahooFetch(u)
+	if err != nil {
+		if err := ensureYahooSession(); err == nil {
+			body, err = yahooFetch(u)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var resp struct {
+		Chart struct {
+			Result []struct {
+				Timestamp []int64 `json:"timestamp"`
+				Indicators  struct {
+					Quote []struct {
+						Open   []float64 `json:"open"`
+						High   []float64 `json:"high"`
+						Low    []float64 `json:"low"`
+						Close  []float64 `json:"close"`
+						Volume []int64   `json:"volume"`
+					} `json:"quote"`
+				} `json:"indicators"`
+			} `json:"result"`
+			Error *struct {
+				Description string `json:"description"`
+			} `json:"error"`
+		} `json:"chart"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+	if resp.Chart.Error != nil {
+		return nil, fmt.Errorf("yahoo chart error: %s", resp.Chart.Error.Description)
+	}
+	if len(resp.Chart.Result) == 0 {
+		return nil, fmt.Errorf("no chart data for %s", symbol)
+	}
+
+	r := resp.Chart.Result[0]
+	timestamps := r.Timestamp
+	if len(r.Indicators.Quote) == 0 || len(r.Indicators.Quote[0].Close) == 0 {
+		return nil, fmt.Errorf("no price data for %s", symbol)
+	}
+	q := r.Indicators.Quote[0]
+
+	var candles []Candle
+	for i, ts := range timestamps {
+		if i >= len(q.Close) || q.Close[i] == 0 {
+			continue
+		}
+		c := Candle{
+			Date:  time.Unix(ts, 0).Format(time.RFC3339),
+			Open:  q.Open[i],
+			High:  q.High[i],
+			Low:   q.Low[i],
+			Close: q.Close[i],
+		}
+		if i < len(q.Volume) {
+			c.Volume = q.Volume[i]
+		}
+		candles = append(candles, c)
+	}
+	return candles, nil
 }
 
 func mapRangeToInterval(rangeVal string) string {
@@ -555,6 +646,73 @@ func yahooFetch(url string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
 	}
 	return io.ReadAll(resp.Body)
+}
+
+// ---------- News ----------
+
+type YahooNewsArticle struct {
+	UUID              string `json:"uuid"`
+	Title             string `json:"title"`
+	Publisher         string `json:"publisher"`
+	Link              string `json:"link"`
+	ProviderPublishTime int64  `json:"providerPublishTime"`
+	Type              string `json:"type"`
+}
+
+func GetNews(symbols []string, limit int) ([]YahooNewsArticle, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	perSymbol := limit * 2
+	if perSymbol < 10 {
+		perSymbol = 10
+	}
+
+	seen := make(map[string]bool)
+	var all []YahooNewsArticle
+
+	for _, sym := range symbols {
+		u := fmt.Sprintf(
+			"https://query1.finance.yahoo.com/v1/finance/search?q=%s&quotesCount=0&newsCount=%d&enableFuzzyQuery=false",
+			url.QueryEscape(sym),
+			perSymbol,
+		)
+		body, err := yahooFetch(u)
+		if err != nil {
+			// Retry once after refreshing session
+			if err := ensureYahooSession(); err == nil {
+				body, err = yahooFetch(u)
+			}
+			if err != nil {
+				continue // skip failed symbols rather than failing entirely
+			}
+		}
+
+		var resp struct {
+			News []YahooNewsArticle `json:"news"`
+		}
+		if err := json.Unmarshal(body, &resp); err != nil {
+			continue
+		}
+
+		for _, article := range resp.News {
+			if seen[article.UUID] {
+				continue
+			}
+			seen[article.UUID] = true
+			all = append(all, article)
+		}
+	}
+
+	// Sort by publish time descending
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].ProviderPublishTime > all[j].ProviderPublishTime
+	})
+
+	if len(all) > limit {
+		all = all[:limit]
+	}
+	return all, nil
 }
 
 // ---------- Options Chain ----------

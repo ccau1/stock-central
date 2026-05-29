@@ -19,6 +19,7 @@ export interface NewsItem {
   source: string;
   published: string;
   summary: string;
+  url?: string;
 }
 
 export interface FearGreedData {
@@ -189,6 +190,43 @@ export interface OptionsData {
   put_call_oi_ratio: number;
 }
 
+export interface CandleData {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface IndicatorPoint {
+  date: string;
+  value: number;
+}
+
+export interface IndicatorSeries {
+  name: string;
+  points: IndicatorPoint[];
+}
+
+export interface IndicatorsResponse {
+  symbol: string;
+  indicators: IndicatorSeries[];
+}
+
+export interface FormulaRequest {
+  symbol: string;
+  range: string;
+  interval: string;
+  formula: string;
+}
+
+export interface FormulaResponse {
+  symbol: string;
+  name: string;
+  points: IndicatorPoint[];
+}
+
 export interface TickerDetail {
   symbol: string;
   price: MetricData | null;
@@ -288,6 +326,21 @@ export const dataApi = {
     fetchJSON<IPOEntry[]>(`/data/macro/ipos?limit=${limit || 5}`),
   getOptions: (symbols: string[]) =>
     fetchJSON<OptionsData[]>(`/data/options?symbols=${symbols.join(",")}`),
+  getCandles: (symbol: string, range: string, interval: string) =>
+    fetchJSON<CandleData[]>(`/data/candles?symbol=${encodeURIComponent(symbol)}&range=${range}&interval=${interval}`),
+  getIndicators: (symbol: string, range: string, interval: string, types: string[], params?: Record<string, string>) => {
+    const query = new URLSearchParams();
+    query.set("symbol", symbol);
+    query.set("range", range);
+    query.set("interval", interval);
+    query.set("types", types.join(","));
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => query.set(k, v));
+    }
+    return fetchJSON<IndicatorsResponse>(`/data/indicators?${query.toString()}`);
+  },
+  postFormula: (req: FormulaRequest) =>
+    fetchJSON<FormulaResponse>("/data/formula", { method: "POST", body: JSON.stringify(req) }),
 
   searchTickers: (query: string) =>
     fetchJSON<TickerSearchResult[]>(`/tickers/search?q=${encodeURIComponent(query)}`),

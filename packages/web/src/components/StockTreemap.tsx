@@ -109,9 +109,8 @@ export default function StockTreemap({ data }: Props) {
     treemap()
       .tile(treemapSquarify)
       .size([size.width, size.height])
-      .paddingTop(22)
-      .paddingInner(2)
-      .round(true)(root);
+      .paddingTop((d: any) => (d.depth === 0 ? 0 : 22))
+      .paddingInner(2)(root);
 
     const nodes: TreemapNode[] = [];
     const sectorNodes: SectorNode[] = [];

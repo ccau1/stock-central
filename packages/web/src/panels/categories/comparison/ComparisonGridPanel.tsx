@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { PanelProps, PanelDefinition } from "../../core/types";
 import { dataApi } from "../../../lib/api";
+import type { OptionsData } from "../../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../../core";
 
 export function ComparisonGridPanel({ title, tickers, enabledTickers, refreshKey, onRefresh, description }: PanelProps) {
@@ -11,19 +12,22 @@ export function ComparisonGridPanel({ title, tickers, enabledTickers, refreshKey
   const rsiState = usePanelData(() => dataApi.getRsi(symbols), [symbols.join(","), refreshKey]);
   const ytdState = usePanelData(() => dataApi.getYtd(symbols), [symbols.join(","), refreshKey]);
   const mcState = usePanelData(() => dataApi.getMetric(symbols, "market_cap"), [symbols.join(","), refreshKey]);
+  const optState = usePanelData<OptionsData[]>(() => dataApi.getOptions(symbols), [symbols.join(","), refreshKey]);
 
-  const loading = fpState.loading || rsiState.loading || ytdState.loading || mcState.loading;
-  const error = fpState.error || rsiState.error || ytdState.error || mcState.error;
+  const loading = fpState.loading || rsiState.loading || ytdState.loading || mcState.loading || optState.loading;
+  const error = fpState.error || rsiState.error || ytdState.error || mcState.error || optState.error;
 
   const forwardPe = fpState.data;
   const rsi = rsiState.data;
   const ytd = ytdState.data;
   const marketCap = mcState.data;
+  const options = optState.data;
 
   const getFp = (sym: string) => forwardPe?.find((d: any) => d.symbol === sym);
   const getRsi = (sym: string) => rsi?.find((d: any) => d.symbol === sym);
   const getYtd = (sym: string) => ytd?.find((d: any) => d.symbol === sym);
   const getMc = (sym: string) => marketCap?.find((d: any) => d.symbol === sym);
+  const getOpt = (sym: string) => options?.find((d) => d.symbol === sym);
 
   if (loading && !forwardPe) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
@@ -191,6 +195,56 @@ export function ComparisonGridPanel({ title, tickers, enabledTickers, refreshKey
                     </div>
                   </div>
                 )}
+
+                {/* Put / Call */}
+                {(() => {
+                  const opt = getOpt(sym);
+                  if (!opt) return null;
+                  const totalVol = opt.call_volume + opt.put_volume;
+                  const totalOI = opt.call_oi + opt.put_oi;
+                  const callVolPct = totalVol > 0 ? (opt.call_volume / totalVol) * 100 : 0;
+                  const putVolPct = totalVol > 0 ? (opt.put_volume / totalVol) * 100 : 0;
+                  const callOIPct = totalOI > 0 ? (opt.call_oi / totalOI) * 100 : 0;
+                  const putOIPct = totalOI > 0 ? (opt.put_oi / totalOI) * 100 : 0;
+                  return (
+                    <div className="pt-2 border-t border-gray-100 space-y-2">
+                      {/* Volume Ratio */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-gray-500">Volume Ratio (P/C)</span>
+                          <span className={`text-xs font-bold ${opt.put_call_volume_ratio > 1 ? "text-red-600" : "text-green-600"}`}>
+                            {opt.put_call_volume_ratio.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500" style={{ width: `${callVolPct}%` }} />
+                          <div className="h-full bg-red-500" style={{ width: `${putVolPct}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-0.5">
+                          <span className="text-[9px] text-gray-400">C {formatCompact(opt.call_volume)}</span>
+                          <span className="text-[9px] text-gray-400">P {formatCompact(opt.put_volume)}</span>
+                        </div>
+                      </div>
+                      {/* OI Ratio */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-gray-500">OI Ratio (P/C)</span>
+                          <span className={`text-xs font-bold ${opt.put_call_oi_ratio > 1 ? "text-red-600" : "text-green-600"}`}>
+                            {opt.put_call_oi_ratio.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500" style={{ width: `${callOIPct}%` }} />
+                          <div className="h-full bg-red-500" style={{ width: `${putOIPct}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-0.5">
+                          <span className="text-[9px] text-gray-400">C {formatCompact(opt.call_oi)}</span>
+                          <span className="text-[9px] text-gray-400">P {formatCompact(opt.put_oi)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
@@ -198,6 +252,12 @@ export function ComparisonGridPanel({ title, tickers, enabledTickers, refreshKey
       </div>
     </PanelContainer>
   );
+}
+
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return n.toString();
 }
 
 export const comparisonGridPanel: PanelDefinition = {

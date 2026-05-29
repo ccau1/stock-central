@@ -39,6 +39,7 @@ type NewsItem struct {
 	Source    string `json:"source"`
 	Published string `json:"published"`
 	Summary   string `json:"summary"`
+	URL       string `json:"url"`
 }
 
 type FearGreedData struct {
@@ -182,11 +183,51 @@ type OptionsData struct {
 	PutCallOIRatio     float64 `json:"put_call_oi_ratio"`
 }
 
+type CandleResponse struct {
+	Date   string  `json:"date"`
+	Open   float64 `json:"open"`
+	High   float64 `json:"high"`
+	Low    float64 `json:"low"`
+	Close  float64 `json:"close"`
+	Volume int64   `json:"volume"`
+}
+
+type IndicatorPoint struct {
+	Date  string  `json:"date"`
+	Value float64 `json:"value"`
+}
+
+type IndicatorSeries struct {
+	Name   string           `json:"name"`
+	Points []IndicatorPoint `json:"points"`
+}
+
+type IndicatorsResponse struct {
+	Symbol     string            `json:"symbol"`
+	Indicators []IndicatorSeries `json:"indicators"`
+}
+
+type FormulaRequest struct {
+	Symbol   string `json:"symbol"`
+	Range    string `json:"range"`
+	Interval string `json:"interval"`
+	Formula  string `json:"formula"`
+}
+
+type FormulaResponse struct {
+	Symbol string           `json:"symbol"`
+	Name   string           `json:"name"`
+	Points []IndicatorPoint `json:"points"`
+}
+
 
 // ---------- Routes ----------
 
 func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/price", a.getPriceHistory)
+	r.Get("/candles", a.getCandles)
+	r.Get("/indicators", a.getIndicators)
+	r.Post("/formula", a.postFormula)
 	r.Get("/metric", a.getMetric)
 	r.Get("/news", a.getNews)
 	r.Get("/fear-greed", a.getFearGreed)
@@ -235,6 +276,169 @@ func (a *API) getPriceHistory(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, result)
 }
 
+func (a *API) getCandles(w http.ResponseWriter, r *http.Request) {
+	symbol := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("symbol")))
+	if symbol == "" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("symbol is required"))
+		return
+	}
+	rangeVal := r.URL.Query().Get("range")
+	if rangeVal == "" {
+		rangeVal = "1y"
+	}
+	interval := r.URL.Query().Get("interval")
+	if interval == "" {
+		interval = "1d"
+	}
+
+	candles, err := client.GetCandles(symbol, rangeVal, interval)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	var result []CandleResponse
+	for _, c := range candles {
+		result = append(result, CandleResponse{
+			Date:   c.Date,
+			Open:   math.Round(c.Open*100) / 100,
+			High:   math.Round(c.High*100) / 100,
+			Low:    math.Round(c.Low*100) / 100,
+			Close:  math.Round(c.Close*100) / 100,
+			Volume: c.Volume,
+		})
+	}
+	respondJSON(w, http.StatusOK, result)
+}
+
+func (a *API) getIndicators(w http.ResponseWriter, r *http.Request) {
+	symbol := strings.TrimSpace(strings.ToUpper(r.URL.Query().Get("symbol")))
+	if symbol == "" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("symbol is required"))
+		return
+	}
+	rangeVal := r.URL.Query().Get("range")
+	if rangeVal == "" {
+		rangeVal = "1y"
+	}
+	interval := r.URL.Query().Get("interval")
+	if interval == "" {
+		interval = "1d"
+	}
+	types := strings.Split(r.URL.Query().Get("types"), ",")
+
+	candles, err := client.GetCandles(symbol, rangeVal, interval)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	var indicators []IndicatorSeries
+	for _, t := range types {
+		t = strings.TrimSpace(strings.ToLower(t))
+		switch t {
+		case "sma":
+			periodStr := r.URL.Query().Get("sma_period")
+			period, _ := strconv.Atoi(periodStr)
+			if period <= 0 {
+				period = 20
+			}
+			indicators = append(indicators, computeSMASeries(candles, period))
+		case "ema":
+			periodStr := r.URL.Query().Get("ema_period")
+			period, _ := strconv.Atoi(periodStr)
+			if period <= 0 {
+				period = 20
+			}
+			indicators = append(indicators, computeEMASeries(candles, period))
+		case "bollinger":
+			periodStr := r.URL.Query().Get("bb_period")
+			period, _ := strconv.Atoi(periodStr)
+			if period <= 0 {
+				period = 20
+			}
+			multStr := r.URL.Query().Get("bb_mult")
+			mult, _ := strconv.ParseFloat(multStr, 64)
+			if mult <= 0 {
+				mult = 2.0
+			}
+			upper, mid, lower := computeBollingerSeries(candles, period, mult)
+			indicators = append(indicators, upper, mid, lower)
+		case "rsi":
+			periodStr := r.URL.Query().Get("rsi_period")
+			period, _ := strconv.Atoi(periodStr)
+			if period <= 0 {
+				period = 14
+			}
+			indicators = append(indicators, computeRSISeries(candles, period))
+		case "macd":
+			fastStr := r.URL.Query().Get("macd_fast")
+			slowStr := r.URL.Query().Get("macd_slow")
+			signalStr := r.URL.Query().Get("macd_signal")
+			fast, _ := strconv.Atoi(fastStr)
+			slow, _ := strconv.Atoi(slowStr)
+			signal, _ := strconv.Atoi(signalStr)
+			if fast <= 0 {
+				fast = 12
+			}
+			if slow <= 0 {
+				slow = 26
+			}
+			if signal <= 0 {
+				signal = 9
+			}
+			macdLine, signalLine, hist := computeMACDSeries(candles, fast, slow, signal)
+			indicators = append(indicators, macdLine, signalLine, hist)
+		}
+	}
+
+	respondJSON(w, http.StatusOK, IndicatorsResponse{
+		Symbol:     symbol,
+		Indicators: indicators,
+	})
+}
+
+func (a *API) postFormula(w http.ResponseWriter, r *http.Request) {
+	var req FormulaRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("invalid json: %w", err))
+		return
+	}
+	symbol := strings.TrimSpace(strings.ToUpper(req.Symbol))
+	if symbol == "" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("symbol is required"))
+		return
+	}
+	if req.Range == "" {
+		req.Range = "1y"
+	}
+	if req.Interval == "" {
+		req.Interval = "1d"
+	}
+	if strings.TrimSpace(req.Formula) == "" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("formula is required"))
+		return
+	}
+
+	candles, err := client.GetCandles(symbol, req.Range, req.Interval)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	result, err := evaluateFormulaExpression(candles, req.Formula)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, FormulaResponse{
+		Symbol: symbol,
+		Name:   req.Formula,
+		Points: result,
+	})
+}
+
 func (a *API) getMetric(w http.ResponseWriter, r *http.Request) {
 	symbols := parseSymbols(r.URL.Query().Get("symbols"))
 	if len(symbols) == 0 {
@@ -274,14 +478,19 @@ func (a *API) getNews(w http.ResponseWriter, r *http.Request) {
 		limit = 5
 	}
 
+	articles, err := client.GetNews(symbols, limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	var result []NewsItem
-	for i := 0; i < limit; i++ {
-		sym := symbols[i%len(symbols)]
+	for _, article := range articles {
 		result = append(result, NewsItem{
-			Title:     sym + " " + mockNewsHeadlines[i%len(mockNewsHeadlines)],
-			Source:    mockSources[i%len(mockSources)],
-			Published: time.Now().Add(-time.Duration(i) * time.Hour).Format("2006-01-02 15:04"),
-			Summary:   "Lorem ipsum dolor sit amet, consectetur adipiscing elit...",
+			Title:     article.Title,
+			Source:    article.Publisher,
+			Published: time.Unix(article.ProviderPublishTime, 0).Format(time.RFC3339),
+			URL:       article.Link,
 		})
 	}
 	respondJSON(w, http.StatusOK, result)
@@ -1039,16 +1248,235 @@ func alignAndRatio(numPoints, denPoints []client.ChartPoint) []RatioPoint {
 	return result
 }
 
-var mockNewsHeadlines = []string{
-	"beats Q3 earnings expectations",
-	"announces new product line",
-	"stock rises on analyst upgrade",
-	"faces regulatory scrutiny in EU",
-	"partners with major semiconductor firm",
-	"CEO to keynote upcoming tech conference",
-	"expands into emerging markets",
+// ---------- Technical Indicator Helpers ----------
+
+func computeSMASeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		var sum float64
+		for j := i - period + 1; j <= i; j++ {
+			sum += candles[j].Close
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(sum/float64(period)*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("SMA(%d)", period), Points: points}
 }
 
-var mockSources = []string{
-	"Bloomberg", "Reuters", "CNBC", "MarketWatch", "Financial Times",
+func computeEMASeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	if len(candles) < period {
+		return IndicatorSeries{Name: fmt.Sprintf("EMA(%d)", period), Points: points}
+	}
+	// Seed EMA with SMA
+	var sum float64
+	for i := 0; i < period; i++ {
+		sum += candles[i].Close
+	}
+	ema := sum / float64(period)
+	multiplier := 2.0 / (float64(period) + 1)
+
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		if i == period-1 {
+			ema = sum / float64(period)
+		} else {
+			ema = (candles[i].Close-ema)*multiplier + ema
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(ema*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("EMA(%d)", period), Points: points}
 }
+
+func computeBollingerSeries(candles []client.Candle, period int, mult float64) (upper, mid, lower IndicatorSeries) {
+	upper.Name = fmt.Sprintf("BB Upper(%d,%.1f)", period, mult)
+	mid.Name = fmt.Sprintf("BB Middle(%d)", period)
+	lower.Name = fmt.Sprintf("BB Lower(%d,%.1f)", period, mult)
+
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		var sum float64
+		for j := i - period + 1; j <= i; j++ {
+			sum += candles[j].Close
+		}
+		sma := sum / float64(period)
+		var variance float64
+		for j := i - period + 1; j <= i; j++ {
+			variance += math.Pow(candles[j].Close-sma, 2)
+		}
+		stddev := math.Sqrt(variance / float64(period))
+		mid.Points = append(mid.Points, IndicatorPoint{Date: candles[i].Date, Value: math.Round(sma*100) / 100})
+		upper.Points = append(upper.Points, IndicatorPoint{Date: candles[i].Date, Value: math.Round((sma+mult*stddev)*100) / 100})
+		lower.Points = append(lower.Points, IndicatorPoint{Date: candles[i].Date, Value: math.Round((sma-mult*stddev)*100) / 100})
+	}
+	return
+}
+
+func computeRSISeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	if len(candles) < period+1 {
+		return IndicatorSeries{Name: fmt.Sprintf("RSI(%d)", period), Points: points}
+	}
+	var gains, losses float64
+	for i := 1; i <= period; i++ {
+		change := candles[i].Close - candles[i-1].Close
+		if change > 0 {
+			gains += change
+		} else {
+			losses += -change
+		}
+	}
+	avgGain := gains / float64(period)
+	avgLoss := losses / float64(period)
+
+	for i := period; i < len(candles); i++ {
+		change := candles[i].Close - candles[i-1].Close
+		var gain, loss float64
+		if change > 0 {
+			gain = change
+		} else {
+			loss = -change
+		}
+		avgGain = (avgGain*float64(period-1) + gain) / float64(period)
+		avgLoss = (avgLoss*float64(period-1) + loss) / float64(period)
+
+		var rsi float64
+		if avgLoss == 0 {
+			rsi = 100
+		} else {
+			rs := avgGain / avgLoss
+			rsi = 100 - (100 / (1 + rs))
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(clamp(rsi, 0, 100)*10) / 10,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("RSI(%d)", period), Points: points}
+}
+
+func computeMACDSeries(candles []client.Candle, fast, slow, signal int) (macdLine, signalLine, hist IndicatorSeries) {
+	macdLine.Name = fmt.Sprintf("MACD(%d,%d)", fast, slow)
+	signalLine.Name = fmt.Sprintf("MACD Signal(%d)", signal)
+	hist.Name = "MACD Histogram"
+
+	if len(candles) < slow {
+		return
+	}
+
+	fastEMA := computeEMAValues(candles, fast)
+	slowEMA := computeEMAValues(candles, slow)
+
+	var macdValues []float64
+	for i := 0; i < len(candles); i++ {
+		if fastEMA[i] == 0 || slowEMA[i] == 0 {
+			macdValues = append(macdValues, 0)
+			continue
+		}
+		macdValues = append(macdValues, fastEMA[i]-slowEMA[i])
+	}
+
+	// Signal line = EMA of MACD
+	signalEMA := emaOfSlice(macdValues, signal)
+
+	for i := 0; i < len(candles); i++ {
+		if macdValues[i] == 0 || signalEMA[i] == 0 {
+			continue
+		}
+		macdLine.Points = append(macdLine.Points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(macdValues[i]*100) / 100,
+		})
+		signalLine.Points = append(signalLine.Points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(signalEMA[i]*100) / 100,
+		})
+		hist.Points = append(hist.Points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round((macdValues[i]-signalEMA[i])*100) / 100,
+		})
+	}
+	return
+}
+
+func computeEMAValues(candles []client.Candle, period int) []float64 {
+	result := make([]float64, len(candles))
+	if len(candles) < period {
+		return result
+	}
+	var sum float64
+	for i := 0; i < period; i++ {
+		sum += candles[i].Close
+	}
+	multiplier := 2.0 / (float64(period) + 1)
+	ema := sum / float64(period)
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		if i == period-1 {
+			ema = sum / float64(period)
+		} else {
+			ema = (candles[i].Close-ema)*multiplier + ema
+		}
+		result[i] = ema
+	}
+	return result
+}
+
+func emaOfSlice(values []float64, period int) []float64 {
+	result := make([]float64, len(values))
+	if len(values) < period {
+		return result
+	}
+	var sum float64
+	count := 0
+	for i := 0; i < len(values); i++ {
+		if values[i] != 0 {
+			sum += values[i]
+			count++
+		}
+		if count == period {
+			break
+		}
+	}
+	multiplier := 2.0 / (float64(period) + 1)
+	ema := sum / float64(period)
+	started := false
+	for i := 0; i < len(values); i++ {
+		if !started {
+			if values[i] != 0 {
+				if count > 0 {
+					count--
+					if count == 0 {
+						started = true
+						ema = sum / float64(period)
+						result[i] = ema
+					}
+				}
+			}
+			continue
+		}
+		if values[i] == 0 {
+			result[i] = ema
+			continue
+		}
+		ema = (values[i]-ema)*multiplier + ema
+		result[i] = ema
+	}
+	return result
+}
+
+

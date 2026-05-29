@@ -454,9 +454,9 @@ type HeatmapUniverse struct {
 }
 
 var heatmapUniverses = []HeatmapUniverse{
+	{ID: "sp500", Name: "S&P 500 Index"},
 	{ID: "nasdaq100", Name: "Nasdaq 100 Index"},
 	{ID: "nasdaqComposite", Name: "Nasdaq Composite Index"},
-	{ID: "sp500", Name: "S&P 500 Index"},
 	{ID: "dowjones30", Name: "Dow Jones Industrial Average"},
 	{ID: "dowjones20", Name: "Dow Jones Transportation Average"},
 	{ID: "dowjones15", Name: "Dow Jones Utility Average"},

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import yaml from "js-yaml";
@@ -7,10 +8,22 @@ function toCamelCase(str: string): string {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
 function mapKeysToCamelCase(obj: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const [key, value] of Object.entries(obj)) {
     result[toCamelCase(key)] = value;
+  }
+  return result;
+}
+
+function mapKeysToSnakeCase(obj: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[toSnakeCase(key)] = value;
   }
   return result;
 }
@@ -94,6 +107,8 @@ interface DashboardState {
   removeTicker: (dashboardId: string, ticker: string) => void;
   clearTickers: (dashboardId: string) => void;
   updatePanelLayouts: (dashboardId: string, layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
+  addPanel: (dashboardId: string, panel: PanelConfig) => void;
+  removePanel: (dashboardId: string, panelId: string) => void;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -235,6 +250,42 @@ export const useDashboardStore = create<DashboardState>()(
           },
         };
       }),
+
+    addPanel: (dashboardId, panel) =>
+      set((state) => {
+        const instance = state.dashboards[dashboardId];
+        if (!instance) return state;
+        return {
+          dashboards: {
+            ...state.dashboards,
+            [dashboardId]: {
+              ...instance,
+              dashboard: {
+                ...instance.dashboard,
+                panels: [...instance.dashboard.panels, panel],
+              },
+            },
+          },
+        };
+      }),
+
+    removePanel: (dashboardId, panelId) =>
+      set((state) => {
+        const instance = state.dashboards[dashboardId];
+        if (!instance) return state;
+        return {
+          dashboards: {
+            ...state.dashboards,
+            [dashboardId]: {
+              ...instance,
+              dashboard: {
+                ...instance.dashboard,
+                panels: instance.dashboard.panels.filter((p) => p.id !== panelId),
+              },
+            },
+          },
+        };
+      }),
   }))
 );
 
@@ -242,18 +293,40 @@ export function useDashboard(dashboardId: string) {
   const instance = useDashboardStore((state) => state.dashboards[dashboardId]);
   const initDashboard = useDashboardStore((state) => state.initDashboard);
 
-  return {
-    dashboard: instance?.dashboard,
-    tickers: instance?.tickers ?? [],
-    globalRefreshKey: instance?.globalRefreshKey ?? 0,
-    panelRefreshKeys: instance?.panelRefreshKeys ?? {},
-    initDashboard,
-    refreshAll: () => useDashboardStore.getState().refreshAll(dashboardId),
-    refreshPanel: (panelId: string) => useDashboardStore.getState().refreshPanel(dashboardId, panelId),
-    addTicker: (ticker: string) => useDashboardStore.getState().addTicker(dashboardId, ticker),
-    removeTicker: (ticker: string) => useDashboardStore.getState().removeTicker(dashboardId, ticker),
-    clearTickers: () => useDashboardStore.getState().clearTickers(dashboardId),
-    updatePanelLayouts: (layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) =>
-      useDashboardStore.getState().updatePanelLayouts(dashboardId, layouts),
+  return useMemo(
+    () => ({
+      dashboard: instance?.dashboard,
+      tickers: instance?.tickers ?? [],
+      globalRefreshKey: instance?.globalRefreshKey ?? 0,
+      panelRefreshKeys: instance?.panelRefreshKeys ?? {},
+      initDashboard,
+      refreshAll: () => useDashboardStore.getState().refreshAll(dashboardId),
+      refreshPanel: (panelId: string) => useDashboardStore.getState().refreshPanel(dashboardId, panelId),
+      addTicker: (ticker: string) => useDashboardStore.getState().addTicker(dashboardId, ticker),
+      removeTicker: (ticker: string) => useDashboardStore.getState().removeTicker(dashboardId, ticker),
+      clearTickers: () => useDashboardStore.getState().clearTickers(dashboardId),
+      updatePanelLayouts: (layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) =>
+        useDashboardStore.getState().updatePanelLayouts(dashboardId, layouts),
+      addPanel: (panel: PanelConfig) => useDashboardStore.getState().addPanel(dashboardId, panel),
+      removePanel: (panelId: string) => useDashboardStore.getState().removePanel(dashboardId, panelId),
+    }),
+    [instance, initDashboard, dashboardId]
+  );
+}
+
+export function serializeDashboardYaml(dashboard: DashboardYAML): string {
+  const doc = {
+    id: dashboard.id,
+    name: dashboard.name,
+    filters: dashboard.filters,
+    panels: dashboard.panels.map((p) => ({
+      id: p.id,
+      type: p.type,
+      title: p.title,
+      layout: p.layout,
+      inputs: mapKeysToSnakeCase(p.inputs || {}),
+      refresh_interval: p.refreshInterval || 0,
+    })),
   };
+  return yaml.dump(doc);
 }

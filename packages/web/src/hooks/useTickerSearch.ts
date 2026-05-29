@@ -3,7 +3,7 @@ import { dataApi } from "../lib/api";
 import type { TickerSearchResult } from "../lib/api";
 
 export interface UseTickerSearchOptions {
-  existingTickers: string[];
+  existingTickers?: string[];
   onSelect: (symbol: string) => void;
 }
 
@@ -39,7 +39,8 @@ export function useTickerSearch({ existingTickers, onSelect }: UseTickerSearchOp
     searchTimeout.current = setTimeout(() => {
       dataApi.searchTickers(q)
         .then((results) => {
-          const filtered = results.filter((r: TickerSearchResult) => !existingTickers.includes(r.symbol));
+          const existing = existingTickers ?? [];
+          const filtered = results.filter((r: TickerSearchResult) => !existing.includes(r.symbol));
           setSearchResults(filtered.slice(0, 8));
           setShowDropdown(filtered.length > 0);
           setSearchLoading(false);

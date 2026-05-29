@@ -56,3 +56,8 @@ body {
   border-bottom: 2px solid #9ca3af;
   border-radius: 2px;
 }
+
+/* Hide TradingView attribution logo on lightweight-charts */
+#tv-attr-logo {
+  display: none !important;
+}

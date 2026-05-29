@@ -39,17 +39,10 @@ panels:
     inputs: {}
     refresh_interval: 120
 
-  - id: options-comparison
-    type: options-comparison
-    title: Put / Call
-    layout: { x: 0, y: 34, w: 12, h: 12 }
-    inputs: {}
-    refresh_interval: 120
-
   - id: line-chart
     type: line-chart
     title: Price History
-    layout: { x: 0, y: 46, w: 6, h: 10 }
+    layout: { x: 0, y: 34, w: 6, h: 10 }
     inputs:
       time_range: 1y
     refresh_interval: 60
@@ -57,6 +50,6 @@ panels:
   - id: forward-pe
     type: forward-pe
     title: Forward PE Comparison
-    layout: { x: 6, y: 46, w: 6, h: 10 }
+    layout: { x: 6, y: 34, w: 6, h: 10 }
     inputs: {}
     refresh_interval: 300

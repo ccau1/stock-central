@@ -7,7 +7,7 @@ import StockTreemap from "../../../components/StockTreemap";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../../core";
 
 export function StockHeatmapPanel({ title, inputs, refreshKey, onRefresh, description }: PanelProps) {
-  const [universe, setUniverse] = useState<string>(inputs.universe || "nasdaq100");
+  const [universe, setUniverse] = useState<string>(inputs.universe || "sp500");
   const [groupBy, setGroupBy] = useState<"sector" | "industry">("industry");
   const [universes, setUniverses] = useState<HeatmapUniverse[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -16,9 +16,9 @@ export function StockHeatmapPanel({ title, inputs, refreshKey, onRefresh, descri
   useEffect(() => {
     dataApi.getHeatmapUniverses().then(setUniverses).catch(() => {
       setUniverses([
+        { id: "sp500", name: "S&P 500 Index" },
         { id: "nasdaq100", name: "Nasdaq 100 Index" },
         { id: "nasdaqComposite", name: "Nasdaq Composite Index" },
-        { id: "sp500", name: "S&P 500 Index" },
         { id: "dowjones30", name: "Dow Jones Industrial Average" },
         { id: "dowjones20", name: "Dow Jones Transportation Average" },
         { id: "dowjones15", name: "Dow Jones Utility Average" },
@@ -56,7 +56,7 @@ export function StockHeatmapPanel({ title, inputs, refreshKey, onRefresh, descri
       {error && <PanelError message={error} />}
       <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center gap-2 mb-2 shrink-0 px-3 pt-3">
-          <div className="relative" ref={dropdownRef}>
+          <div className="relative flex items-center gap-1" ref={dropdownRef}>
             <button
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"

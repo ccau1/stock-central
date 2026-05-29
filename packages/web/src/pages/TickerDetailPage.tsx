@@ -1,88 +1,29 @@
 import { useEffect, useState } from "react";
-import { RANGE_OPTIONS, RANGE_LABELS, type TimeRange } from "./ComparisonsPage";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { dataApi } from "../lib/api";
-import type { TickerDetail, PricePoint, OptionsData } from "../lib/api";
-import { useSvgContainerSize } from "../hooks/useSvgContainerSize";
-
-function PriceChart({ points, loading }: { points: PricePoint[]; loading: boolean }) {
-  if (points.length < 2) return null;
-
-  const min = Math.min(...points.map((p) => p.price));
-  const max = Math.max(...points.map((p) => p.price));
-  const range = max - min || 1;
-
-  const { ref: containerRef, size } = useSvgContainerSize(800, 320);
-  const W = size.width;
-  const H = size.height;
-  const padL = 56;
-  const padR = 12;
-  const padT = 12;
-  const padB = 28;
-  const gw = W - padL - padR;
-  const gh = H - padT - padB;
-
-  const xScale = gw / (points.length - 1);
-  const yScale = gh / range;
-
-  const toSvg = (i: number, price: number) => ({
-    sx: padL + i * xScale,
-    sy: padT + (max - price) * yScale,
-  });
-
-  const pathD = points
-    .map((p, i) => {
-      const { sx, sy } = toSvg(i, p.price);
-      return `${i === 0 ? "M" : "L"} ${sx} ${sy}`;
-    })
-    .join(" ");
-
-  const gridLines = 5;
-  const gridYs = Array.from({ length: gridLines + 1 }, (_, i) => min + (range * i) / gridLines);
-
-  const startPrice = points[0].price;
-  const endPrice = points[points.length - 1].price;
-  const isUp = endPrice >= startPrice;
-  const strokeColor = isUp ? "#22c55e" : "#ef4444";
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-gray-900">Price History</h2>
-        {loading && <RefreshCw size={12} className="text-gray-400 animate-spin" />}
-      </div>
-      <div ref={containerRef} className="w-full h-80">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
-        {gridYs.map((y, i) => {
-          const { sy } = toSvg(0, y);
-          return (
-            <g key={i}>
-              <line x1={padL} y1={sy} x2={W - padR} y2={sy} stroke="#e5e7eb" strokeWidth="1" />
-              <text x={padL - 6} y={sy + 3} textAnchor="end" fontSize="10" fill="#9ca3af">
-                ${y.toFixed(2)}
-              </text>
-            </g>
-          );
-        })}
-        <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        {/* End dot */}
-        <circle
-          cx={toSvg(points.length - 1, endPrice).sx}
-          cy={toSvg(points.length - 1, endPrice).sy}
-          r="3"
-          fill={strokeColor}
-        />
-        </svg>
-      </div>
-    </div>
-  );
-}
+import type { TickerDetail, OptionsData } from "../lib/api";
+import CandlestickChart from "../components/CandlestickChart";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return n.toString();
+}
+
+function timeAgo(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
 }
 
 export default function TickerDetailPage() {
@@ -92,8 +33,6 @@ export default function TickerDetailPage() {
   const [data, setData] = useState<TickerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>("1y");
-  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
 
   const fetchDetail = async () => {
@@ -103,21 +42,10 @@ export default function TickerDetailPage() {
     try {
       const detail = await dataApi.getTickerDetail(ticker);
       setData(detail);
-      setPriceHistory(detail.priceHistory);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchPriceHistory = async () => {
-    if (!ticker) return;
-    try {
-      const ph = await dataApi.getPriceHistory([ticker], timeRange);
-      setPriceHistory(ph[ticker] || []);
-    } catch (e: any) {
-      // silently fail for chart refresh
     }
   };
 
@@ -135,10 +63,6 @@ export default function TickerDetailPage() {
     fetchDetail();
     fetchOptions();
   }, [ticker]);
-
-  useEffect(() => {
-    fetchPriceHistory();
-  }, [ticker, timeRange]);
 
   const ytd = data?.ytd;
   const rsi = data?.rsi;
@@ -303,26 +227,8 @@ export default function TickerDetailPage() {
         </div>
       )}
 
-      {/* Time Range */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-[10px] text-gray-500 font-medium">Range:</span>
-        {RANGE_OPTIONS.map((r) => (
-          <button
-            key={r}
-            onClick={() => setTimeRange(r)}
-            className={`text-[11px] font-medium px-2 py-0.5 rounded transition-colors ${
-              timeRange === r
-                ? "bg-gray-900 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {RANGE_LABELS[r]}
-          </button>
-        ))}
-      </div>
-
-      {/* Price Chart */}
-      <PriceChart points={priceHistory} loading={loading} />
+      {/* Candlestick Chart */}
+      <CandlestickChart symbol={ticker} />
 
       {/* Guidance */}
       {fp && (fp.eps_growth != null || fp.revenue_growth != null || fp.eps_revision_30d != null || fp.num_analysts != null) && (
@@ -367,10 +273,17 @@ export default function TickerDetailPage() {
           <div className="space-y-3">
             {data.news.map((item, i) => (
               <div key={i} className="text-xs p-3 bg-gray-50 rounded border border-gray-100">
-                <div className="font-medium text-gray-700 leading-tight">{item.title}</div>
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-gray-700 leading-tight hover:text-blue-600 hover:underline block"
+                >
+                  {item.title}
+                </a>
                 <div className="text-gray-400 mt-1 flex justify-between">
                   <span>{item.source}</span>
-                  <span>{item.published}</span>
+                  <span>{timeAgo(item.published)}</span>
                 </div>
               </div>
             ))}
