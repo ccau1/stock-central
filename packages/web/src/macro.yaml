@@ -62,53 +62,60 @@ panels:
   - id: market-breadth
     type: market-breadth
     title: Market Breadth
-    layout: { x: 0, y: 20, w: 6, h: 8 }
+    group: row-market-internals
+    layout: { x: 0, y: 0, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
   - id: credit-spread
     type: credit-spread
     title: Credit Spread
-    layout: { x: 6, y: 20, w: 6, h: 8 }
+    group: row-market-internals
+    layout: { x: 6, y: 0, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
-  # Row 28: More macro charts
+  # Row 29: Macro charts
   - id: ratio-chart
     type: ratio-chart
     title: Intermarket Ratios
-    layout: { x: 0, y: 28, w: 6, h: 8 }
+    group: row-macro-charts
+    layout: { x: 0, y: 0, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
   - id: asset-classes
     type: asset-class-grid
     title: Asset Classes
-    layout: { x: 6, y: 28, w: 6, h: 8 }
+    group: row-macro-charts
+    layout: { x: 6, y: 0, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
-  # Row 50: Sector performance
+  # Row 38: Sector performance
   - id: sector-heatmap
     type: sector-heatmap
     title: Sector Performance
-    layout: { x: 0, y: 36, w: 6, h: 8 }
+    group: row-sector-performance
+    layout: { x: 0, y: 0, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
   - id: macro-remaining
     type: macro-card-grid
     title: Macro Indicators
-    layout: { x: 6, y: 36, w: 6, h: 8 }
+    group: row-sector-performance
+    layout: { x: 6, y: 0, w: 6, h: 8 }
     inputs:
       symbols: ["^TNX", "^FVX", "^DJI", "^IXIC", "^RUT"]
     refresh_interval: 300
 
-  # Row 44: Ticker-driven analysis panels
+  # Row 47: Ticker-driven analysis
   - id: rrg
     type: rrg
     title: Relative Rotation Graph
-    layout: { x: 0, y: 44, w: 7, h: 9 }
+    group: row-analysis
+    layout: { x: 0, y: 0, w: 6, h: 9 }
     inputs:
       benchmark: SPY
       lookback: 3m
@@ -118,7 +125,8 @@ panels:
   - id: metric-card
     type: metric-card
     title: Key Metrics
-    layout: { x: 0, y: 44, w: 6, h: 9 }
+    group: row-analysis
+    layout: { x: 6, y: 0, w: 3, h: 9 }
     inputs:
       metric: pe
     refresh_interval: 120
@@ -126,38 +134,64 @@ panels:
   - id: news-feed
     type: news-feed
     title: Latest News
-    layout: { x: 6, y: 44, w: 6, h: 9 }
+    group: row-analysis
+    layout: { x: 9, y: 0, w: 3, h: 9 }
     inputs:
       max_items: 5
     refresh_interval: 180
 
-  # Row 53: Recession and froth indicators
+  # Row 57: Risk indicators
   - id: valuation
     type: valuation
     title: Valuation
-    layout: { x: 0, y: 53, w: 4, h: 8 }
+    group: row-risk
+    layout: { x: 0, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 
   - id: recession-risk
     type: recession-risk
     title: Recession Risk
-    group: group-recession
-    layout: { x: 0, y: 0, w: 4, h: 8 }
+    group: row-risk
+    layout: { x: 4, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 
   - id: market-froth
     type: market-froth
     title: Market Froth
-    group: group-recession
-    layout: { x: 4, y: 0, w: 4, h: 8 }
+    group: row-risk
+    layout: { x: 8, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 
 groups:
-  - id: group-recession
-    type: __group__
-    title: Recession & Froth
-    layout: { x: 4, y: 53, w: 8, h: 8 }
+  - id: row-market-internals
+    type: __row__
+    title: Market Internals
+    layout: { x: 0, y: 20, w: 12, h: 9 }
+    collapsed: false
+
+  - id: row-macro-charts
+    type: __row__
+    title: Macro Charts
+    layout: { x: 0, y: 29, w: 12, h: 9 }
+    collapsed: false
+
+  - id: row-sector-performance
+    type: __row__
+    title: Sector Performance
+    layout: { x: 0, y: 38, w: 12, h: 9 }
+    collapsed: false
+
+  - id: row-analysis
+    type: __row__
+    title: Analysis
+    layout: { x: 0, y: 47, w: 12, h: 10 }
+    collapsed: false
+
+  - id: row-risk
+    type: __row__
+    title: Risk & Valuation
+    layout: { x: 0, y: 57, w: 12, h: 9 }
     collapsed: false

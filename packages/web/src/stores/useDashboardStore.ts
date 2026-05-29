@@ -38,7 +38,7 @@ export function parseDashboardYaml(raw: string): DashboardYAML {
     },
     groups: (doc.groups || []).map((g: any) => ({
       id: g.id,
-      type: g.type,
+      type: g.type || '__group__',
       title: g.title,
       layout: g.layout,
       collapsed: g.collapsed ?? false,
@@ -456,7 +456,7 @@ export function serializeDashboardYaml(dashboard: DashboardYAML): string {
     filters: dashboard.filters,
     groups: (dashboard.groups || []).map((g) => ({
       id: g.id,
-      type: g.type,
+      type: g.type || '__group__',
       title: g.title,
       layout: g.layout,
       collapsed: g.collapsed,

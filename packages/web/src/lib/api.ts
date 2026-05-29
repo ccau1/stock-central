@@ -332,7 +332,7 @@ export interface PanelConfig {
 
 export interface GroupConfig {
   id: string;
-  type: '__group__';
+  type: '__group__' | '__row__';
   title: string;
   layout: PanelLayout;
   collapsed?: boolean;

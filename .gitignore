@@ -41,3 +41,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 .cache/
+
+# Deploy artifacts
+deploy/ssl/
+*.pem
+*.key

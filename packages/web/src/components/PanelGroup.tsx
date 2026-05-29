@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Folder, X, GripVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, Rows3, X, GripVertical } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core/types";
 import { PanelRenderer } from "../panels/core";
@@ -39,6 +39,7 @@ export default function PanelGroup({
 }: PanelGroupProps) {
   const [dragOver, setDragOver] = useState(false);
   const collapsed = group.collapsed ?? false;
+  const isRow = group.type === '__row__';
 
   const childPanels = panels.filter((p) => p.groupId === group.id);
   const childGroups = groups.filter((g) => g.groupId === group.id);
@@ -72,29 +73,53 @@ export default function PanelGroup({
 
   return (
     <div
-      className={`flex flex-col h-full rounded-lg border transition-colors ${
-        dragOver ? "border-blue-400 bg-blue-50/50" : "border-gray-200 bg-white"
+      className={`flex flex-col h-full transition-colors ${
+        isRow
+          ? dragOver
+            ? "bg-blue-50/30"
+            : ""
+          : `rounded-lg border ${dragOver ? "border-blue-400 bg-blue-50/50" : "border-gray-200 bg-white"}`
       } ${indentClass}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Group Header */}
-      <div className="panel-drag-handle flex items-center gap-1.5 px-2 py-1.5 border-b border-gray-100 bg-gray-50/80 rounded-t-lg">
+      {/* Group / Row Header */}
+      <div
+        className={`panel-drag-handle flex items-center gap-1.5 px-2 py-1.5 transition-colors ${
+          isRow
+            ? "border-l-4 border-l-blue-500 bg-gray-100/80 hover:bg-gray-200/80"
+            : "border-b border-gray-100 bg-gray-50/80 rounded-t-lg"
+        }`}
+      >
         {isEditMode && (
           <GripVertical size={12} className="text-gray-300 shrink-0 cursor-grab active:cursor-grabbing" />
         )}
         <button
           onClick={() => onToggleGroupCollapse(group.id)}
-          className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition-colors"
+          className={`flex items-center gap-1 transition-colors ${
+            isRow ? "text-gray-600 hover:text-gray-900" : "text-gray-500 hover:text-gray-700"
+          }`}
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </button>
-        <Folder size={14} className="text-gray-400 shrink-0" />
-        <span className="text-xs font-semibold text-gray-700 truncate select-none">{group.title}</span>
-        <span className="text-[10px] text-gray-400 ml-auto shrink-0">
-          {childPanels.length + childGroups.length} item{childPanels.length + childGroups.length !== 1 ? "s" : ""}
+        {isRow ? (
+          <Rows3 size={14} className="text-blue-500 shrink-0" />
+        ) : (
+          <Folder size={14} className="text-gray-400 shrink-0" />
+        )}
+        <span
+          className={`truncate select-none ${
+            isRow ? "text-sm font-bold text-gray-800" : "text-xs font-semibold text-gray-700"
+          }`}
+        >
+          {group.title}
         </span>
+        {!isRow && (
+          <span className="text-[10px] text-gray-400 ml-auto shrink-0">
+            {childPanels.length + childGroups.length} item{childPanels.length + childGroups.length !== 1 ? "s" : ""}
+          </span>
+        )}
         {isEditMode && onRemoveGroup && (
           <button
             onClick={() => onRemoveGroup(group.id)}
@@ -109,7 +134,7 @@ export default function PanelGroup({
       {/* Children Grid */}
       {!collapsed && (
         <div
-          className="p-2 grid gap-2"
+          className={`grid gap-2 ${isRow ? "" : "p-2"}`}
           style={{
             gridTemplateColumns: "repeat(12, 1fr)",
             gridAutoRows: "30px",

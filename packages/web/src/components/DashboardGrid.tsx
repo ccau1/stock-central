@@ -80,7 +80,7 @@ function buildResponsiveLayouts(
         i: p.id,
         x: 0,
         y,
-        w: Math.min(p.w, cols),
+        w: cols,
         h: p.h,
         minW: Math.min(2, cols),
         minH: 1,
@@ -90,10 +90,38 @@ function buildResponsiveLayouts(
     });
   };
 
+  const flow = (cols: number, targetCols: number) => {
+    const w = Math.floor(cols / targetCols);
+    const result = [];
+    let x = 0;
+    let y = 0;
+    let currentRowMaxH = 0;
+
+    for (const p of items) {
+      if (x + w > cols) {
+        y += currentRowMaxH;
+        x = 0;
+        currentRowMaxH = 0;
+      }
+      result.push({
+        i: p.id,
+        x,
+        y,
+        w,
+        h: p.h,
+        minW: Math.min(2, w),
+        minH: 1,
+      });
+      currentRowMaxH = Math.max(currentRowMaxH, p.h);
+      x += w;
+    }
+    return result;
+  };
+
   return {
     lg,
-    md: stack(10),
-    sm: stack(6),
+    md: flow(10, 2),
+    sm: flow(6, 2),
     xs: stack(4),
     xxs: stack(2),
   };
@@ -153,13 +181,19 @@ export default function DashboardGrid({
     [groups]
   );
 
+  const [currentBreakpoint, setCurrentBreakpoint] = useState("lg");
+
   const handleLayoutChange = useCallback(
     (_currentLayout: any, allLayouts: any) => {
+      // Only save layout changes when on the desktop breakpoint.
+      // Saving derived lg layouts from smaller breakpoints during resize
+      // causes infinite loops when responsive layouts rebuild from updated state.
+      if (currentBreakpoint !== "lg") return;
       if (allLayouts?.lg) {
         onLayoutChange(allLayouts.lg);
       }
     },
-    [onLayoutChange]
+    [onLayoutChange, currentBreakpoint]
   );
 
   const handleMainDragOver = useCallback((e: React.DragEvent) => {
@@ -200,6 +234,7 @@ export default function DashboardGrid({
         rowHeight={30}
         width={width}
         onLayoutChange={handleLayoutChange}
+        onBreakpointChange={setCurrentBreakpoint}
         dragConfig={{ enabled: isEditMode, handle: ".panel-drag-handle", cancel: ".panel-refresh-btn" }}
         resizeConfig={{ enabled: isEditMode, handles: ["se", "e", "s"] }}
       >

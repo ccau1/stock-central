@@ -1,4 +1,4 @@
-.PHONY: up down dev build-web build-server migrate-up migrate-create clean refresh-russell
+.PHONY: up down dev build-web build-server migrate-up migrate-create clean refresh-russell infra certs secrets
 
 # Spin up the full local development stack (Docker Compose)
 up:
@@ -38,3 +38,12 @@ refresh-russell:
 # Clean Docker volumes and containers
 clean:
 	docker compose down -v
+
+infra:
+	./deploy/scripts/apply.sh
+
+certs:
+	./deploy/scripts/push-certs.sh
+
+secrets:
+	./deploy/scripts/github-secrets.sh
