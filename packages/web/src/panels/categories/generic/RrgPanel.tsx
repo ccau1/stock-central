@@ -100,7 +100,7 @@ export function RrgPanel({ title, tickers, enabledTickers, inputs, refreshKey, o
             </select>
           </div>
         </div>
-        <div ref={chartRef} className="flex-1 relative min-h-0 overflow-hidden">
+        <div ref={chartRef} className="flex-1 relative min-h-0 overflow-hidden max-md:min-h-[200px]">
           <svg width={w} height={h} style={{ display: "block" }}>
             {/* Quadrant backgrounds */}
             <rect x={cx} y={0} width={cx} height={cy} fill="#dcfce7" opacity="0.5" />

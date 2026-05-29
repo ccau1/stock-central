@@ -61,3 +61,34 @@ body {
 #tv-attr-logo {
   display: none !important;
 }
+
+/* Panel group grid: responsive collapse to single column on small screens */
+.panel-group-grid {
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: 30px;
+}
+
+@media (max-width: 768px) {
+  .panel-group-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+  }
+  .panel-group-grid > .panel-group-item {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    min-height: auto;
+  }
+
+  /* Disable react-grid-layout absolute positioning so items stack naturally */
+  .react-grid-layout {
+    height: auto !important;
+  }
+  .react-grid-item {
+    position: relative !important;
+    width: 100% !important;
+    height: auto !important;
+    transform: none !important;
+    inset: auto !important;
+    margin-bottom: 0.5rem;
+  }
+}

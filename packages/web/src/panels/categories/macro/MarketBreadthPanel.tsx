@@ -82,7 +82,7 @@ export function MarketBreadthPanel({ title, refreshKey, onRefresh, description }
                 <span className="text-xs text-gray-600">200-day MA</span>
               </div>
             </div>
-            <div ref={chartRef} className="flex-1 min-h-0 relative">
+            <div ref={chartRef} className="flex-1 min-h-0 relative max-md:min-h-[200px]">
               <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-full">
                 {/* Horizontal grid lines */}
                 {[0, 0.25, 0.5, 0.75, 1].map((t) => {

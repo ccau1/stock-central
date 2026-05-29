@@ -138,7 +138,7 @@ export function RsiComparisonPanel({ title, tickers, inputs, refreshKey, onRefre
           ))}
         </div>
 
-        <div ref={svgContainerRef} className="flex-1 min-h-0">
+        <div ref={svgContainerRef} className="flex-1 min-h-0 max-md:min-h-[200px]">
           <svg
             ref={svgRef}
             viewBox={`0 0 ${W} ${H}`}

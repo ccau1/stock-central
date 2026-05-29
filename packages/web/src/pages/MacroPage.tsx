@@ -22,6 +22,7 @@ export default function MacroPage() {
     removeTicker,
     clearTickers,
     updatePanelLayouts,
+    toggleGroupCollapse,
   } = useDashboard("macro");
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export default function MacroPage() {
         panelRefreshKeys={panelRefreshKeys}
         onRefreshPanel={refreshPanel}
         onLayoutChange={updatePanelLayouts}
+        onToggleGroupCollapse={toggleGroupCollapse}
         isEditMode={isEditMode}
       />
     </div>

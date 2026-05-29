@@ -35,7 +35,7 @@ export function CreditSpreadPanel({ title, refreshKey, onRefresh, description }:
       {error && <PanelError message={error} />}
       <div className="h-full">
         {data && data.length > 0 ? (
-          <div ref={chartRef} className="w-full h-full">
+          <div ref={chartRef} className="w-full h-full max-md:min-h-[200px]">
             <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full">
               {renderSvgLine(data.map((d: any, i: number) => ({ x: i, y: d.spread })), w, h, "#f59e0b", true)}
             </svg>

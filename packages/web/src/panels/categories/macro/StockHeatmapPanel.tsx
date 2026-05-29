@@ -103,7 +103,7 @@ export function StockHeatmapPanel({ title, inputs, refreshKey, onRefresh, descri
             </button>
           </div>
         </div>
-        <div className="flex-1 min-h-0 relative">
+        <div className="flex-1 min-h-0 relative max-md:min-h-[200px]">
           {data ? (
             <StockTreemap data={data} />
           ) : (

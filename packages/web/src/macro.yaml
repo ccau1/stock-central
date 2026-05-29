@@ -8,25 +8,22 @@ filters:
     - AMZN
     - TSLA
 panels:
-  # Row 0: Top-level macro overview cards
+  # ============================================================
+  # Row 0: Market Overview
+  # ============================================================
   - id: fear-greed
     type: fear-greed
     title: Fear & Greed
+    group: row-overview
     layout: { x: 0, y: 0, w: 3, h: 6 }
-    inputs: {}
-    refresh_interval: 300
-
-  - id: yield-curve
-    type: yield-curve
-    title: Yield Curve
-    layout: { x: 3, y: 0, w: 3, h: 6 }
     inputs: {}
     refresh_interval: 300
 
   - id: vix
     type: macro-card
     title: VIX
-    layout: { x: 6, y: 0, w: 2, h: 6 }
+    group: row-overview
+    layout: { x: 3, y: 0, w: 2, h: 6 }
     inputs:
       source: macro
       symbol: "^VIX"
@@ -36,81 +33,117 @@ panels:
   - id: sp500
     type: macro-card
     title: S&P 500
-    layout: { x: 8, y: 0, w: 2, h: 6 }
+    group: row-overview
+    layout: { x: 5, y: 0, w: 2, h: 6 }
     inputs:
       source: indexes
       symbol: "^GSPC"
     refresh_interval: 300
 
+  - id: tnx-10y
+    type: macro-card
+    title: 10Y Treasury
+    group: row-overview
+    layout: { x: 7, y: 0, w: 2, h: 6 }
+    inputs:
+      source: macro
+      symbol: "^TNX"
+    refresh_interval: 300
+
   - id: ipo-calendar
     type: ipo-calendar
     title: Upcoming IPOs
-    layout: { x: 10, y: 0, w: 2, h: 6 }
+    group: row-overview
+    layout: { x: 9, y: 0, w: 3, h: 6 }
     inputs: {}
     refresh_interval: 300
 
-  # Row 6: Stock heatmap (full width)
+  # ============================================================
+  # Row 7: Market Map
+  # ============================================================
   - id: stock-heatmap
     type: stock-heatmap
     title: S&P 500 Heat Map
-    layout: { x: 0, y: 6, w: 12, h: 14 }
+    group: row-heatmap
+    layout: { x: 0, y: 0, w: 12, h: 14 }
     inputs:
       universe: sp500
     refresh_interval: 300
 
-  # Row 20: Market internals
-  - id: market-breadth
-    type: market-breadth
-    title: Market Breadth
-    group: row-market-internals
-    layout: { x: 0, y: 0, w: 6, h: 8 }
+  # ============================================================
+  # Row 22: Recession Watch
+  # ============================================================
+  - id: recession-risk
+    type: recession-risk
+    title: Recession Risk
+    group: row-recession
+    layout: { x: 0, y: 0, w: 4, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: yield-curve
+    type: yield-curve
+    title: Yield Curve
+    group: row-recession
+    layout: { x: 4, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 
   - id: credit-spread
     type: credit-spread
     title: Credit Spread
-    group: row-market-internals
-    layout: { x: 6, y: 0, w: 6, h: 8 }
+    group: row-recession
+    layout: { x: 8, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 
-  # Row 29: Macro charts
   - id: ratio-chart
     type: ratio-chart
     title: Intermarket Ratios
-    group: row-macro-charts
-    layout: { x: 0, y: 0, w: 6, h: 8 }
+    group: row-recession
+    layout: { x: 0, y: 8, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
-  - id: asset-classes
-    type: asset-class-grid
-    title: Asset Classes
-    group: row-macro-charts
-    layout: { x: 6, y: 0, w: 6, h: 8 }
+  - id: market-breadth
+    type: market-breadth
+    title: Market Breadth
+    group: row-recession
+    layout: { x: 6, y: 8, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
-  # Row 38: Sector performance
+  # ============================================================
+  # Row 39: Sectors & Assets
+  # ============================================================
   - id: sector-heatmap
     type: sector-heatmap
     title: Sector Performance
-    group: row-sector-performance
-    layout: { x: 0, y: 0, w: 6, h: 8 }
+    group: row-sectors
+    layout: { x: 0, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 
   - id: macro-remaining
     type: macro-card-grid
     title: Macro Indicators
-    group: row-sector-performance
-    layout: { x: 6, y: 0, w: 6, h: 8 }
+    group: row-sectors
+    layout: { x: 4, y: 0, w: 4, h: 8 }
     inputs:
       symbols: ["^TNX", "^FVX", "^DJI", "^IXIC", "^RUT"]
     refresh_interval: 300
 
-  # Row 47: Ticker-driven analysis
+  - id: asset-classes
+    type: asset-class-grid
+    title: Asset Classes
+    group: row-sectors
+    layout: { x: 8, y: 0, w: 4, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  # ============================================================
+  # Row 48: Analysis
+  # ============================================================
   - id: rrg
     type: rrg
     title: Relative Rotation Graph
@@ -140,20 +173,14 @@ panels:
       max_items: 5
     refresh_interval: 180
 
-  # Row 57: Risk indicators
+  # ============================================================
+  # Row 58: Risk & Valuation
+  # ============================================================
   - id: valuation
     type: valuation
     title: Valuation
     group: row-risk
-    layout: { x: 0, y: 0, w: 4, h: 8 }
-    inputs: {}
-    refresh_interval: 300
-
-  - id: recession-risk
-    type: recession-risk
-    title: Recession Risk
-    group: row-risk
-    layout: { x: 4, y: 0, w: 4, h: 8 }
+    layout: { x: 0, y: 0, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
@@ -161,37 +188,43 @@ panels:
     type: market-froth
     title: Market Froth
     group: row-risk
-    layout: { x: 8, y: 0, w: 4, h: 8 }
+    layout: { x: 6, y: 0, w: 6, h: 8 }
     inputs: {}
     refresh_interval: 300
 
 groups:
-  - id: row-market-internals
+  - id: row-overview
     type: __row__
-    title: Market Internals
-    layout: { x: 0, y: 20, w: 12, h: 9 }
+    title: Market Overview
+    layout: { x: 0, y: 0, w: 12, h: 7 }
     collapsed: false
 
-  - id: row-macro-charts
+  - id: row-heatmap
     type: __row__
-    title: Macro Charts
-    layout: { x: 0, y: 29, w: 12, h: 9 }
+    title: Market Map
+    layout: { x: 0, y: 7, w: 12, h: 15 }
     collapsed: false
 
-  - id: row-sector-performance
+  - id: row-recession
     type: __row__
-    title: Sector Performance
-    layout: { x: 0, y: 38, w: 12, h: 9 }
+    title: Recession Watch
+    layout: { x: 0, y: 22, w: 12, h: 17 }
+    collapsed: false
+
+  - id: row-sectors
+    type: __row__
+    title: Sectors & Assets
+    layout: { x: 0, y: 39, w: 12, h: 9 }
     collapsed: false
 
   - id: row-analysis
     type: __row__
     title: Analysis
-    layout: { x: 0, y: 47, w: 12, h: 10 }
+    layout: { x: 0, y: 48, w: 12, h: 10 }
     collapsed: false
 
   - id: row-risk
     type: __row__
     title: Risk & Valuation
-    layout: { x: 0, y: 57, w: 12, h: 9 }
+    layout: { x: 0, y: 58, w: 12, h: 9 }
     collapsed: false

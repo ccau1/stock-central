@@ -103,7 +103,7 @@ export function ValuationPanel({ title, refreshKey, onRefresh, description }: Pa
 
         {/* Chart */}
         {history.length > 0 ? (
-          <div ref={chartRef} className="flex-1 min-h-0 relative">
+          <div ref={chartRef} className="flex-1 min-h-0 relative max-md:min-h-[200px]">
             <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-full">
               {/* Grid lines */}
               {[0, 0.25, 0.5, 0.75, 1].map((t) => {

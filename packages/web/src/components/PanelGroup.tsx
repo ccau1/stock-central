@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Folder, Rows3, X, GripVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, X, GripVertical } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core/types";
 import { PanelRenderer } from "../panels/core";
@@ -86,9 +86,9 @@ export default function PanelGroup({
     >
       {/* Group / Row Header */}
       <div
-        className={`panel-drag-handle flex items-center gap-1.5 px-2 py-1.5 transition-colors ${
+        className={`panel-drag-handle flex items-center gap-1.5 px-2 py-1 transition-colors ${
           isRow
-            ? "border-l-4 border-l-blue-500 bg-gray-100/80 hover:bg-gray-200/80"
+            ? ""
             : "border-b border-gray-100 bg-gray-50/80 rounded-t-lg"
         }`}
       >
@@ -96,21 +96,22 @@ export default function PanelGroup({
           <GripVertical size={12} className="text-gray-300 shrink-0 cursor-grab active:cursor-grabbing" />
         )}
         <button
-          onClick={() => onToggleGroupCollapse(group.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleGroupCollapse(group.id);
+          }}
           className={`flex items-center gap-1 transition-colors ${
-            isRow ? "text-gray-600 hover:text-gray-900" : "text-gray-500 hover:text-gray-700"
+            isRow ? "text-gray-400 hover:text-gray-600" : "text-gray-500 hover:text-gray-700"
           }`}
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </button>
-        {isRow ? (
-          <Rows3 size={14} className="text-blue-500 shrink-0" />
-        ) : (
+        {!isRow && (
           <Folder size={14} className="text-gray-400 shrink-0" />
         )}
         <span
           className={`truncate select-none ${
-            isRow ? "text-sm font-bold text-gray-800" : "text-xs font-semibold text-gray-700"
+            isRow ? "text-xs font-medium text-gray-500" : "text-xs font-semibold text-gray-700"
           }`}
         >
           {group.title}
@@ -133,13 +134,7 @@ export default function PanelGroup({
 
       {/* Children Grid */}
       {!collapsed && (
-        <div
-          className={`grid gap-2 ${isRow ? "" : "p-2"}`}
-          style={{
-            gridTemplateColumns: "repeat(12, 1fr)",
-            gridAutoRows: "30px",
-          }}
-        >
+        <div className={`panel-group-grid grid ${isRow ? "gap-3" : "gap-2 p-2"}`}>
           {childPanels.map((panel) => (
             <PanelGroupItem
               key={panel.id}
@@ -155,6 +150,7 @@ export default function PanelGroup({
           {childGroups.map((childGroup) => (
             <div
               key={childGroup.id}
+              className="panel-group-item"
               style={{
                 gridColumn: `${childGroup.layout.x + 1} / span ${childGroup.layout.w}`,
                 gridRow: `${childGroup.layout.y + 1} / span ${groupHeights[childGroup.id] || childGroup.layout.h || 4}`,
@@ -223,7 +219,7 @@ function PanelGroupItem({
       draggable={isEditMode}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative group ${
+      className={`panel-group-item bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative group ${
         isDragging ? "opacity-50" : ""
       }`}
       style={{
