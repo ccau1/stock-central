@@ -78,6 +78,7 @@ export default function MacroPage() {
 
       <DashboardGrid
         panels={dashboard.panels}
+        groups={dashboard.groups || []}
         filters={{ tickers, enabledTickers: enabled }}
         globalRefreshKey={globalRefreshKey}
         panelRefreshKeys={panelRefreshKeys}

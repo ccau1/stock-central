@@ -6,7 +6,7 @@ import { useTickerSearch } from "../hooks/useTickerSearch";
 import { useDisabledTickers } from "../hooks/useDisabledTickers";
 import { useEditMode } from "../hooks/useEditMode";
 import { dataApi } from "../lib/api";
-import type { PanelConfig } from "../lib/api";
+import type { PanelConfig, GroupConfig } from "../lib/api";
 import { addMyDashboard } from "../lib/myDashboards";
 import { getAllPanelTypes } from "../panels/core/registry";
 import type { PanelDefinition } from "../panels/core/types";
@@ -45,6 +45,10 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
     updatePanelLayouts,
     addPanel,
     removePanel,
+    toggleGroupCollapse,
+    movePanelToGroup,
+    createGroup,
+    removeGroup,
   } = useDashboard(dashboardId);
 
   // Load dashboard YAML
@@ -114,9 +118,16 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
       .catch(() => setPanelLoading(false));
   }, [showAddModal]);
 
+  const computeBottomY = () => {
+    if (!dashboard) return 0;
+    const panelBottom = dashboard.panels.reduce((max, p) => Math.max(max, p.layout.y + p.layout.h), 0);
+    const groupBottom = (dashboard.groups || []).reduce((max, g) => Math.max(max, g.layout.y + g.layout.h), 0);
+    return Math.max(panelBottom, groupBottom);
+  };
+
   const handleAddPanel = (def: PanelDefinition) => {
     if (!dashboard) return;
-    const bottomY = dashboard.panels.reduce((max, p) => Math.max(max, p.layout.y + p.layout.h), 0);
+    const bottomY = computeBottomY();
     const panel: PanelConfig = {
       id: `panel-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type: def.id,
@@ -124,10 +135,78 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
       layout: { x: 0, y: bottomY, w: 6, h: 10 },
       inputs: {},
       refreshInterval: 0,
+      groupId: null,
     };
     addPanel(panel);
     setShowAddModal(false);
-    saveDashboard([...dashboard.panels, panel]);
+    saveDashboard([...dashboard.panels, panel], dashboard.groups || []);
+  };
+
+  const handleCreateGroup = () => {
+    if (!dashboard) return;
+    const title = prompt("Group name:", "New Group");
+    if (!title) return;
+    const bottomY = computeBottomY();
+    const group: GroupConfig = {
+      id: `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: '__group__',
+      title,
+      layout: { x: 0, y: bottomY, w: 12, h: 4 },
+      collapsed: false,
+      groupId: null,
+    };
+    createGroup(group);
+    saveDashboard(dashboard.panels, [...(dashboard.groups || []), group]);
+  };
+
+  const handleRemoveGroup = (groupId: string) => {
+    if (!dashboard) return;
+    if (!confirm("Remove this group? Panels inside will be ungrouped.")) return;
+    removeGroup(groupId);
+    const nextGroups = (dashboard.groups || []).filter((g) => g.id !== groupId);
+    const nextPanels = dashboard.panels.map((p) =>
+      p.groupId === groupId ? { ...p, groupId: null } : p
+    );
+    saveDashboard(nextPanels, nextGroups);
+  };
+
+  const handleMovePanelToGroup = (panelId: string, groupId: string | null) => {
+    if (!dashboard) return;
+    const panel = dashboard.panels.find((p) => p.id === panelId);
+    if (!panel) return;
+
+    let nextPanel = { ...panel, groupId };
+
+    if (groupId) {
+      // Moving into a group: place at bottom of group's children
+      const siblings = dashboard.panels.filter((p) => p.groupId === groupId && p.id !== panelId);
+      const siblingGroups = (dashboard.groups || []).filter((g) => g.groupId === groupId && g.id !== groupId);
+      const maxY = Math.max(
+        ...siblings.map((p) => p.layout.y + p.layout.h),
+        ...siblingGroups.map((g) => g.layout.y + g.layout.h),
+        0
+      );
+      nextPanel = { ...nextPanel, layout: { ...panel.layout, x: 0, y: maxY } };
+    } else {
+      // Moving to main grid: use group's position as base
+      const currentGroup = (dashboard.groups || []).find((g) => g.id === panel.groupId);
+      if (currentGroup) {
+        nextPanel = {
+          ...nextPanel,
+          layout: {
+            ...panel.layout,
+            x: currentGroup.layout.x + panel.layout.x,
+            y: currentGroup.layout.y + panel.layout.y + 1,
+          },
+        };
+      }
+    }
+
+    movePanelToGroup(panelId, groupId);
+    const nextPanels = dashboard.panels.map((p) =>
+      p.id === panelId ? nextPanel : p
+    );
+    saveDashboard(nextPanels, dashboard.groups || []);
   };
 
   const handleRemovePanel = (panelId: string) => {
@@ -135,12 +214,12 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
     if (!confirm("Remove this panel?")) return;
     removePanel(panelId);
     const nextPanels = dashboard.panels.filter((p) => p.id !== panelId);
-    saveDashboard(nextPanels);
+    saveDashboard(nextPanels, dashboard.groups || []);
   };
 
-  const saveDashboard = async (panels: PanelConfig[]) => {
+  const saveDashboard = async (panels: PanelConfig[], groups: GroupConfig[]) => {
     if (!dashboard || !params.id) return;
-    const updated: typeof dashboard = { ...dashboard, panels };
+    const updated: typeof dashboard = { ...dashboard, panels, groups };
     const yamlString = serializeDashboardYaml(updated);
     try {
       await dataApi.updateDashboard(params.id, dashboard.name, yamlString);
@@ -202,10 +281,12 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
         searchRef={search.searchRef}
         extraControls={extraHeader}
         onAddPanel={isEditMode ? () => setShowAddModal(true) : undefined}
+        onAddGroup={isEditMode ? handleCreateGroup : undefined}
       />
 
       <DashboardGrid
         panels={dashboard.panels}
+        groups={dashboard.groups || []}
         filters={{ tickers, enabledTickers: enabled, timeRange }}
         globalRefreshKey={globalRefreshKey}
         panelRefreshKeys={panelRefreshKeys}
@@ -213,6 +294,9 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
         onLayoutChange={updatePanelLayouts}
         isEditMode={isEditMode}
         onRemovePanel={handleRemovePanel}
+        onToggleGroupCollapse={toggleGroupCollapse}
+        onMovePanelToGroup={handleMovePanelToGroup}
+        onRemoveGroup={handleRemoveGroup}
       />
 
       {showAddModal && (

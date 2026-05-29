@@ -67,7 +67,7 @@ export function useTickerSearch({ existingTickers, onSelect }: UseTickerSearchOp
     if (e.key === "Enter" && searchResults.length > 0) {
       handleSelect(searchResults[0].symbol);
     }
-    if (e.key === "Backspace" && searchQuery === "" && existingTickers.length > 0) {
+    if (e.key === "Backspace" && searchQuery === "" && (existingTickers?.length ?? 0) > 0) {
       // Let consumer handle backspace removal if needed
     }
   };

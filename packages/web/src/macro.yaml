@@ -130,3 +130,34 @@ panels:
     inputs:
       max_items: 5
     refresh_interval: 180
+
+  # Row 53: Recession and froth indicators
+  - id: valuation
+    type: valuation
+    title: Valuation
+    layout: { x: 0, y: 53, w: 4, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: recession-risk
+    type: recession-risk
+    title: Recession Risk
+    group: group-recession
+    layout: { x: 0, y: 0, w: 4, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: market-froth
+    type: market-froth
+    title: Market Froth
+    group: group-recession
+    layout: { x: 4, y: 0, w: 4, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+groups:
+  - id: group-recession
+    type: __group__
+    title: Recession & Froth
+    layout: { x: 4, y: 53, w: 8, h: 8 }
+    collapsed: false

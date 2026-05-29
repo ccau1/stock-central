@@ -22,6 +22,31 @@ export interface NewsItem {
   url?: string;
 }
 
+export interface ArticleTicker {
+  symbol: string;
+  price: number;
+  change: number;
+  change_percent: number;
+}
+
+export interface ArticleVideo {
+  embed_url?: string;
+  stream_url?: string;
+  thumbnail?: string;
+  duration?: number;
+}
+
+export interface ArticleData {
+  title: string;
+  byline: string;
+  excerpt: string;
+  site_name: string;
+  published_time: string;
+  content: string;
+  tickers: ArticleTicker[];
+  video?: ArticleVideo;
+}
+
 export interface FearGreedData {
   value: number;
   previous_value: number;
@@ -132,6 +157,48 @@ export interface CreditSpreadPoint {
   spread: number;
   hy_price: number;
   ig_price: number;
+}
+
+export interface RecessionIndicator {
+  name: string;
+  value: number;
+  change_1m: number;
+  signal: "normal" | "warning" | "critical";
+  description: string;
+}
+
+export interface RecessionRiskData {
+  indicators: RecessionIndicator[];
+  risk_score: number;
+  risk_label: string;
+}
+
+export interface FrothIndicator {
+  name: string;
+  value: number;
+  change_1m: number;
+  signal: "low" | "moderate" | "high" | "extreme";
+  description: string;
+}
+
+export interface FrothData {
+  indicators: FrothIndicator[];
+  froth_score: number;
+  froth_label: string;
+}
+
+export interface ValuationPoint {
+  date: string;
+  price: number;
+  ma_200: number;
+}
+
+export interface ValuationData {
+  current: number;
+  ma_200: number;
+  premium: number;
+  history: ValuationPoint[];
+  forward_pe: number;
 }
 
 export interface HeatmapStock {
@@ -260,6 +327,16 @@ export interface PanelConfig {
   layout: PanelLayout;
   inputs: Record<string, any>;
   refreshInterval?: number;
+  groupId?: string | null;
+}
+
+export interface GroupConfig {
+  id: string;
+  type: '__group__';
+  title: string;
+  layout: PanelLayout;
+  collapsed?: boolean;
+  groupId?: string | null;
 }
 
 export interface DashboardYAML {
@@ -269,6 +346,7 @@ export interface DashboardYAML {
     tickers: string[];
   };
   panels: PanelConfig[];
+  groups?: GroupConfig[];
 }
 
 // ---------- Helpers ----------
@@ -294,6 +372,8 @@ export const dataApi = {
     fetchJSON<MetricData[]>(`/data/metric?symbols=${symbols.join(",")}&metric=${metric}`),
   getNews: (symbols: string[], limit: number) =>
     fetchJSON<NewsItem[]>(`/data/news?symbols=${symbols.join(",")}&limit=${limit}`),
+  getArticle: (url: string) =>
+    fetchJSON<ArticleData>(`/data/article?url=${encodeURIComponent(url)}`),
   getFearGreed: () =>
     fetchJSON<FearGreedData>("/data/fear-greed"),
   getRrg: (symbols: string[], benchmark: string, lookback: string, trail: number) =>
@@ -324,6 +404,12 @@ export const dataApi = {
     fetchJSON<HeatmapUniverse[]>("/data/heatmap/universes"),
   getIPOs: (limit?: number) =>
     fetchJSON<IPOEntry[]>(`/data/macro/ipos?limit=${limit || 5}`),
+  getRecessionRisk: () =>
+    fetchJSON<RecessionRiskData>("/data/macro/recession-risk"),
+  getFroth: () =>
+    fetchJSON<FrothData>("/data/macro/froth"),
+  getValuation: () =>
+    fetchJSON<ValuationData>("/data/macro/valuation"),
   getOptions: (symbols: string[]) =>
     fetchJSON<OptionsData[]>(`/data/options?symbols=${symbols.join(",")}`),
   getCandles: (symbol: string, range: string, interval: string) =>

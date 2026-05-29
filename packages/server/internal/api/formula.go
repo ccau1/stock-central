@@ -15,11 +15,15 @@ import (
 //   rsi(14) - macd(12,26,9)
 //   (bb_upper(20,2) - bb_lower(20,2)) / bb_middle(20)
 // Available functions:
-//   close(), open(), high(), low(), volume()
-//   sma(period), ema(period), rsi(period)
-//   macd(fast,slow,signal), macd_signal(fast,slow,signal), macd_hist(fast,slow,signal)
-//   bb_upper(period,mult), bb_middle(period), bb_lower(period,mult)
-//   hl2(), hlc3(), ohlc4()
+//   Price: close(), open(), high(), low(), volume(), hl2(), hlc3(), ohlc4()
+//   Moving Averages: sma(period), ema(period), wma(period), hma(period), vwma(period)
+//   Oscillators: rsi(period), macd(f,s,sg), macd_signal(f,s,sg), macd_hist(f,s,sg)
+//                stoch_k(period), stoch_d(period,smooth_k), williams_r(period)
+//                cci(period), mfi(period)
+//   Bollinger Bands: bb_upper(period,mult), bb_middle(period), bb_lower(period,mult)
+//   Volatility: atr(period), stddev(period), tr()
+//   Volume: obv()
+//   Operators: + - * / parentheses unary minus
 
 type tokenType int
 
@@ -236,6 +240,85 @@ func (n *callNode) eval(idx int, ctx *formulaEvalCtx) float64 {
 				return alignIndicatorToCandles(lower.Points, ctx.candles)
 			})
 		}
+	case "wma":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeWMASeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "hma":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeHMASeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "vwma":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeVWMASeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "atr":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeATRSeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "stddev":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeStdDevSeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "cci":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeCCISeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "stoch_k":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeStochKSeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "stoch_d":
+		period := int(n.argValue(0, idx, ctx))
+		smoothK := int(n.argValue(1, idx, ctx))
+		if period > 0 && smoothK > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeStochDSeries(ctx.candles, period, smoothK).Points, ctx.candles)
+			})
+		}
+	case "williams_r":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeWilliamsRSeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "mfi":
+		period := int(n.argValue(0, idx, ctx))
+		if period > 0 {
+			return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+				return alignIndicatorToCandles(computeMFISeries(ctx.candles, period).Points, ctx.candles)
+			})
+		}
+	case "obv":
+		return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+			return alignIndicatorToCandles(computeOBVSeries(ctx.candles).Points, ctx.candles)
+		})
+	case "tr":
+		return ctx.getIndicatorValue(n.cacheKey(), idx, func() []float64 {
+			return alignIndicatorToCandles(computeTRSeries(ctx.candles).Points, ctx.candles)
+		})
 	}
 	return math.NaN()
 }

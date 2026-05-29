@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { PanelProps, PanelDefinition } from "../../core/types";
 import { dataApi } from "../../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../../core";
+import ArticleModal from "../../../components/ArticleModal";
 
 function timeAgo(dateStr: string): string {
   const date = new Date(dateStr);
@@ -25,6 +27,22 @@ export function NewsFeedPanel({ title, tickers, inputs, refreshKey, onRefresh, d
     [symbols, maxItems, refreshKey]
   );
 
+  const [modalUrl, setModalUrl] = useState<string | null>(null);
+  const [modalTitle, setModalTitle] = useState<string>("");
+  const [modalSource, setModalSource] = useState<string>("");
+  const [modalPublished, setModalPublished] = useState<string>("");
+
+  const openModal = (item: any) => {
+    setModalUrl(item.url);
+    setModalTitle(item.title);
+    setModalSource(item.source);
+    setModalPublished(item.published);
+  };
+
+  const closeModal = () => {
+    setModalUrl(null);
+  };
+
   if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
@@ -34,14 +52,12 @@ export function NewsFeedPanel({ title, tickers, inputs, refreshKey, onRefresh, d
         <div className="space-y-2">
           {data.map((item: any, i: number) => (
             <div key={i} className="text-xs p-2 bg-gray-50 rounded border border-gray-100">
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-gray-700 leading-tight hover:text-blue-600 hover:underline block"
+              <button
+                onClick={() => openModal(item)}
+                className="font-medium text-gray-700 leading-tight hover:text-blue-600 hover:underline block text-left w-full"
               >
                 {item.title}
-              </a>
+              </button>
               <div className="text-gray-400 mt-0.5 flex justify-between">
                 <span>{item.source}</span>
                 <span>{timeAgo(item.published)}</span>
@@ -50,6 +66,14 @@ export function NewsFeedPanel({ title, tickers, inputs, refreshKey, onRefresh, d
           ))}
         </div>
       )}
+      <ArticleModal
+        isOpen={!!modalUrl}
+        onClose={closeModal}
+        url={modalUrl || ""}
+        fallbackTitle={modalTitle}
+        fallbackSource={modalSource}
+        fallbackPublished={modalPublished}
+      />
     </PanelContainer>
   );
 }

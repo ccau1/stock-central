@@ -217,6 +217,7 @@ export default function ComparisonsPage() {
 
       <DashboardGrid
         panels={dashboard.panels}
+        groups={dashboard.groups || []}
         filters={{ tickers, enabledTickers: enabled, timeRange }}
         globalRefreshKey={globalRefreshKey}
         panelRefreshKeys={panelRefreshKeys}

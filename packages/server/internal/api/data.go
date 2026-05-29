@@ -1,13 +1,19 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"codeberg.org/readeck/go-readability/v2"
 	"github.com/go-chi/chi/v5"
 	"stockcentral/internal/client"
 )
@@ -154,6 +160,48 @@ type RatioData struct {
 	Points []RatioPoint `json:"points"`
 }
 
+type RecessionIndicator struct {
+	Name        string  `json:"name"`
+	Value       float64 `json:"value"`
+	Change1m    float64 `json:"change_1m"`
+	Signal      string  `json:"signal"`
+	Description string  `json:"description"`
+}
+
+type RecessionRiskData struct {
+	Indicators []RecessionIndicator `json:"indicators"`
+	RiskScore  int                  `json:"risk_score"`
+	RiskLabel  string               `json:"risk_label"`
+}
+
+type FrothIndicator struct {
+	Name        string  `json:"name"`
+	Value       float64 `json:"value"`
+	Change1m    float64 `json:"change_1m"`
+	Signal      string  `json:"signal"`
+	Description string  `json:"description"`
+}
+
+type FrothData struct {
+	Indicators []FrothIndicator `json:"indicators"`
+	FrothScore int              `json:"froth_score"`
+	FrothLabel string           `json:"froth_label"`
+}
+
+type ValuationPoint struct {
+	Date  string  `json:"date"`
+	Price float64 `json:"price"`
+	Ma200 float64 `json:"ma_200"`
+}
+
+type ValuationData struct {
+	Current   float64          `json:"current"`
+	Ma200     float64          `json:"ma_200"`
+	Premium   float64          `json:"premium"`
+	History   []ValuationPoint `json:"history"`
+	ForwardPE float64          `json:"forward_pe"`
+}
+
 type IPOEntry struct {
 	Symbol    string `json:"symbol"`
 	Name      string `json:"name"`
@@ -230,6 +278,7 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Post("/formula", a.postFormula)
 	r.Get("/metric", a.getMetric)
 	r.Get("/news", a.getNews)
+	r.Get("/article", a.getArticle)
 	r.Get("/fear-greed", a.getFearGreed)
 	r.Get("/rrg", a.getRrg)
 	r.Get("/forward-pe", a.getForwardPe)
@@ -243,6 +292,9 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/macro/credit-spread", a.getCreditSpread)
 	r.Get("/macro/ratios", a.getRatios)
 	r.Get("/macro/ipos", a.getIPOs)
+	r.Get("/macro/recession-risk", a.getRecessionRisk)
+	r.Get("/macro/froth", a.getFroth)
+	r.Get("/macro/valuation", a.getValuation)
 	r.Get("/heatmap", a.getHeatmap)
 	r.Get("/heatmap/universes", a.getHeatmapUniverses)
 	r.Get("/options", a.getOptions)
@@ -493,6 +545,247 @@ func (a *API) getNews(w http.ResponseWriter, r *http.Request) {
 			URL:       article.Link,
 		})
 	}
+	respondJSON(w, http.StatusOK, result)
+}
+
+var (
+	exchangeTickerRe   = regexp.MustCompile(`(?:NYSE|NASDAQ|AMEX|OTC)\s*:\s*([A-Z]{1,5})`)
+	standaloneTickerRe = regexp.MustCompile(`\b[A-Z]{3,5}\b`)
+	ldJSONRe           = regexp.MustCompile(`<script\s+type=["']application/ld\+json["'][^>]*>([\s\S]*?)</script>`)
+	ogVideoRe          = regexp.MustCompile(`<meta[^>]+property=["']og:video["'][^>]+content=["']([^"']+)["']`)
+	isoDurationRe      = regexp.MustCompile(`PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?`)
+)
+
+var commonWords = map[string]bool{
+	"THE": true, "AND": true, "FOR": true, "ARE": true, "BUT": true, "NOT": true,
+	"YOU": true, "ALL": true, "ANY": true, "CAN": true, "HAD": true, "HER": true,
+	"WAS": true, "ONE": true, "OUR": true, "OUT": true, "GET": true, "HAS": true,
+	"HIM": true, "HIS": true, "HOW": true, "MAY": true, "NEW": true, "NOW": true,
+	"OLD": true, "SEE": true, "TWO": true, "WAY": true, "WHO": true, "DID": true,
+	"SHE": true, "USE": true, "TOO": true, "OWN": true, "SAY": true, "TRY": true,
+	"LET": true, "PUT": true, "END": true, "WHY": true, "CEO": true, "CFO": true,
+	"COO": true, "CTO": true, "USA": true, "EPS": true, "YTD": true, "RSI": true,
+	"MACD": true, "SMA": true, "EMA": true, "IPO": true, "ETF": true, "USD": true,
+	"HTML": true, "HTTP": true, "API": true, "URL": true, "CSS": true, "XML": true,
+	"JSON": true, "SQL": true, "VPN": true, "CPU": true, "GPU": true, "RAM": true,
+	"SSD": true, "USB": true, "PDF": true, "JPG": true, "PNG": true, "GIF": true,
+	"DOC": true, "XLS": true, "PPT": true, "ZIP": true, "TXT": true, "CSV": true,
+	"JAN": true, "FEB": true, "MAR": true, "APR": true, "JUN": true, "JUL": true,
+	"AUG": true, "SEP": true, "OCT": true, "NOV": true, "DEC": true,
+	"MON": true, "TUE": true, "WED": true, "THU": true, "FRI": true, "SAT": true, "SUN": true,
+}
+
+func extractTickers(text string) []string {
+	seen := make(map[string]bool)
+	var candidates []string
+
+	for _, m := range exchangeTickerRe.FindAllStringSubmatch(text, -1) {
+		sym := strings.ToUpper(m[1])
+		if !seen[sym] {
+			seen[sym] = true
+			candidates = append(candidates, sym)
+		}
+	}
+
+	for _, m := range standaloneTickerRe.FindAllString(text, -1) {
+		sym := strings.ToUpper(m)
+		if seen[sym] || commonWords[sym] {
+			continue
+		}
+		seen[sym] = true
+		candidates = append(candidates, sym)
+	}
+
+	return candidates
+}
+
+type VideoInfo struct {
+	EmbedURL  string `json:"embed_url,omitempty"`
+	StreamURL string `json:"stream_url,omitempty"`
+	Thumbnail string `json:"thumbnail,omitempty"`
+	Duration  int    `json:"duration,omitempty"`
+}
+
+func extractVideoInfo(html string) *VideoInfo {
+	for _, m := range ldJSONRe.FindAllStringSubmatch(html, -1) {
+		var ld interface{}
+		if err := json.Unmarshal([]byte(strings.TrimSpace(m[1])), &ld); err != nil {
+			continue
+		}
+		vo := findVideoObject(ld)
+		if vo == nil {
+			continue
+		}
+		info := &VideoInfo{}
+		if s, ok := vo["embedUrl"].(string); ok && s != "" {
+			info.EmbedURL = s
+		}
+		if s, ok := vo["contentUrl"].(string); ok && s != "" {
+			info.StreamURL = s
+		}
+		if s, ok := vo["thumbnailUrl"].(string); ok && s != "" {
+			info.Thumbnail = s
+		}
+		if dur, ok := vo["duration"].(string); ok {
+			info.Duration = parseISODuration(dur)
+		}
+		if id, ok := vo["identifier"].(string); ok && id != "" && info.StreamURL == "" {
+			info.StreamURL = fmt.Sprintf("https://video.media.yql.yahoo.com/v1/video/sapi/hlsstreams/%s.m3u8", id)
+		}
+		if info.EmbedURL != "" || info.StreamURL != "" {
+			return info
+		}
+	}
+
+	if m := ogVideoRe.FindStringSubmatch(html); m != nil {
+		return &VideoInfo{EmbedURL: m[1]}
+	}
+
+	return nil
+}
+
+func findVideoObject(obj interface{}) map[string]interface{} {
+	switch v := obj.(type) {
+	case map[string]interface{}:
+		if t, ok := v["@type"].(string); ok && t == "VideoObject" {
+			return v
+		}
+		for _, val := range v {
+			if found := findVideoObject(val); found != nil {
+				return found
+			}
+		}
+	case []interface{}:
+		for _, item := range v {
+			if found := findVideoObject(item); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
+}
+
+func parseISODuration(s string) int {
+	m := isoDurationRe.FindStringSubmatch(s)
+	if m == nil {
+		return 0
+	}
+	h, _ := strconv.Atoi(m[1])
+	min, _ := strconv.Atoi(m[2])
+	sec, _ := strconv.Atoi(m[3])
+	return h*3600 + min*60 + sec
+}
+
+func (a *API) getArticle(w http.ResponseWriter, r *http.Request) {
+	urlStr := r.URL.Query().Get("url")
+	if urlStr == "" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("url is required"))
+		return
+	}
+
+	parsed, err := url.ParseRequestURI(urlStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("invalid url"))
+		return
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("invalid url scheme"))
+		return
+	}
+	if parsed.Host == "" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("invalid url host"))
+		return
+	}
+
+	// Fetch raw HTML ourselves so we can inspect it for video metadata
+	httpCli := &http.Client{Timeout: 15 * time.Second}
+	req, err := http.NewRequest("GET", urlStr, nil)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to create request: %w", err))
+		return
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	resp, err := httpCli.Do(req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to fetch article: %w", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("HTTP %d from %s", resp.StatusCode, urlStr))
+		return
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to read response: %w", err))
+		return
+	}
+
+	videoInfo := extractVideoInfo(string(bodyBytes))
+
+	article, err := readability.FromReader(bytes.NewReader(bodyBytes), parsed)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to parse article: %w", err))
+		return
+	}
+
+	if article.Node == nil && videoInfo == nil {
+		respondError(w, http.StatusUnprocessableEntity, fmt.Errorf("unable to extract article content from this page"))
+		return
+	}
+
+	var htmlBuf bytes.Buffer
+	if article.Node != nil {
+		if err := article.RenderHTML(&htmlBuf); err != nil {
+			respondError(w, http.StatusInternalServerError, fmt.Errorf("failed to render article: %w", err))
+			return
+		}
+	}
+
+	var publishedTime string
+	if pt, err := article.PublishedTime(); err == nil {
+		publishedTime = pt.Format(time.RFC3339)
+	}
+
+	var textBuf bytes.Buffer
+	if article.Node != nil {
+		_ = article.RenderText(&textBuf)
+	}
+	candidates := extractTickers(textBuf.String())
+
+	var tickerData []map[string]interface{}
+	if len(candidates) > 0 {
+		quotes, err := client.GetBatchQuotes(candidates)
+		if err == nil {
+			for _, q := range quotes {
+				if q.Symbol == "" || q.Price == 0 {
+					continue
+				}
+				tickerData = append(tickerData, map[string]interface{}{
+					"symbol":         q.Symbol,
+					"price":          math.Round(q.Price*100) / 100,
+					"change":         math.Round(q.Change*100) / 100,
+					"change_percent": math.Round(q.ChangePercent*100) / 100,
+				})
+			}
+		}
+	}
+
+	result := map[string]interface{}{
+		"title":          article.Title(),
+		"byline":         article.Byline(),
+		"excerpt":        article.Excerpt(),
+		"site_name":      article.SiteName(),
+		"published_time": publishedTime,
+		"content":        htmlBuf.String(),
+		"tickers":        tickerData,
+	}
+	if videoInfo != nil {
+		result["video"] = videoInfo
+	}
+
 	respondJSON(w, http.StatusOK, result)
 }
 
@@ -980,6 +1273,480 @@ func (a *API) getIPOs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	respondJSON(w, http.StatusOK, result)
+}
+
+func (a *API) getRecessionRisk(w http.ResponseWriter, r *http.Request) {
+	indicators := []RecessionIndicator{}
+	riskScore := 0
+
+	// 1. Yield Curve (10Y - 3M)
+	if tnPoints, err := client.GetChart("^TNX", "3mo", "1d"); err == nil && len(tnPoints) > 0 {
+		if irxPoints, err := client.GetChart("^IRX", "3mo", "1d"); err == nil && len(irxPoints) > 0 {
+			current10y := tnPoints[len(tnPoints)-1].Price
+			current3m := irxPoints[len(irxPoints)-1].Price
+			spread := current10y - current3m
+			var change1m float64
+			if len(tnPoints) > 21 && len(irxPoints) > 21 {
+				prev10y := tnPoints[len(tnPoints)-22].Price
+				prev3m := irxPoints[len(irxPoints)-22].Price
+				change1m = (spread - (prev10y - prev3m))
+			}
+			signal := "normal"
+			desc := "Normal slope — no immediate recession risk"
+			if spread < 0 {
+				signal = "critical"
+				desc = "Inverted yield curve — strong recession signal"
+				riskScore += 25
+			} else if spread < 0.5 {
+				signal = "warning"
+				desc = "Flattening curve — elevated recession risk"
+				riskScore += 15
+			}
+			indicators = append(indicators, RecessionIndicator{
+				Name:        "Yield Curve (10Y−3M)",
+				Value:       math.Round(spread*100) / 100,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	// 2. Credit Spread (HYG vs LQD)
+	if hyPoints, err := client.GetChart("HYG", "3mo", "1d"); err == nil && len(hyPoints) > 0 {
+		if igPoints, err := client.GetChart("LQD", "3mo", "1d"); err == nil && len(igPoints) > 0 {
+			hy := hyPoints[len(hyPoints)-1].Price
+			ig := igPoints[len(igPoints)-1].Price
+			spread := 0.0
+			if ig > 0 {
+				spread = (hy/ig - 1) * 100
+			}
+			var change1m float64
+			if len(hyPoints) > 21 && len(igPoints) > 21 {
+				hyPrev := hyPoints[len(hyPoints)-22].Price
+				igPrev := igPoints[len(igPoints)-22].Price
+				prevSpread := 0.0
+				if igPrev > 0 {
+					prevSpread = (hyPrev/igPrev - 1) * 100
+				}
+				change1m = spread - prevSpread
+			}
+			signal := "normal"
+			desc := "Credit spreads tight — healthy credit market"
+			if spread > 5 {
+				signal = "critical"
+				desc = "Spreads widening significantly — credit stress"
+				riskScore += 25
+			} else if spread > 3 {
+				signal = "warning"
+				desc = "Spreads elevated — rising credit risk"
+				riskScore += 15
+			}
+			indicators = append(indicators, RecessionIndicator{
+				Name:        "Credit Spread (HYG/LQD)",
+				Value:       math.Round(spread*100) / 100,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	// 3. Copper/Gold Ratio
+	if cperPoints, err := client.GetChart("CPER", "3mo", "1d"); err == nil && len(cperPoints) > 0 {
+		if gldPoints, err := client.GetChart("GLD", "3mo", "1d"); err == nil && len(gldPoints) > 0 {
+			current := 0.0
+			if gldPoints[len(gldPoints)-1].Price > 0 {
+				current = cperPoints[len(cperPoints)-1].Price / gldPoints[len(gldPoints)-1].Price
+			}
+			var change1m float64
+			if len(cperPoints) > 21 && len(gldPoints) > 21 {
+				prev := 0.0
+				if gldPoints[len(gldPoints)-22].Price > 0 {
+					prev = cperPoints[len(cperPoints)-22].Price / gldPoints[len(gldPoints)-22].Price
+				}
+				if prev > 0 {
+					change1m = ((current - prev) / prev) * 100
+				}
+			}
+			signal := "normal"
+			desc := "Copper/gold stable — neutral growth outlook"
+			if change1m < -8 {
+				signal = "critical"
+				desc = "Copper/gold falling sharply — weakening growth"
+				riskScore += 20
+			} else if change1m < -3 {
+				signal = "warning"
+				desc = "Copper/gold declining — growth concerns"
+				riskScore += 10
+			}
+			indicators = append(indicators, RecessionIndicator{
+				Name:        "Copper / Gold",
+				Value:       math.Round(current*1000) / 1000,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	// 4. Discretionary / Staples
+	if xlyPoints, err := client.GetChart("XLY", "3mo", "1d"); err == nil && len(xlyPoints) > 0 {
+		if xlpPoints, err := client.GetChart("XLP", "3mo", "1d"); err == nil && len(xlpPoints) > 0 {
+			current := 0.0
+			if xlpPoints[len(xlpPoints)-1].Price > 0 {
+				current = xlyPoints[len(xlyPoints)-1].Price / xlpPoints[len(xlpPoints)-1].Price
+			}
+			var change1m float64
+			if len(xlyPoints) > 21 && len(xlpPoints) > 21 {
+				prev := 0.0
+				if xlpPoints[len(xlpPoints)-22].Price > 0 {
+					prev = xlyPoints[len(xlyPoints)-22].Price / xlpPoints[len(xlpPoints)-22].Price
+				}
+				if prev > 0 {
+					change1m = ((current - prev) / prev) * 100
+				}
+			}
+			signal := "normal"
+			desc := "Cyclicals performing — healthy risk appetite"
+			if change1m < -5 {
+				signal = "critical"
+				desc = "Defensives outperforming — risk-off regime"
+				riskScore += 15
+			} else if change1m < -2 {
+				signal = "warning"
+				desc = "Cyclicals weakening — caution warranted"
+				riskScore += 8
+			}
+			indicators = append(indicators, RecessionIndicator{
+				Name:        "Discretionary / Staples",
+				Value:       math.Round(current*1000) / 1000,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	// 5. Small Cap / Large Cap
+	if iwmPoints, err := client.GetChart("IWM", "3mo", "1d"); err == nil && len(iwmPoints) > 0 {
+		if spyPoints, err := client.GetChart("SPY", "3mo", "1d"); err == nil && len(spyPoints) > 0 {
+			current := 0.0
+			if spyPoints[len(spyPoints)-1].Price > 0 {
+				current = iwmPoints[len(iwmPoints)-1].Price / spyPoints[len(spyPoints)-1].Price
+			}
+			var change1m float64
+			if len(iwmPoints) > 21 && len(spyPoints) > 21 {
+				prev := 0.0
+				if spyPoints[len(spyPoints)-22].Price > 0 {
+					prev = iwmPoints[len(iwmPoints)-22].Price / spyPoints[len(spyPoints)-22].Price
+				}
+				if prev > 0 {
+					change1m = ((current - prev) / prev) * 100
+				}
+			}
+			signal := "normal"
+			desc := "Small caps keeping pace — broad participation"
+			if change1m < -5 {
+				signal = "critical"
+				desc = "Small caps lagging badly — flight to safety"
+				riskScore += 15
+			} else if change1m < -2 {
+				signal = "warning"
+				desc = "Small caps underperforming — narrowing breadth"
+				riskScore += 8
+			}
+			indicators = append(indicators, RecessionIndicator{
+				Name:        "Small Cap / Large Cap",
+				Value:       math.Round(current*1000) / 1000,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	if riskScore > 100 {
+		riskScore = 100
+	}
+	riskLabel := "Low"
+	if riskScore >= 75 {
+		riskLabel = "High"
+	} else if riskScore >= 50 {
+		riskLabel = "Elevated"
+	} else if riskScore >= 25 {
+		riskLabel = "Moderate"
+	}
+
+	respondJSON(w, http.StatusOK, RecessionRiskData{
+		Indicators: indicators,
+		RiskScore:  riskScore,
+		RiskLabel:  riskLabel,
+	})
+}
+
+func (a *API) getFroth(w http.ResponseWriter, r *http.Request) {
+	indicators := []FrothIndicator{}
+	frothScore := 0
+
+	// 1. Speculative Appetite (ARKK / SPY)
+	if arkkPoints, err := client.GetChart("ARKK", "3mo", "1d"); err == nil && len(arkkPoints) > 0 {
+		if spyPoints, err := client.GetChart("SPY", "3mo", "1d"); err == nil && len(spyPoints) > 0 {
+			current := 0.0
+			if spyPoints[len(spyPoints)-1].Price > 0 {
+				current = arkkPoints[len(arkkPoints)-1].Price / spyPoints[len(spyPoints)-1].Price
+			}
+			var change1m float64
+			if len(arkkPoints) > 21 && len(spyPoints) > 21 {
+				prev := 0.0
+				if spyPoints[len(spyPoints)-22].Price > 0 {
+					prev = arkkPoints[len(arkkPoints)-22].Price / spyPoints[len(spyPoints)-22].Price
+				}
+				if prev > 0 {
+					change1m = ((current - prev) / prev) * 100
+				}
+			}
+			signal := "low"
+			desc := "Speculative appetite muted"
+			if change1m > 15 {
+				signal = "extreme"
+				desc = "ARKK surging vs S&P — speculative mania"
+				frothScore += 25
+			} else if change1m > 8 {
+				signal = "high"
+				desc = "Speculative stocks outperforming"
+				frothScore += 15
+			} else if change1m > 3 {
+				signal = "moderate"
+				desc = "Some speculative interest"
+				frothScore += 5
+			}
+			indicators = append(indicators, FrothIndicator{
+				Name:        "ARKK / S&P 500",
+				Value:       math.Round(current*1000) / 1000,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	// 2. Crypto Proxy (MSTR)
+	if mstrPoints, err := client.GetChart("MSTR", "3mo", "1d"); err == nil && len(mstrPoints) > 0 {
+		current := mstrPoints[len(mstrPoints)-1].Price
+		var change1m float64
+		if len(mstrPoints) > 21 {
+			prev := mstrPoints[len(mstrPoints)-22].Price
+			if prev > 0 {
+				change1m = ((current - prev) / prev) * 100
+			}
+		}
+		signal := "low"
+		desc := "Crypto proxy stable"
+		if change1m > 40 {
+			signal = "extreme"
+			desc = "MSTR exploding — crypto mania"
+			frothScore += 20
+		} else if change1m > 20 {
+			signal = "high"
+			desc = "Crypto proxy running hot"
+			frothScore += 12
+		} else if change1m > 8 {
+			signal = "moderate"
+			desc = "Crypto proxy warming up"
+			frothScore += 5
+		}
+		indicators = append(indicators, FrothIndicator{
+			Name:        "MSTR (Crypto Proxy)",
+			Value:       math.Round(current*100) / 100,
+			Change1m:    math.Round(change1m*100) / 100,
+			Signal:      signal,
+			Description: desc,
+		})
+	}
+
+	// 3. Tech Concentration (QQQ / SPY)
+	if qqqPoints, err := client.GetChart("QQQ", "3mo", "1d"); err == nil && len(qqqPoints) > 0 {
+		if spyPoints, err := client.GetChart("SPY", "3mo", "1d"); err == nil && len(spyPoints) > 0 {
+			current := 0.0
+			if spyPoints[len(spyPoints)-1].Price > 0 {
+				current = qqqPoints[len(qqqPoints)-1].Price / spyPoints[len(spyPoints)-1].Price
+			}
+			var change1m float64
+			if len(qqqPoints) > 21 && len(spyPoints) > 21 {
+				prev := 0.0
+				if spyPoints[len(spyPoints)-22].Price > 0 {
+					prev = qqqPoints[len(qqqPoints)-22].Price / spyPoints[len(spyPoints)-22].Price
+				}
+				if prev > 0 {
+					change1m = ((current - prev) / prev) * 100
+				}
+			}
+			signal := "low"
+			desc := "Tech concentration normal"
+			if change1m > 10 {
+				signal = "extreme"
+				desc = "Tech surging vs broad market — narrow rally"
+				frothScore += 20
+			} else if change1m > 5 {
+				signal = "high"
+				desc = "Tech outperforming — narrowing breadth"
+				frothScore += 12
+			} else if change1m > 2 {
+				signal = "moderate"
+				desc = "Tech leading modestly"
+				frothScore += 5
+			}
+			indicators = append(indicators, FrothIndicator{
+				Name:        "Nasdaq 100 / S&P 500",
+				Value:       math.Round(current*1000) / 1000,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	// 4. VIX (inverse froth indicator)
+	if vixPoints, err := client.GetChart("^VIX", "3mo", "1d"); err == nil && len(vixPoints) > 0 {
+		current := vixPoints[len(vixPoints)-1].Price
+		var change1m float64
+		if len(vixPoints) > 21 {
+			prev := vixPoints[len(vixPoints)-22].Price
+			change1m = current - prev
+		}
+		signal := "low"
+		desc := "VIX elevated — fear present"
+		if current < 12 {
+			signal = "extreme"
+			desc = "VIX extremely low — complacency"
+			frothScore += 20
+		} else if current < 15 {
+			signal = "high"
+			desc = "VIX low — elevated complacency"
+			frothScore += 12
+		} else if current < 20 {
+			signal = "moderate"
+			desc = "VIX moderate"
+			frothScore += 5
+		}
+		indicators = append(indicators, FrothIndicator{
+			Name:        "VIX",
+			Value:       math.Round(current*100) / 100,
+			Change1m:    math.Round(change1m*100) / 100,
+			Signal:      signal,
+			Description: desc,
+		})
+	}
+
+	// 5. Retail Favorites (XLY / SPY)
+	if xlyPoints, err := client.GetChart("XLY", "3mo", "1d"); err == nil && len(xlyPoints) > 0 {
+		if spyPoints, err := client.GetChart("SPY", "3mo", "1d"); err == nil && len(spyPoints) > 0 {
+			current := 0.0
+			if spyPoints[len(spyPoints)-1].Price > 0 {
+				current = xlyPoints[len(xlyPoints)-1].Price / spyPoints[len(spyPoints)-1].Price
+			}
+			var change1m float64
+			if len(xlyPoints) > 21 && len(spyPoints) > 21 {
+				prev := 0.0
+				if spyPoints[len(spyPoints)-22].Price > 0 {
+					prev = xlyPoints[len(xlyPoints)-22].Price / spyPoints[len(spyPoints)-22].Price
+				}
+				if prev > 0 {
+					change1m = ((current - prev) / prev) * 100
+				}
+			}
+			signal := "low"
+			desc := "Consumer discretionary muted"
+			if change1m > 10 {
+				signal = "extreme"
+				desc = "Discretionary surging — retail euphoria"
+				frothScore += 15
+			} else if change1m > 5 {
+				signal = "high"
+				desc = "Retail participation high"
+				frothScore += 8
+			} else if change1m > 2 {
+				signal = "moderate"
+				desc = "Retail interest picking up"
+				frothScore += 3
+			}
+			indicators = append(indicators, FrothIndicator{
+				Name:        "Consumer Disc. / S&P 500",
+				Value:       math.Round(current*1000) / 1000,
+				Change1m:    math.Round(change1m*100) / 100,
+				Signal:      signal,
+				Description: desc,
+			})
+		}
+	}
+
+	if frothScore > 100 {
+		frothScore = 100
+	}
+	frothLabel := "Low"
+	if frothScore >= 75 {
+		frothLabel = "Extreme"
+	} else if frothScore >= 50 {
+		frothLabel = "High"
+	} else if frothScore >= 25 {
+		frothLabel = "Moderate"
+	}
+
+	respondJSON(w, http.StatusOK, FrothData{
+		Indicators: indicators,
+		FrothScore: frothScore,
+		FrothLabel: frothLabel,
+	})
+}
+
+func (a *API) getValuation(w http.ResponseWriter, r *http.Request) {
+	points, err := client.GetChart("^GSPC", "5y", "1d")
+	if err != nil {
+		points, err = client.GetChart("SPY", "5y", "1d")
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+
+	var history []ValuationPoint
+	var current, ma200 float64
+	for i, p := range points {
+		vp := ValuationPoint{Date: p.Date, Price: math.Round(p.Price*100) / 100}
+		if i >= 199 {
+			ma := sma(points[i-199 : i+1])
+			vp.Ma200 = math.Round(ma*100) / 100
+			if i == len(points)-1 {
+				current = vp.Price
+				ma200 = vp.Ma200
+			}
+		}
+		history = append(history, vp)
+	}
+
+	premium := 0.0
+	if ma200 > 0 {
+		premium = ((current - ma200) / ma200) * 100
+	}
+
+	// Try to get forward PE for SPY
+	forwardPE := 0.0
+	if m, err := client.GetQuoteSummary("SPY"); err == nil {
+		forwardPE = m.PeForward
+		if forwardPE == 0 {
+			forwardPE = m.PeTrailing
+		}
+		forwardPE = math.Round(forwardPE*10) / 10
+	}
+
+	respondJSON(w, http.StatusOK, ValuationData{
+		Current:   math.Round(current*100) / 100,
+		Ma200:     math.Round(ma200*100) / 100,
+		Premium:   math.Round(premium*100) / 100,
+		History:   history,
+		ForwardPE: forwardPE,
+	})
 }
 
 func (a *API) searchTickers(w http.ResponseWriter, r *http.Request) {
@@ -1477,6 +2244,379 @@ func emaOfSlice(values []float64, period int) []float64 {
 		result[i] = ema
 	}
 	return result
+}
+
+func computeWMASeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		var sum, weightSum float64
+		for j := i - period + 1; j <= i; j++ {
+			weight := float64(j - (i - period + 1) + 1)
+			sum += candles[j].Close * weight
+			weightSum += weight
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(sum/weightSum*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("WMA(%d)", period), Points: points}
+}
+
+func computeHMASeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	halfPeriod := period / 2
+	sqrtPeriod := int(math.Sqrt(float64(period)))
+
+	// WMA of close over half period
+	wmaHalf := make([]float64, len(candles))
+	for i := 0; i < len(candles); i++ {
+		if i < halfPeriod-1 {
+			continue
+		}
+		var sum, weightSum float64
+		for j := i - halfPeriod + 1; j <= i; j++ {
+			weight := float64(j - (i - halfPeriod + 1) + 1)
+			sum += candles[j].Close * weight
+			weightSum += weight
+		}
+		wmaHalf[i] = sum / weightSum
+	}
+
+	// WMA of close over full period
+	wmaFull := make([]float64, len(candles))
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		var sum, weightSum float64
+		for j := i - period + 1; j <= i; j++ {
+			weight := float64(j - (i - period + 1) + 1)
+			sum += candles[j].Close * weight
+			weightSum += weight
+		}
+		wmaFull[i] = sum / weightSum
+	}
+
+	// Raw HMA = 2*WMA(half) - WMA(full)
+	raw := make([]float64, len(candles))
+	for i := 0; i < len(candles); i++ {
+		raw[i] = 2*wmaHalf[i] - wmaFull[i]
+	}
+
+	// WMA of raw over sqrt(period)
+	for i := 0; i < len(candles); i++ {
+		if i < sqrtPeriod-1 || raw[i] == 0 {
+			continue
+		}
+		var sum, weightSum float64
+		for j := i - sqrtPeriod + 1; j <= i; j++ {
+			if raw[j] == 0 {
+				continue
+			}
+			weight := float64(j - (i - sqrtPeriod + 1) + 1)
+			sum += raw[j] * weight
+			weightSum += weight
+		}
+		if weightSum > 0 {
+			points = append(points, IndicatorPoint{
+				Date:  candles[i].Date,
+				Value: math.Round(sum/weightSum*100) / 100,
+			})
+		}
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("HMA(%d)", period), Points: points}
+}
+
+func computeVWMASeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		var pvSum, volSum float64
+		for j := i - period + 1; j <= i; j++ {
+			typical := (candles[j].High + candles[j].Low + candles[j].Close) / 3
+			pvSum += typical * float64(candles[j].Volume)
+			volSum += float64(candles[j].Volume)
+		}
+		if volSum > 0 {
+			points = append(points, IndicatorPoint{
+				Date:  candles[i].Date,
+				Value: math.Round(pvSum/volSum*100) / 100,
+			})
+		}
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("VWMA(%d)", period), Points: points}
+}
+
+func computeTRSeries(candles []client.Candle) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		tr := candles[i].High - candles[i].Low
+		if i > 0 {
+			tr2 := math.Abs(candles[i].High - candles[i-1].Close)
+			tr3 := math.Abs(candles[i].Low - candles[i-1].Close)
+			tr = math.Max(tr, math.Max(tr2, tr3))
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(tr*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: "TR", Points: points}
+}
+
+func computeATRSeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	if len(candles) < period {
+		return IndicatorSeries{Name: fmt.Sprintf("ATR(%d)", period), Points: points}
+	}
+	trValues := make([]float64, len(candles))
+	for i := 0; i < len(candles); i++ {
+		trValues[i] = candles[i].High - candles[i].Low
+		if i > 0 {
+			tr2 := math.Abs(candles[i].High - candles[i-1].Close)
+			tr3 := math.Abs(candles[i].Low - candles[i-1].Close)
+			trValues[i] = math.Max(trValues[i], math.Max(tr2, tr3))
+		}
+	}
+	var atr float64
+	for i := 0; i < period; i++ {
+		atr += trValues[i]
+	}
+	atr /= float64(period)
+	points = append(points, IndicatorPoint{
+		Date:  candles[period-1].Date,
+		Value: math.Round(atr*100) / 100,
+	})
+	for i := period; i < len(candles); i++ {
+		atr = (atr*float64(period-1) + trValues[i]) / float64(period)
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(atr*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("ATR(%d)", period), Points: points}
+}
+
+func computeStdDevSeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		var sum float64
+		for j := i - period + 1; j <= i; j++ {
+			sum += candles[j].Close
+		}
+		mean := sum / float64(period)
+		var variance float64
+		for j := i - period + 1; j <= i; j++ {
+			variance += math.Pow(candles[j].Close-mean, 2)
+		}
+		stddev := math.Sqrt(variance / float64(period))
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(stddev*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("StdDev(%d)", period), Points: points}
+}
+
+func computeCCISeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		var tpSum float64
+		for j := i - period + 1; j <= i; j++ {
+			tpSum += (candles[j].High + candles[j].Low + candles[j].Close) / 3
+		}
+		meanTP := tpSum / float64(period)
+		var meanDev float64
+		for j := i - period + 1; j <= i; j++ {
+			meanDev += math.Abs((candles[j].High+candles[j].Low+candles[j].Close)/3 - meanTP)
+		}
+		meanDev /= float64(period)
+		currentTP := (candles[i].High + candles[i].Low + candles[i].Close) / 3
+		var cci float64
+		if meanDev != 0 {
+			cci = (currentTP - meanTP) / (0.015 * meanDev)
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(cci*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("CCI(%d)", period), Points: points}
+}
+
+func computeStochKSeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		lowestLow := candles[i].Low
+		highestHigh := candles[i].High
+		for j := i - period + 1; j <= i; j++ {
+			if candles[j].Low < lowestLow {
+				lowestLow = candles[j].Low
+			}
+			if candles[j].High > highestHigh {
+				highestHigh = candles[j].High
+			}
+		}
+		var k float64
+		range_ := highestHigh - lowestLow
+		if range_ != 0 {
+			k = (candles[i].Close - lowestLow) / range_ * 100
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(k*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("StochK(%d)", period), Points: points}
+}
+
+func computeStochDSeries(candles []client.Candle, period int, smoothK int) IndicatorSeries {
+	kValues := make([]float64, len(candles))
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		lowestLow := candles[i].Low
+		highestHigh := candles[i].High
+		for j := i - period + 1; j <= i; j++ {
+			if candles[j].Low < lowestLow {
+				lowestLow = candles[j].Low
+			}
+			if candles[j].High > highestHigh {
+				highestHigh = candles[j].High
+			}
+		}
+		range_ := highestHigh - lowestLow
+		if range_ != 0 {
+			kValues[i] = (candles[i].Close - lowestLow) / range_ * 100
+		}
+	}
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period+smoothK-2 || kValues[i] == 0 {
+			continue
+		}
+		var sum float64
+		count := 0
+		for j := i - smoothK + 1; j <= i; j++ {
+			if kValues[j] != 0 {
+				sum += kValues[j]
+				count++
+			}
+		}
+		if count > 0 {
+			points = append(points, IndicatorPoint{
+				Date:  candles[i].Date,
+				Value: math.Round(sum/float64(count)*100) / 100,
+			})
+		}
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("StochD(%d,%d)", period, smoothK), Points: points}
+}
+
+func computeWilliamsRSeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	for i := 0; i < len(candles); i++ {
+		if i < period-1 {
+			continue
+		}
+		lowestLow := candles[i].Low
+		highestHigh := candles[i].High
+		for j := i - period + 1; j <= i; j++ {
+			if candles[j].Low < lowestLow {
+				lowestLow = candles[j].Low
+			}
+			if candles[j].High > highestHigh {
+				highestHigh = candles[j].High
+			}
+		}
+		var wr float64
+		range_ := highestHigh - lowestLow
+		if range_ != 0 {
+			wr = (highestHigh - candles[i].Close) / range_ * -100
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(wr*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("WilliamsR(%d)", period), Points: points}
+}
+
+func computeMFISeries(candles []client.Candle, period int) IndicatorSeries {
+	var points []IndicatorPoint
+	if len(candles) < period+1 {
+		return IndicatorSeries{Name: fmt.Sprintf("MFI(%d)", period), Points: points}
+	}
+	var positiveFlow, negativeFlow float64
+	for i := 1; i <= period; i++ {
+		tp0 := (candles[i-1].High + candles[i-1].Low + candles[i-1].Close) / 3
+		tp1 := (candles[i].High + candles[i].Low + candles[i].Close) / 3
+		rawMF := tp1 * float64(candles[i].Volume)
+		if tp1 > tp0 {
+			positiveFlow += rawMF
+		} else {
+			negativeFlow += rawMF
+		}
+	}
+	for i := period; i < len(candles); i++ {
+		tp0 := (candles[i-1].High + candles[i-1].Low + candles[i-1].Close) / 3
+		tp1 := (candles[i].High + candles[i].Low + candles[i].Close) / 3
+		rawMF := tp1 * float64(candles[i].Volume)
+		if tp1 > tp0 {
+			positiveFlow = (positiveFlow*float64(period-1) + rawMF) / float64(period)
+			negativeFlow = (negativeFlow * float64(period-1)) / float64(period)
+		} else {
+			positiveFlow = (positiveFlow * float64(period-1)) / float64(period)
+			negativeFlow = (negativeFlow*float64(period-1) + rawMF) / float64(period)
+		}
+		var mfi float64
+		if negativeFlow != 0 {
+			mr := positiveFlow / negativeFlow
+			mfi = 100 - (100 / (1 + mr))
+		} else {
+			mfi = 100
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(clamp(mfi, 0, 100)*10) / 10,
+		})
+	}
+	return IndicatorSeries{Name: fmt.Sprintf("MFI(%d)", period), Points: points}
+}
+
+func computeOBVSeries(candles []client.Candle) IndicatorSeries {
+	var points []IndicatorPoint
+	var obv float64
+	for i := 0; i < len(candles); i++ {
+		if i > 0 {
+			if candles[i].Close > candles[i-1].Close {
+				obv += float64(candles[i].Volume)
+			} else if candles[i].Close < candles[i-1].Close {
+				obv -= float64(candles[i].Volume)
+			}
+		}
+		points = append(points, IndicatorPoint{
+			Date:  candles[i].Date,
+			Value: math.Round(obv*100) / 100,
+		})
+	}
+	return IndicatorSeries{Name: "OBV", Points: points}
 }
 
 

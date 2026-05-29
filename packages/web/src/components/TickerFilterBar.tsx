@@ -1,4 +1,4 @@
-import { X, Search, RefreshCw, Eye, EyeOff, Trash2, Lock, Unlock, Plus } from "lucide-react";
+import { X, Search, RefreshCw, Eye, EyeOff, Trash2, Lock, Unlock, Plus, FolderPlus } from "lucide-react";
 import type { TickerSearchResult } from "../lib/api";
 
 interface TickerFilterBarProps {
@@ -22,6 +22,7 @@ interface TickerFilterBarProps {
   searchRef: React.RefObject<HTMLDivElement | null>;
   extraControls?: React.ReactNode;
   onAddPanel?: () => void;
+  onAddGroup?: () => void;
 }
 
 export default function TickerFilterBar({
@@ -45,6 +46,7 @@ export default function TickerFilterBar({
   searchRef,
   extraControls,
   onAddPanel,
+  onAddGroup,
 }: TickerFilterBarProps) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 py-2 bg-white border-b border-gray-200 shrink-0">
@@ -163,6 +165,17 @@ export default function TickerFilterBar({
           >
             <Plus size={12} />
             <span className="hidden sm:inline">Add Panel</span>
+          </button>
+        )}
+
+        {onAddGroup && (
+          <button
+            onClick={onAddGroup}
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700"
+            title="Add Group"
+          >
+            <FolderPlus size={12} />
+            <span className="hidden sm:inline">Add Group</span>
           </button>
         )}
 

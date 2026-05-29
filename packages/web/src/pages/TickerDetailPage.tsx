@@ -4,6 +4,7 @@ import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { dataApi } from "../lib/api";
 import type { TickerDetail, OptionsData } from "../lib/api";
 import CandlestickChart from "../components/CandlestickChart";
+import ArticleModal from "../components/ArticleModal";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -34,6 +35,10 @@ export default function TickerDetailPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
+  const [modalUrl, setModalUrl] = useState<string | null>(null);
+  const [modalTitle, setModalTitle] = useState<string>("");
+  const [modalSource, setModalSource] = useState<string>("");
+  const [modalPublished, setModalPublished] = useState<string>("");
 
   const fetchDetail = async () => {
     if (!ticker) return;
@@ -273,14 +278,17 @@ export default function TickerDetailPage() {
           <div className="space-y-3">
             {data.news.map((item, i) => (
               <div key={i} className="text-xs p-3 bg-gray-50 rounded border border-gray-100">
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-gray-700 leading-tight hover:text-blue-600 hover:underline block"
+                <button
+                  onClick={() => {
+                    setModalUrl(item.url || null);
+                    setModalTitle(item.title);
+                    setModalSource(item.source);
+                    setModalPublished(item.published);
+                  }}
+                  className="font-medium text-gray-700 leading-tight hover:text-blue-600 hover:underline block text-left w-full"
                 >
                   {item.title}
-                </a>
+                </button>
                 <div className="text-gray-400 mt-1 flex justify-between">
                   <span>{item.source}</span>
                   <span>{timeAgo(item.published)}</span>
@@ -292,6 +300,15 @@ export default function TickerDetailPage() {
           <div className="text-xs text-gray-400">No news available.</div>
         )}
       </div>
+
+      <ArticleModal
+        isOpen={!!modalUrl}
+        onClose={() => setModalUrl(null)}
+        url={modalUrl || ""}
+        fallbackTitle={modalTitle}
+        fallbackSource={modalSource}
+        fallbackPublished={modalPublished}
+      />
     </div>
   );
 }
