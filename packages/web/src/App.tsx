@@ -6,6 +6,9 @@ import MacroPage from "./pages/MacroPage";
 import RrgPage from "./pages/RrgPage";
 import ComparisonsPage from "./pages/ComparisonsPage";
 import TickerDetailPage from "./pages/TickerDetailPage";
+import HeatmapPage from "./pages/HeatmapPage";
+import DashboardPage from "./pages/DashboardPage";
+import DashboardListPage from "./pages/DashboardListPage";
 
 function App() {
   return (
@@ -21,6 +24,9 @@ function App() {
           <Route path="/rrg" element={<RrgPage />} />
           <Route path="/comparisons" element={<ComparisonsPage />} />
           <Route path="/ticker/:symbol" element={<TickerDetailPage />} />
+          <Route path="/heatmap" element={<HeatmapPage />} />
+          <Route path="/dashboards" element={<DashboardListPage />} />
+          <Route path="/dashboard/:id" element={<DashboardPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

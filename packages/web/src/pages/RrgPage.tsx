@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { RefreshCw, X, Search, Settings2, HelpCircle } from "lucide-react";
+import { RefreshCw, X, Search, Settings2, HelpCircle, Loader2, Eye, EyeOff, Trash2 } from "lucide-react";
 import { dataApi } from "../lib/api";
 import type { RrgTrail, TickerSearchResult } from "../lib/api";
 import { usePersistentTickers } from "../hooks/usePersistentTickers";
@@ -17,7 +17,7 @@ const DEFAULT_ETFS = RRG_GROUPS[0].tickers;
 const RRG_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7", "#64748b"];
 
 export default function RrgPage() {
-  const { tickers, setTickers, addTicker, removeTicker } = usePersistentTickers("rrg_tickers", DEFAULT_ETFS);
+  const { tickers, setTickers, addTicker, removeTicker, clearTickers } = usePersistentTickers("rrg_tickers", DEFAULT_ETFS);
   const [benchmark, setBenchmark] = useState("SPY");
   const [lookback, setLookback] = useState("3m");
   const [trailLength, setTrailLength] = useState(5);
@@ -136,14 +136,25 @@ export default function RrgPage() {
     });
   };
 
-  const toggleTicker = (symbol: string) => {
+  const handleTickerClick = (symbol: string) => {
     setDisabled((prev) => {
       const next = new Set(prev);
-      if (next.has(symbol)) next.delete(symbol);
-      else next.add(symbol);
+      if (next.size === 0) {
+        // All visible → isolate to clicked ticker only
+        tickers.forEach((t) => {
+          if (t !== symbol) next.add(t);
+        });
+      } else {
+        // Some hidden → toggle this one
+        if (next.has(symbol)) next.delete(symbol);
+        else next.add(symbol);
+      }
       return next;
     });
   };
+
+  const showAllTickers = () => setDisabled(new Set());
+  const hideAllTickers = () => setDisabled(new Set(tickers));
 
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -275,8 +286,8 @@ export default function RrgPage() {
             return (
               <span
                 key={t}
-                onClick={() => toggleTicker(t)}
-                title={isDisabled ? "Click to enable" : "Click to disable"}
+                onClick={() => handleTickerClick(t)}
+                title={isDisabled ? "Click to show" : "Click to toggle visibility"}
                 className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded cursor-pointer select-none transition-opacity ${
                   isDisabled
                     ? "bg-gray-100 text-gray-400 line-through opacity-60"
@@ -290,19 +301,54 @@ export default function RrgPage() {
                     handleRemoveTicker(t);
                   }}
                   className={`${isDisabled ? "hover:text-gray-600" : "hover:text-blue-900"}`}
+                  title="Remove"
                 >
                   <X size={10} />
                 </button>
               </span>
             );
           })}
+          {tickers.length > 0 && (
+            <div className="flex items-center gap-1 ml-2">
+              <button
+                onClick={showAllTickers}
+                className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100"
+                title="Show all"
+              >
+                <Eye size={10} />
+                All
+              </button>
+              <button
+                onClick={hideAllTickers}
+                className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100"
+                title="Hide all"
+              >
+                <EyeOff size={10} />
+                All
+              </button>
+              <button
+                onClick={clearTickers}
+                className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100"
+                title="Clear all tickers"
+              >
+                <Trash2 size={10} />
+                Clear
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {error && <div className="text-xs text-red-500 mb-4">{error}</div>}
 
       {/* RRG Chart */}
-      <div className="flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden min-h-[400px]">
+      <div className="flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden min-h-[400px] relative">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
+            <Loader2 size={32} className="text-gray-900 animate-spin mb-2" />
+            <span className="text-sm font-medium text-gray-700">Loading RRG data...</span>
+          </div>
+        )}
         <div ref={chartRef} className="h-full p-4">
           {(() => {
             const { w, h } = chartSize;

@@ -1,0 +1,59 @@
+name: Refresh Russell Constituents
+
+on:
+  schedule:
+    # Run once a year on June 1st at 06:00 UTC, shortly after Russell reconstitution
+    - cron: "0 6 1 6 *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run refresh script
+        run: python3 scripts/refresh_russell.py
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet -- packages/server/internal/data/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "[bot] refresh Russell constituents"
+          branch: bot/refresh-russell
+          delete-branch: true
+          title: "[bot] Refresh Russell index constituents"
+          body: |
+            Automated refresh of Russell 1000 and Russell 2000 constituent lists.
+
+            - Source: NASDAQ screener
+            - Generated at: ${{ github.event.repository.updated_at }}
+            - S&P 500 base + market-cap ranked additions
+
+            **Review checklist:**
+            - [ ] Spot-check a few familiar tickers for correct sector mapping
+            - [ ] Verify count is reasonable (~1,000 / ~2,000)
+            - [ ] Merge if looks good — deploy will trigger automatically

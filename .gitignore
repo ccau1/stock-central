@@ -18,6 +18,9 @@ __postgres_data__/
 /packages/server/tmp/
 /packages/server/main
 
+# Python virtual environment
+venv/
+
 # Node (root-level safety net)
 node_modules/
 

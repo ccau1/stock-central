@@ -1,8 +1,9 @@
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { Globe, GitCompare, BarChart3 } from "lucide-react";
+import { Globe, GitCompare, BarChart3, LayoutGrid } from "lucide-react";
 
 const navItems = [
   { path: "/", label: "Overview", icon: Globe },
+  { path: "/heatmap", label: "Heatmap", icon: LayoutGrid },
   { path: "/rrg", label: "RRG", icon: BarChart3 },
   { path: "/comparisons", label: "Comparisons", icon: GitCompare },
 ];

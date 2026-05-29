@@ -38,5 +38,9 @@ export function usePersistentTickers(key: string, defaults: string[]) {
     []
   );
 
-  return { tickers, setTickers, addTicker, removeTicker };
+  const clearTickers = useCallback(() => {
+    setTickers([]);
+  }, []);
+
+  return { tickers, setTickers, addTicker, removeTicker, clearTickers };
 }

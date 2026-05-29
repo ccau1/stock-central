@@ -556,3 +556,115 @@ func yahooFetch(url string) ([]byte, error) {
 	}
 	return io.ReadAll(resp.Body)
 }
+
+// ---------- Options Chain ----------
+
+type OptionContract struct {
+	Strike          float64 `json:"strike"`
+	Volume          int64   `json:"volume"`
+	OpenInterest    int64   `json:"openInterest"`
+	LastPrice       float64 `json:"lastPrice"`
+	ImpliedVolatility float64 `json:"impliedVolatility"`
+	InTheMoney      bool    `json:"inTheMoney"`
+}
+
+type OptionsChain struct {
+	Symbol         string
+	ExpirationDate int64
+	Calls          []OptionContract
+	Puts           []OptionContract
+	CallVolume     int64
+	PutVolume      int64
+	CallOI         int64
+	PutOI          int64
+}
+
+type OptionsSummary struct {
+	Symbol             string
+	CallVolume         int64
+	PutVolume          int64
+	CallOI             int64
+	PutOI              int64
+	PutCallVolumeRatio float64
+	PutCallOIRatio     float64
+}
+
+func GetOptionsChain(symbol string) (*OptionsSummary, error) {
+	if err := ensureYahooSession(); err != nil {
+		return nil, err
+	}
+
+	u := fmt.Sprintf(
+		"https://query2.finance.yahoo.com/v7/finance/options/%s?crumb=%s",
+		url.QueryEscape(symbol),
+		url.QueryEscape(yahooCrumb),
+	)
+	body, err := yahooFetch(u)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp struct {
+		OptionChain struct {
+			Result []struct {
+				UnderlyingSymbol string `json:"underlyingSymbol"`
+				Options          []struct {
+					ExpirationDate int64 `json:"expirationDate"`
+					Calls          []struct {
+						Strike          float64 `json:"strike"`
+						Volume          int64   `json:"volume"`
+						OpenInterest    int64   `json:"openInterest"`
+						LastPrice       float64 `json:"lastPrice"`
+						ImpliedVolatility float64 `json:"impliedVolatility"`
+						InTheMoney      bool    `json:"inTheMoney"`
+					} `json:"calls"`
+					Puts []struct {
+						Strike          float64 `json:"strike"`
+						Volume          int64   `json:"volume"`
+						OpenInterest    int64   `json:"openInterest"`
+						LastPrice       float64 `json:"lastPrice"`
+						ImpliedVolatility float64 `json:"impliedVolatility"`
+						InTheMoney      bool    `json:"inTheMoney"`
+					} `json:"puts"`
+				} `json:"options"`
+			} `json:"result"`
+			Error *struct {
+				Description string `json:"description"`
+			} `json:"error"`
+		} `json:"optionChain"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+	if resp.OptionChain.Error != nil {
+		return nil, fmt.Errorf("yahoo options error: %s", resp.OptionChain.Error.Description)
+	}
+	if len(resp.OptionChain.Result) == 0 {
+		return nil, fmt.Errorf("no options data for %s", symbol)
+	}
+
+	r := resp.OptionChain.Result[0]
+	summary := &OptionsSummary{
+		Symbol: strings.ToUpper(symbol),
+	}
+
+	for _, opt := range r.Options {
+		for _, c := range opt.Calls {
+			summary.CallVolume += c.Volume
+			summary.CallOI += c.OpenInterest
+		}
+		for _, p := range opt.Puts {
+			summary.PutVolume += p.Volume
+			summary.PutOI += p.OpenInterest
+		}
+	}
+
+	if summary.CallVolume > 0 {
+		summary.PutCallVolumeRatio = float64(summary.PutVolume) / float64(summary.CallVolume)
+	}
+	if summary.CallOI > 0 {
+		summary.PutCallOIRatio = float64(summary.PutOI) / float64(summary.CallOI)
+	}
+
+	return summary, nil
+}

@@ -12,6 +12,7 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/server .
+COPY --from=builder /app/internal/data ./internal/data
 COPY --from=builder /app/internal/store/migrations ./migrations
 EXPOSE 8000
 CMD ["./server"]

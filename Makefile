@@ -1,4 +1,4 @@
-.PHONY: up down dev build-web build-server migrate-up migrate-create clean
+.PHONY: up down dev build-web build-server migrate-up migrate-create clean refresh-russell
 
 # Spin up the full local development stack (Docker Compose)
 up:
@@ -28,6 +28,12 @@ migrate-up:
 # Create a new migration (requires golang-migrate installed)
 migrate-create:
 	migrate create -ext sql -dir packages/server/internal/store/migrations -seq $(name)
+
+# Refresh Russell index constituent JSON files from NASDAQ screener
+refresh-russell:
+	@test -d venv || python3 -m venv venv
+	@venv/bin/pip install -q requests
+	venv/bin/python scripts/refresh_russell.py
 
 # Clean Docker volumes and containers
 clean:

@@ -153,11 +153,35 @@ type RatioData struct {
 	Points []RatioPoint `json:"points"`
 }
 
+type IPOEntry struct {
+	Symbol    string `json:"symbol"`
+	Name      string `json:"name"`
+	Date      string `json:"date"`
+	Exchange  string `json:"exchange"`
+	PriceRange string `json:"price_range"`
+	Shares    int64  `json:"shares"`
+	DealSize  int64  `json:"deal_size"`
+	MarketCap int64  `json:"market_cap"`
+	Revenue   int64  `json:"revenue"`
+	Status    string `json:"status"`
+}
+
 type TickerSearchResult struct {
 	Symbol   string `json:"symbol"`
 	Name     string `json:"name"`
 	Exchange string `json:"exchange"`
 }
+
+type OptionsData struct {
+	Symbol             string  `json:"symbol"`
+	CallVolume         int64   `json:"call_volume"`
+	PutVolume          int64   `json:"put_volume"`
+	CallOI             int64   `json:"call_oi"`
+	PutOI              int64   `json:"put_oi"`
+	PutCallVolumeRatio float64 `json:"put_call_volume_ratio"`
+	PutCallOIRatio     float64 `json:"put_call_oi_ratio"`
+}
+
 
 // ---------- Routes ----------
 
@@ -177,8 +201,10 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/macro/asset-classes", a.getAssetClasses)
 	r.Get("/macro/credit-spread", a.getCreditSpread)
 	r.Get("/macro/ratios", a.getRatios)
+	r.Get("/macro/ipos", a.getIPOs)
 	r.Get("/heatmap", a.getHeatmap)
 	r.Get("/heatmap/universes", a.getHeatmapUniverses)
+	r.Get("/options", a.getOptions)
 }
 
 func (a *API) tickerRoutes(r chi.Router) {
@@ -716,6 +742,37 @@ func (a *API) getRatios(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, result)
 }
 
+func (a *API) getIPOs(w http.ResponseWriter, r *http.Request) {
+	limitStr := r.URL.Query().Get("limit")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = 5
+	}
+
+	entries, err := client.GetUpcomingIPOs(limit)
+	if err != nil {
+		respondJSON(w, http.StatusOK, []IPOEntry{})
+		return
+	}
+
+	var result []IPOEntry
+	for _, e := range entries {
+		result = append(result, IPOEntry{
+			Symbol:     e.Symbol,
+			Name:       e.Name,
+			Date:       e.Date,
+			Exchange:   e.Exchange,
+			PriceRange: e.PriceRange,
+			Shares:     e.Shares,
+			DealSize:   e.DealSize,
+			MarketCap:  e.MarketCap,
+			Revenue:    e.Revenue,
+			Status:     e.Status,
+		})
+	}
+	respondJSON(w, http.StatusOK, result)
+}
+
 func (a *API) searchTickers(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if query == "" {
@@ -742,6 +799,31 @@ func (a *API) searchTickers(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	respondJSON(w, http.StatusOK, out)
+}
+
+func (a *API) getOptions(w http.ResponseWriter, r *http.Request) {
+	symbols := parseSymbols(r.URL.Query().Get("symbols"))
+	if len(symbols) == 0 {
+		symbols = []string{"AAPL"}
+	}
+
+	var result []OptionsData
+	for _, sym := range symbols {
+		summary, err := client.GetOptionsChain(sym)
+		if err != nil {
+			continue
+		}
+		result = append(result, OptionsData{
+			Symbol:             summary.Symbol,
+			CallVolume:         summary.CallVolume,
+			PutVolume:          summary.PutVolume,
+			CallOI:             summary.CallOI,
+			PutOI:              summary.PutOI,
+			PutCallVolumeRatio: math.Round(summary.PutCallVolumeRatio*100) / 100,
+			PutCallOIRatio:     math.Round(summary.PutCallOIRatio*100) / 100,
+		})
+	}
+	respondJSON(w, http.StatusOK, result)
 }
 
 // ---------- Helpers ----------

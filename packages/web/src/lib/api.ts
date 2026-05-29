@@ -160,10 +160,33 @@ export interface HeatmapUniverse {
   name: string;
 }
 
+export interface IPOEntry {
+  symbol: string;
+  name: string;
+  date: string;
+  exchange: string;
+  price_range: string;
+  shares: number;
+  deal_size: number;
+  market_cap: number;
+  revenue: number;
+  status: string;
+}
+
 export interface TickerSearchResult {
   symbol: string;
   name: string;
   exchange: string;
+}
+
+export interface OptionsData {
+  symbol: string;
+  call_volume: number;
+  put_volume: number;
+  call_oi: number;
+  put_oi: number;
+  put_call_volume_ratio: number;
+  put_call_oi_ratio: number;
 }
 
 export interface TickerDetail {
@@ -175,6 +198,14 @@ export interface TickerDetail {
   ytd: YtdData | null;
   priceHistory: PricePoint[];
   news: NewsItem[];
+}
+
+export interface DashboardRecord {
+  id: string;
+  name: string;
+  yaml: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PanelLayout {
@@ -253,8 +284,25 @@ export const dataApi = {
     fetchJSON<HeatmapData>(`/data/heatmap?universe=${encodeURIComponent(universe)}${groupBy ? `&group_by=${groupBy}` : ""}`),
   getHeatmapUniverses: () =>
     fetchJSON<HeatmapUniverse[]>("/data/heatmap/universes"),
+  getIPOs: (limit?: number) =>
+    fetchJSON<IPOEntry[]>(`/data/macro/ipos?limit=${limit || 5}`),
+  getOptions: (symbols: string[]) =>
+    fetchJSON<OptionsData[]>(`/data/options?symbols=${symbols.join(",")}`),
+
   searchTickers: (query: string) =>
     fetchJSON<TickerSearchResult[]>(`/tickers/search?q=${encodeURIComponent(query)}`),
+  // Dashboards API
+  listDashboards: () => fetchJSON<DashboardRecord[]>("/dashboards"),
+  getDashboard: (id: string) => fetchJSON<DashboardRecord>(`/dashboards/${id}`),
+  createDashboard: (name: string, yaml: string) =>
+    fetchJSON<DashboardRecord>("/dashboards", { method: "POST", body: JSON.stringify({ name, yaml }) }),
+  updateDashboard: (id: string, name: string, yaml: string) =>
+    fetchJSON<DashboardRecord>(`/dashboards/${id}`, { method: "PUT", body: JSON.stringify({ name, yaml }) }),
+  deleteDashboard: (id: string) =>
+    fetchJSON<void>(`/dashboards/${id}`, { method: "DELETE" }),
+  cloneDashboard: (id: string, newName: string) =>
+    fetchJSON<DashboardRecord>(`/dashboards/${id}/clone`, { method: "POST", body: JSON.stringify({ name: newName }) }),
+
   getTickerDetail: async (symbol: string) => {
     const [price, marketCap, forwardPe, rsi, ytd, priceHistory, news] = await Promise.all([
       fetchJSON<MetricData[]>(`/data/metric?symbols=${symbol}&metric=price`),

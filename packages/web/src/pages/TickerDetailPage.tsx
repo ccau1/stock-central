@@ -3,7 +3,7 @@ import { RANGE_OPTIONS, RANGE_LABELS, type TimeRange } from "./ComparisonsPage";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { dataApi } from "../lib/api";
-import type { TickerDetail, PricePoint } from "../lib/api";
+import type { TickerDetail, PricePoint, OptionsData } from "../lib/api";
 import { useSvgContainerSize } from "../hooks/useSvgContainerSize";
 
 function PriceChart({ points, loading }: { points: PricePoint[]; loading: boolean }) {
@@ -79,6 +79,12 @@ function PriceChart({ points, loading }: { points: PricePoint[]; loading: boolea
   );
 }
 
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return n.toString();
+}
+
 export default function TickerDetailPage() {
   const { symbol } = useParams<{ symbol: string }>();
   const ticker = symbol?.toUpperCase() || "";
@@ -88,6 +94,7 @@ export default function TickerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>("1y");
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
+  const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
 
   const fetchDetail = async () => {
     if (!ticker) return;
@@ -114,8 +121,19 @@ export default function TickerDetailPage() {
     }
   };
 
+  const fetchOptions = async () => {
+    if (!ticker) return;
+    try {
+      const current = await dataApi.getOptions([ticker]);
+      setOptionsData(current[0] ?? null);
+    } catch (e: any) {
+      // silently fail
+    }
+  };
+
   useEffect(() => {
     fetchDetail();
+    fetchOptions();
   }, [ticker]);
 
   useEffect(() => {
@@ -211,6 +229,79 @@ export default function TickerDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Options Metrics */}
+      {optionsData && (
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-gray-900 mb-3">Options Activity</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="text-[10px] text-gray-500 uppercase mb-1">P/C Volume Ratio</div>
+              <div className={`text-sm font-bold ${optionsData.put_call_volume_ratio > 1 ? "text-red-600" : "text-green-600"}`}>
+                {optionsData.put_call_volume_ratio.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="text-[10px] text-gray-500 uppercase mb-1">P/C OI Ratio</div>
+              <div className={`text-sm font-bold ${optionsData.put_call_oi_ratio > 1 ? "text-red-600" : "text-green-600"}`}>
+                {optionsData.put_call_oi_ratio.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="text-[10px] text-gray-500 uppercase mb-1">Call Volume</div>
+              <div className="text-sm font-bold text-gray-900">{formatCompact(optionsData.call_volume)}</div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="text-[10px] text-gray-500 uppercase mb-1">Put Volume</div>
+              <div className="text-sm font-bold text-gray-900">{formatCompact(optionsData.put_volume)}</div>
+            </div>
+          </div>
+
+          {/* Volume Bars */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="text-[10px] text-gray-500 uppercase mb-2">Volume Breakdown</div>
+              {(() => {
+                const total = optionsData.call_volume + optionsData.put_volume;
+                const callPct = total > 0 ? (optionsData.call_volume / total) * 100 : 0;
+                const putPct = total > 0 ? (optionsData.put_volume / total) * 100 : 0;
+                return (
+                  <>
+                    <div className="flex h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
+                      <div className="h-full bg-green-500" style={{ width: `${callPct}%` }} />
+                      <div className="h-full bg-red-500" style={{ width: `${putPct}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-green-600 font-medium">Calls {callPct.toFixed(1)}%</span>
+                      <span className="text-red-600 font-medium">Puts {putPct.toFixed(1)}%</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="text-[10px] text-gray-500 uppercase mb-2">Open Interest Breakdown</div>
+              {(() => {
+                const total = optionsData.call_oi + optionsData.put_oi;
+                const callPct = total > 0 ? (optionsData.call_oi / total) * 100 : 0;
+                const putPct = total > 0 ? (optionsData.put_oi / total) * 100 : 0;
+                return (
+                  <>
+                    <div className="flex h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
+                      <div className="h-full bg-green-500" style={{ width: `${callPct}%` }} />
+                      <div className="h-full bg-red-500" style={{ width: `${putPct}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-green-600 font-medium">Calls {callPct.toFixed(1)}%</span>
+                      <span className="text-red-600 font-medium">Puts {putPct.toFixed(1)}%</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Time Range */}
       <div className="flex items-center gap-2 mb-4">

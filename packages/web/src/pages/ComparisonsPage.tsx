@@ -1,12 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Responsive, useContainerWidth } from "react-grid-layout";
-import "react-grid-layout/css/styles.css";
-import "react-resizable/css/styles.css";
-import { RefreshCw, X, Search, Eye, EyeOff, HelpCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { RefreshCw, X, Search, Eye, EyeOff, Trash2, Lock, Unlock, HelpCircle } from "lucide-react";
 import { useDashboard, parseDashboardYaml } from "../stores/useDashboardStore";
-import { getPanelType } from "../panel-registry";
-import { dataApi } from "../lib/api";
-import type { TickerSearchResult } from "../lib/api";
+import { useTickerSearch } from "../hooks/useTickerSearch";
+import { useDisabledTickers } from "../hooks/useDisabledTickers";
+import { useEditMode } from "../hooks/useEditMode";
+import DashboardGrid from "../components/DashboardGrid";
 import comparisonsYaml from "../comparisons.yaml?raw";
 
 const STATIC_DASHBOARD = parseDashboardYaml(comparisonsYaml);
@@ -24,45 +22,6 @@ export const RANGE_LABELS: Record<TimeRange, string> = {
   "5y": "5Y",
 };
 
-function buildResponsiveLayouts(
-  panels: Array<{ id: string; layout: { x: number; y: number; w: number; h: number } }>
-) {
-  const lg = panels.map((p) => ({
-    i: p.id,
-    x: p.layout.x,
-    y: p.layout.y,
-    w: p.layout.w,
-    h: p.layout.h,
-    minW: 2,
-    minH: 3,
-  }));
-
-  const stack = (cols: number) => {
-    let y = 0;
-    return panels.map((p) => {
-      const item = {
-        i: p.id,
-        x: 0,
-        y,
-        w: Math.min(p.layout.w, cols),
-        h: p.layout.h,
-        minW: Math.min(2, cols),
-        minH: 3,
-      };
-      y += p.layout.h;
-      return item;
-    });
-  };
-
-  return {
-    lg,
-    md: stack(10),
-    sm: stack(6),
-    xs: stack(4),
-    xxs: stack(2),
-  };
-}
-
 export default function ComparisonsPage() {
   const {
     dashboard,
@@ -74,124 +33,44 @@ export default function ComparisonsPage() {
     refreshPanel,
     addTicker,
     removeTicker,
+    clearTickers,
     updatePanelLayouts,
   } = useDashboard("comparisons");
 
-  // Initialize dashboard on mount
   useEffect(() => {
     initDashboard(STATIC_DASHBOARD);
   }, [initDashboard]);
 
-  const { width, containerRef } = useContainerWidth();
-
-  // Disabled tickers (local state)
-  const [disabledTickers, setDisabledTickers] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem("comparisons_disabled_tickers");
-      return raw ? new Set(JSON.parse(raw)) : new Set<string>();
-    } catch {
-      return new Set<string>();
-    }
-  });
-
-  // Time range
   const [timeRange, setTimeRange] = useState<TimeRange>("1y");
 
-  // Ticker search state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<TickerSearchResult[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    disabledTickers,
+    handleTickerClick,
+    showAll,
+    hideAll,
+    remove: removeDisabled,
+    enabledTickers,
+  } = useDisabledTickers("comparisons_disabled_tickers");
 
-  // Persist disabled tickers
-  useEffect(() => {
-    localStorage.setItem("comparisons_disabled_tickers", JSON.stringify(Array.from(disabledTickers)));
-  }, [disabledTickers]);
+  const { isEditMode, setIsEditMode } = useEditMode("comparisons_edit_mode");
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  // Debounced search
-  useEffect(() => {
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    const q = searchQuery.trim();
-    if (q.length < 1) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-    setSearchLoading(true);
-    searchTimeout.current = setTimeout(() => {
-      dataApi.searchTickers(q)
-        .then((results) => {
-          const filtered = results.filter((r: TickerSearchResult) => !tickers.includes(r.symbol));
-          setSearchResults(filtered.slice(0, 8));
-          setShowDropdown(filtered.length > 0);
-          setSearchLoading(false);
-        })
-        .catch(() => {
-          setSearchResults([]);
-          setShowDropdown(false);
-          setSearchLoading(false);
-        });
-    }, 200);
-    return () => {
-      if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    };
-  }, [searchQuery, tickers]);
-
-  const handleAddTicker = (symbol: string) => {
-    addTicker(symbol);
-    setSearchQuery("");
-    setSearchResults([]);
-    setShowDropdown(false);
-  };
+  const search = useTickerSearch({
+    existingTickers: tickers,
+    onSelect: addTicker,
+  });
 
   const handleRemoveTicker = (symbol: string) => {
     removeTicker(symbol);
-    setDisabledTickers((prev) => {
-      const next = new Set(prev);
-      next.delete(symbol);
-      return next;
-    });
+    removeDisabled(symbol);
   };
 
-  const toggleDisabled = (symbol: string) => {
-    setDisabledTickers((prev) => {
-      const next = new Set(prev);
-      if (next.has(symbol)) {
-        next.delete(symbol);
-      } else {
-        next.add(symbol);
-      }
-      return next;
-    });
-  };
+  const enabled = enabledTickers(tickers);
 
-  const enabledTickers = tickers.filter((t) => !disabledTickers.has(t));
-
-  const handleLayoutChange = useCallback(
-    (_currentLayout: any, allLayouts: any) => {
-      if (allLayouts?.lg) {
-        updatePanelLayouts(allLayouts.lg);
-      }
-    },
-    [updatePanelLayouts]
-  );
+  if (!dashboard) return null;
 
   return (
     <div className="h-screen flex flex-col bg-gray-100">
-      {/* Filter bar */}
+      {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-4 px-4 py-2 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3">
           {/* Time range selector */}
@@ -214,28 +93,28 @@ export default function ComparisonsPage() {
           </div>
 
           {/* Search */}
-          <div ref={searchRef} className="relative">
+          <div ref={search.searchRef} className="relative">
             <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5">
               <Search size={12} className="text-gray-400" />
               <input
                 className="w-28 bg-transparent text-xs focus:outline-none placeholder:text-gray-300"
                 placeholder="Add ticker..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value.toUpperCase())}
+                value={search.searchQuery}
+                onChange={(e) => search.setSearchQuery(e.target.value.toUpperCase())}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && searchResults.length > 0) {
-                    handleAddTicker(searchResults[0].symbol);
+                  if (e.key === "Enter" && search.searchResults.length > 0) {
+                    search.handleSelect(search.searchResults[0].symbol);
                   }
                 }}
               />
-              {searchLoading && <RefreshCw size={10} className="text-gray-400 animate-spin" />}
+              {search.searchLoading && <RefreshCw size={10} className="text-gray-400 animate-spin" />}
             </div>
-            {showDropdown && searchResults.length > 0 && (
+            {search.showDropdown && search.searchResults.length > 0 && (
               <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-60 overflow-auto">
-                {searchResults.map((r) => (
+                {search.searchResults.map((r) => (
                   <button
                     key={r.symbol}
-                    onClick={() => handleAddTicker(r.symbol)}
+                    onClick={() => search.handleSelect(r.symbol)}
                     className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0"
                   >
                     <div>
@@ -248,6 +127,20 @@ export default function ComparisonsPage() {
               </div>
             )}
           </div>
+
+          {/* Edit mode toggle */}
+          <button
+            onClick={() => setIsEditMode((prev: boolean) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              isEditMode
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+            title={isEditMode ? "Disable edit mode" : "Enable edit mode"}
+          >
+            {isEditMode ? <Unlock size={12} /> : <Lock size={12} />}
+            {isEditMode ? "Edit On" : "Edit Off"}
+          </button>
 
           <button
             onClick={refreshAll}
@@ -267,70 +160,68 @@ export default function ComparisonsPage() {
           return (
             <span
               key={t}
-              className={`inline-flex items-center gap-0.5 px-2 py-1 text-xs font-medium rounded transition-opacity ${
+              onClick={() => handleTickerClick(t, tickers)}
+              title={isDisabled ? "Click to show" : "Click to toggle visibility"}
+              className={`inline-flex items-center gap-0.5 px-2 py-1 text-xs font-medium rounded cursor-pointer select-none transition-opacity ${
                 isDisabled
-                  ? "bg-gray-100 text-gray-400"
-                  : "bg-blue-50 text-blue-700"
+                  ? "bg-gray-100 text-gray-400 line-through opacity-60"
+                  : "bg-blue-50 text-blue-700 hover:bg-blue-100"
               }`}
             >
-              <button
-                onClick={() => toggleDisabled(t)}
-                className={isDisabled ? "text-gray-400 hover:text-gray-600" : "text-blue-400 hover:text-blue-700"}
-                title={isDisabled ? "Enable" : "Disable"}
-              >
-                {isDisabled ? <EyeOff size={10} /> : <Eye size={10} />}
-              </button>
               {t}
-              <button onClick={() => handleRemoveTicker(t)} className={isDisabled ? "hover:text-gray-600" : "hover:text-blue-900"}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveTicker(t);
+                }}
+                className={isDisabled ? "hover:text-gray-600" : "hover:text-blue-900"}
+                title="Remove"
+              >
                 <X size={10} />
               </button>
             </span>
           );
         })}
-      </div>
-
-      {/* Grid Canvas */}
-      <div ref={containerRef} className="flex-1 overflow-auto p-4">
-        {dashboard && (
-          <Responsive
-            className="layout"
-            layouts={buildResponsiveLayouts(dashboard.panels)}
-            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={30}
-            width={width}
-            onLayoutChange={handleLayoutChange}
-            dragConfig={{ enabled: true, handle: ".panel-drag-handle", cancel: ".panel-refresh-btn" }}
-            resizeConfig={{ enabled: true, handles: ["se", "e", "s"] }}
-          >
-            {dashboard.panels.map((panel: import("../lib/api").PanelConfig) => {
-              const typeDef = getPanelType(panel.type);
-              const Component = typeDef?.component;
-              if (!Component) return <div key={panel.id}>Unknown panel type: {panel.type}</div>;
-
-              // Charts use enabled tickers; grid shows all tickers
-              const panelTickers = panel.type === "comparison-grid" ? tickers : enabledTickers;
-              const panelInputs = panel.type === "comparison-chart" || panel.type === "rsi-comparison"
-                ? { ...panel.inputs, timeRange }
-                : panel.inputs;
-
-              return (
-                <div key={panel.id} className="h-full w-full">
-                  <Component
-                    title={panel.title}
-                    tickers={panelTickers}
-                    enabledTickers={enabledTickers}
-                    inputs={panelInputs}
-                    refreshKey={(panelRefreshKeys[panel.id] || 0) + globalRefreshKey}
-                    onRefresh={() => refreshPanel(panel.id)}
-                    description={typeDef?.description}
-                  />
-                </div>
-              );
-            })}
-          </Responsive>
+        {tickers.length > 0 && (
+          <div className="flex items-center gap-1 ml-auto">
+            <button
+              onClick={showAll}
+              className="flex items-center gap-0.5 px-2 py-1 text-[10px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100"
+              title="Show all"
+            >
+              <Eye size={10} />
+              All
+            </button>
+            <button
+              onClick={() => hideAll(tickers)}
+              className="flex items-center gap-0.5 px-2 py-1 text-[10px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100"
+              title="Hide all"
+            >
+              <EyeOff size={10} />
+              All
+            </button>
+            <button
+              onClick={clearTickers}
+              className="flex items-center gap-0.5 px-2 py-1 text-[10px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100"
+              title="Clear all tickers"
+            >
+              <Trash2 size={10} />
+              Clear
+            </button>
+          </div>
         )}
       </div>
+
+      <DashboardGrid
+        panels={dashboard.panels}
+        filters={{ tickers, enabledTickers: enabled, timeRange }}
+        globalRefreshKey={globalRefreshKey}
+        panelRefreshKeys={panelRefreshKeys}
+        onRefreshPanel={refreshPanel}
+        onLayoutChange={updatePanelLayouts}
+        isEditMode={isEditMode}
+        panelWrapperClassName="h-full w-full"
+      />
     </div>
   );
 }

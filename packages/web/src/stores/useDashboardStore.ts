@@ -92,6 +92,7 @@ interface DashboardState {
   refreshPanel: (dashboardId: string, panelId: string) => void;
   addTicker: (dashboardId: string, ticker: string) => void;
   removeTicker: (dashboardId: string, ticker: string) => void;
+  clearTickers: (dashboardId: string) => void;
   updatePanelLayouts: (dashboardId: string, layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
 }
 
@@ -193,6 +194,19 @@ export const useDashboardStore = create<DashboardState>()(
         };
       }),
 
+    clearTickers: (dashboardId) =>
+      set((state) => {
+        const instance = state.dashboards[dashboardId];
+        if (!instance) return state;
+        localStorage.setItem(tickersKey(dashboardId), JSON.stringify([]));
+        return {
+          dashboards: {
+            ...state.dashboards,
+            [dashboardId]: { ...instance, tickers: [] },
+          },
+        };
+      }),
+
     updatePanelLayouts: (dashboardId, layouts) =>
       set((state) => {
         const instance = state.dashboards[dashboardId];
@@ -238,6 +252,7 @@ export function useDashboard(dashboardId: string) {
     refreshPanel: (panelId: string) => useDashboardStore.getState().refreshPanel(dashboardId, panelId),
     addTicker: (ticker: string) => useDashboardStore.getState().addTicker(dashboardId, ticker),
     removeTicker: (ticker: string) => useDashboardStore.getState().removeTicker(dashboardId, ticker),
+    clearTickers: () => useDashboardStore.getState().clearTickers(dashboardId),
     updatePanelLayouts: (layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) =>
       useDashboardStore.getState().updatePanelLayouts(dashboardId, layouts),
   };
