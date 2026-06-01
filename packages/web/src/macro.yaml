@@ -15,7 +15,7 @@ panels:
     type: fear-greed
     title: Fear & Greed
     group: row-overview
-    layout: { x: 0, y: 0, w: 3, h: 6 }
+    layout: { x: 0, y: 0, w: 2, h: 6 }
     inputs: {}
     refresh_interval: 300
 
@@ -23,7 +23,7 @@ panels:
     type: macro-card
     title: VIX
     group: row-overview
-    layout: { x: 3, y: 0, w: 2, h: 6 }
+    layout: { x: 2, y: 0, w: 2, h: 6 }
     inputs:
       source: macro
       symbol: "^VIX"
@@ -34,7 +34,7 @@ panels:
     type: macro-card
     title: S&P 500
     group: row-overview
-    layout: { x: 5, y: 0, w: 2, h: 6 }
+    layout: { x: 4, y: 0, w: 2, h: 6 }
     inputs:
       source: indexes
       symbol: "^GSPC"
@@ -44,7 +44,7 @@ panels:
     type: macro-card
     title: 10Y Treasury
     group: row-overview
-    layout: { x: 7, y: 0, w: 2, h: 6 }
+    layout: { x: 6, y: 0, w: 2, h: 6 }
     inputs:
       source: macro
       symbol: "^TNX"
@@ -54,7 +54,15 @@ panels:
     type: ipo-calendar
     title: Upcoming IPOs
     group: row-overview
-    layout: { x: 9, y: 0, w: 3, h: 6 }
+    layout: { x: 8, y: 0, w: 2, h: 6 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: upcoming-earnings
+    type: upcoming-earnings
+    title: Upcoming Earnings
+    group: row-overview
+    layout: { x: 10, y: 0, w: 2, h: 6 }
     inputs: {}
     refresh_interval: 300
 

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Folder, X, GripVertical } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ChevronDown, ChevronRight, Folder, X, GripVertical, Maximize2 } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core/types";
 import { PanelRenderer } from "../panels/core";
@@ -18,6 +18,7 @@ interface PanelGroupProps {
   onMovePanelToGroup: (panelId: string, groupId: string | null) => void;
   onRemovePanel?: (panelId: string) => void;
   onRemoveGroup?: (groupId: string) => void;
+  onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
   level?: number;
 }
 
@@ -35,6 +36,7 @@ export default function PanelGroup({
   onMovePanelToGroup,
   onRemovePanel,
   onRemoveGroup,
+  onUpdatePanelLayout: _onUpdatePanelLayout,
   level = 0,
 }: PanelGroupProps) {
   const [dragOver, setDragOver] = useState(false);
@@ -145,6 +147,7 @@ export default function PanelGroup({
               onRefreshPanel={onRefreshPanel}
               isEditMode={isEditMode}
               onRemovePanel={onRemovePanel}
+              onUpdatePanelLayout={_onUpdatePanelLayout}
             />
           ))}
           {childGroups.map((childGroup) => (
@@ -171,6 +174,7 @@ export default function PanelGroup({
                 onMovePanelToGroup={onMovePanelToGroup}
                 onRemovePanel={onRemovePanel}
                 onRemoveGroup={onRemoveGroup}
+                onUpdatePanelLayout={_onUpdatePanelLayout}
                 level={level + 1}
               />
             </div>
@@ -189,6 +193,7 @@ function PanelGroupItem({
   onRefreshPanel,
   isEditMode,
   onRemovePanel,
+  onUpdatePanelLayout,
 }: {
   panel: PanelConfig;
   filters: DashboardFilters;
@@ -197,8 +202,11 @@ function PanelGroupItem({
   onRefreshPanel: (panelId: string) => void;
   isEditMode: boolean;
   onRemovePanel?: (panelId: string) => void;
+  onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef({ x: 0, y: 0, w: 0, h: 0, pixelW: 0 });
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!isEditMode) {
@@ -214,6 +222,45 @@ function PanelGroupItem({
     setIsDragging(false);
   };
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = (e.currentTarget as HTMLElement).parentElement;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    resizeRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      w: panel.layout.w,
+      h: panel.layout.h,
+      pixelW: rect.width,
+    };
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const onUp = (e: MouseEvent) => {
+      const dx = e.clientX - resizeRef.current.x;
+      const dy = e.clientY - resizeRef.current.y;
+      const colWidth = resizeRef.current.pixelW / resizeRef.current.w;
+      const newW = Math.max(1, resizeRef.current.w + Math.round(dx / colWidth));
+      const newH = Math.max(1, resizeRef.current.h + Math.round(dy / 30));
+      if (newW !== panel.layout.w || newH !== panel.layout.h) {
+        onUpdatePanelLayout?.({
+          i: panel.id,
+          x: panel.layout.x,
+          y: panel.layout.y,
+          w: newW,
+          h: newH,
+        });
+      }
+      setIsResizing(false);
+    };
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+  }, [isResizing, panel, onUpdatePanelLayout]);
+
   return (
     <div
       draggable={isEditMode}
@@ -221,13 +268,18 @@ function PanelGroupItem({
       onDragEnd={handleDragEnd}
       className={`panel-group-item bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative group ${
         isDragging ? "opacity-50" : ""
-      }`}
+      } ${isResizing ? "ring-2 ring-blue-300" : ""}`}
       style={{
         gridColumn: `${panel.layout.x + 1} / span ${panel.layout.w}`,
         gridRow: `${panel.layout.y + 1} / span ${panel.layout.h}`,
         minHeight: 0,
       }}
     >
+      {isEditMode && (
+        <div className="absolute top-1 left-1 z-10 p-0.5 rounded bg-white/80 border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing">
+          <GripVertical size={10} className="text-gray-400" />
+        </div>
+      )}
       {isEditMode && onRemovePanel && (
         <button
           onClick={() => onRemovePanel(panel.id)}
@@ -236,6 +288,15 @@ function PanelGroupItem({
         >
           <X size={12} />
         </button>
+      )}
+      {isEditMode && onUpdatePanelLayout && (
+        <div
+          onMouseDown={handleResizeStart}
+          className="absolute bottom-0 right-0 z-10 w-4 h-4 cursor-se-resize flex items-end justify-end p-0.5"
+          title="Resize panel"
+        >
+          <Maximize2 size={8} className="text-gray-300 hover:text-gray-500" />
+        </div>
       )}
       <PanelRenderer
         panel={panel}

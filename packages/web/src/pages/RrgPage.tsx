@@ -4,8 +4,24 @@ import { dataApi } from "../lib/api";
 import type { RrgTrail, TickerSearchResult } from "../lib/api";
 import { usePersistentTickers } from "../hooks/usePersistentTickers";
 
-const RRG_GROUPS: { label: string; tickers: string[] }[] = [
-  { label: "Sectors", tickers: ["XLK", "XLF", "XLE", "XLI", "XLP", "XLU", "XLV", "XLB", "XLRE", "XLC", "SPY"] },
+const RRG_GROUPS: { label: string; tickers: string[]; aliases?: Record<string, string> }[] = [
+  {
+    label: "Sectors",
+    tickers: ["XLK", "XLF", "XLE", "XLI", "XLP", "XLU", "XLV", "XLB", "XLRE", "XLC", "SPY"],
+    aliases: {
+      XLK: "Technology",
+      XLF: "Financials",
+      XLE: "Energy",
+      XLI: "Industrials",
+      XLP: "Consumer Staples",
+      XLU: "Utilities",
+      XLV: "Health Care",
+      XLB: "Materials",
+      XLRE: "Real Estate",
+      XLC: "Communication Services",
+      SPY: "S&P 500",
+    },
+  },
   { label: "AI + Software", tickers: ["NVDA", "MSFT", "GOOGL", "AMZN", "META", "AVGO", "AMD", "CRM", "ADBE", "ORCL", "PLTR", "PANW"] },
   { label: "Commodities", tickers: ["USO", "UNG", "GLD", "SLV", "PPLT", "CPER", "DBB", "DBC", "GDX", "XLE", "BNO"] },
   { label: "Big Tech", tickers: ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA"] },
@@ -102,7 +118,7 @@ export default function RrgPage() {
     setLoading(true);
     setError(null);
     try {
-      const rrg = await dataApi.getRrg(tickers, benchmark, lookback, trailLength);
+      const rrg = await dataApi.getRrgCached(tickers, benchmark, lookback, trailLength);
       setData(rrg);
     } catch (e: any) {
       setError(e.message);
@@ -139,6 +155,13 @@ export default function RrgPage() {
   const handleTickerClick = (symbol: string) => {
     setDisabled((prev) => {
       const next = new Set(prev);
+      const visibleCount = tickers.length - next.size;
+
+      // Only one ticker visible and we clicked it → show all
+      if (visibleCount === 1 && !next.has(symbol)) {
+        return new Set<string>();
+      }
+
       if (next.size === 0) {
         // All visible → isolate to clicked ticker only
         tickers.forEach((t) => {
@@ -161,6 +184,17 @@ export default function RrgPage() {
     tickers.forEach((t, i) => map.set(t, RRG_COLORS[i % RRG_COLORS.length]));
     return map;
   }, [tickers]);
+
+  const aliasMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const groupDef = RRG_GROUPS.find((g) => g.label === group);
+    if (groupDef?.aliases) {
+      for (const [sym, alias] of Object.entries(groupDef.aliases)) {
+        map.set(sym, alias);
+      }
+    }
+    return map;
+  }, [group]);
 
   return (
     <div className="h-full flex flex-col p-6">
@@ -284,17 +318,22 @@ export default function RrgPage() {
         <div className="flex items-center gap-1 flex-wrap">
           {tickers.map((t) => {
             const isDisabled = disabled.has(t);
+            const dotColor = colorMap.get(t) ?? RRG_COLORS[0];
             return (
               <span
                 key={t}
                 onClick={() => handleTickerClick(t)}
                 title={isDisabled ? "Click to show" : "Click to toggle visibility"}
-                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded cursor-pointer select-none transition-opacity ${
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded cursor-pointer select-none transition-opacity ${
                   isDisabled
                     ? "bg-gray-100 text-gray-400 line-through opacity-60"
-                    : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
                 }`}
               >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: isDisabled ? "#9ca3af" : dotColor }}
+                />
                 {t}
                 <button
                   onClick={(e) => {
@@ -418,7 +457,7 @@ export default function RrgPage() {
                             fill="#1f2937"
                             fontWeight="500"
                           >
-                            {trail.symbol}
+                            {aliasMap.get(trail.symbol) ? `${trail.symbol} · ${aliasMap.get(trail.symbol)}` : trail.symbol}
                           </text>
                         );
                       })()}

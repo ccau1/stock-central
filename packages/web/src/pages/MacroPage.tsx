@@ -86,6 +86,7 @@ export default function MacroPage() {
         onRefreshPanel={refreshPanel}
         onLayoutChange={updatePanelLayouts}
         onToggleGroupCollapse={toggleGroupCollapse}
+        onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
         isEditMode={isEditMode}
       />
     </div>

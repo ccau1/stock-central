@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -91,6 +92,14 @@ type ForwardPeData struct {
 	EarningsHistory  []QuarterlyEarning `json:"earnings_history"`
 	NextEarningsDate int64              `json:"next_earnings_date"`
 	NextEarningsTime string             `json:"next_earnings_time"`
+}
+
+type UpcomingEarningsEntry struct {
+	Symbol      string  `json:"symbol"`
+	Name        string  `json:"name"`
+	MarketCap   float64 `json:"market_cap"`
+	EarningsDate int64  `json:"earnings_date"`
+	EarningsTime string `json:"earnings_time"`
 }
 
 type RsiData struct {
@@ -295,6 +304,7 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/macro/recession-risk", a.getRecessionRisk)
 	r.Get("/macro/froth", a.getFroth)
 	r.Get("/macro/valuation", a.getValuation)
+	r.Get("/macro/upcoming-earnings", a.getUpcomingEarnings)
 	r.Get("/heatmap", a.getHeatmap)
 	r.Get("/heatmap/universes", a.getHeatmapUniverses)
 	r.Get("/options", a.getOptions)
@@ -1799,6 +1809,122 @@ func (a *API) getOptions(w http.ResponseWriter, r *http.Request) {
 			PutCallOIRatio:     math.Round(summary.PutCallOIRatio*100) / 100,
 		})
 	}
+	respondJSON(w, http.StatusOK, result)
+}
+
+func (a *API) getUpcomingEarnings(w http.ResponseWriter, r *http.Request) {
+	universe := r.URL.Query().Get("universe")
+	if universe == "" {
+		universe = "sp500"
+	}
+
+	minMarketCapStr := r.URL.Query().Get("min_market_cap")
+	minMarketCap, _ := strconv.ParseFloat(minMarketCapStr, 64)
+	if minMarketCap <= 0 {
+		minMarketCap = 100_000_000_000 // default 100B
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = 50
+	}
+
+	// Gather symbols from universe maps (same logic as heatmap)
+	var symbols []string
+	switch universe {
+	case "nasdaq100":
+		for sym := range nasdaq100Universe {
+			symbols = append(symbols, sym)
+		}
+	case "sp500":
+		for sym := range sp500Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones30":
+		for sym := range dowJones30Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones20":
+		for sym := range dowJones20Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones15":
+		for sym := range dowJones15Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones65":
+		for sym := range dowJones30Universe {
+			symbols = append(symbols, sym)
+		}
+		for sym := range dowJones20Universe {
+			symbols = append(symbols, sym)
+		}
+		for sym := range dowJones15Universe {
+			symbols = append(symbols, sym)
+		}
+	case "kbwBank":
+		for sym := range kbwBankUniverse {
+			symbols = append(symbols, sym)
+		}
+	case "nasdaqComposite":
+		for sym := range nasdaqCompositeUniverse {
+			symbols = append(symbols, sym)
+		}
+	case "russell1000":
+		for sym := range russell1000Universe {
+			symbols = append(symbols, sym)
+		}
+	case "russell2000":
+		for sym := range russell2000Universe {
+			symbols = append(symbols, sym)
+		}
+	case "russell3000", "allUS":
+		for sym := range russell1000Universe {
+			symbols = append(symbols, sym)
+		}
+		for sym := range russell2000Universe {
+			symbols = append(symbols, sym)
+		}
+	default:
+		for sym := range sp500Universe {
+			symbols = append(symbols, sym)
+		}
+	}
+
+	quotes, err := client.GetBatchQuotes(symbols)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	now := time.Now().Unix()
+	var result []UpcomingEarningsEntry
+	for _, q := range quotes {
+		if q.MarketCap < minMarketCap {
+			continue
+		}
+		if q.EarningsDate <= 0 || q.EarningsDate < now {
+			continue
+		}
+		result = append(result, UpcomingEarningsEntry{
+			Symbol:       q.Symbol,
+			Name:         q.Name,
+			MarketCap:    q.MarketCap,
+			EarningsDate: q.EarningsDate,
+			EarningsTime: q.EarningsTime,
+		})
+	}
+
+	// Sort by earnings date ascending
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].EarningsDate < result[j].EarningsDate
+	})
+
+	if len(result) > limit {
+		result = result[:limit]
+	}
+
 	respondJSON(w, http.StatusOK, result)
 }
 

@@ -549,6 +549,8 @@ type BatchQuote struct {
 	ChangePercent float64 `json:"change_percent"`
 	MarketCap     float64 `json:"market_cap"`
 	Volume        int64   `json:"volume"`
+	EarningsDate  int64   `json:"earnings_date"`
+	EarningsTime  string  `json:"earnings_time"`
 }
 
 func GetBatchQuotes(symbols []string) ([]BatchQuote, error) {
@@ -598,6 +600,7 @@ func getBatchQuotesSingle(symbols []string) ([]BatchQuote, error) {
 				RegularMarketChangePercent float64 `json:"regularMarketChangePercent"`
 				MarketCap              float64 `json:"marketCap"`
 				RegularMarketVolume    int64   `json:"regularMarketVolume"`
+				EarningsTimestamp      int64   `json:"earningsTimestamp"`
 			} `json:"result"`
 			Error *struct {
 				Description string `json:"description"`
@@ -621,6 +624,8 @@ func getBatchQuotesSingle(symbols []string) ([]BatchQuote, error) {
 			ChangePercent: r.RegularMarketChangePercent,
 			MarketCap:     r.MarketCap,
 			Volume:        r.RegularMarketVolume,
+			EarningsDate:  r.EarningsTimestamp,
+			EarningsTime:  inferEarningsTime(r.EarningsTimestamp),
 		})
 	}
 	return out, nil

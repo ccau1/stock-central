@@ -241,6 +241,14 @@ export interface IPOEntry {
   status: string;
 }
 
+export interface UpcomingEarningsEntry {
+  symbol: string;
+  name: string;
+  market_cap: number;
+  earnings_date: number;
+  earnings_time: string;
+}
+
 export interface TickerSearchResult {
   symbol: string;
   name: string;
@@ -378,6 +386,35 @@ export const dataApi = {
     fetchJSON<FearGreedData>("/data/fear-greed"),
   getRrg: (symbols: string[], benchmark: string, lookback: string, trail: number) =>
     fetchJSON<RrgTrail[]>(`/data/rrg?symbols=${symbols.join(",")}&benchmark=${benchmark}&lookback=${lookback}&trail=${trail}`),
+  getRrgCached: (() => {
+    function cacheKey(symbols: string[], benchmark: string, lookback: string): string {
+      return `rrg:${[...symbols].sort().join(",")}:${benchmark}:${lookback}`;
+    }
+    return (symbols: string[], benchmark: string, lookback: string, trail: number): Promise<RrgTrail[]> => {
+      const fetchTrail = Math.max(trail, 20);
+      const key = cacheKey(symbols, benchmark, lookback);
+      try {
+        const raw = sessionStorage.getItem(key);
+        if (raw) {
+          const cached: RrgTrail[] = JSON.parse(raw);
+          const hasEnough = cached.every((t) => t.points.length >= trail);
+          if (hasEnough) {
+            return Promise.resolve(cached.map((t) => ({ ...t, points: t.points.slice(-trail) })));
+          }
+        }
+      } catch {
+        /* ignore sessionStorage errors */
+      }
+      return fetchJSON<RrgTrail[]>(`/data/rrg?symbols=${symbols.join(",")}&benchmark=${benchmark}&lookback=${lookback}&trail=${fetchTrail}`).then((data) => {
+        try {
+          sessionStorage.setItem(key, JSON.stringify(data));
+        } catch {
+          /* ignore sessionStorage errors */
+        }
+        return data.map((t) => ({ ...t, points: t.points.slice(-trail) }));
+      });
+    };
+  })(),
   getForwardPe: (symbols: string[]) =>
     fetchJSON<ForwardPeData[]>(`/data/forward-pe?symbols=${symbols.join(",")}`),
   getRsi: (symbols: string[], period?: number) =>
@@ -410,6 +447,8 @@ export const dataApi = {
     fetchJSON<FrothData>("/data/macro/froth"),
   getValuation: () =>
     fetchJSON<ValuationData>("/data/macro/valuation"),
+  getUpcomingEarnings: (minMarketCap?: number, universe?: string, limit?: number) =>
+    fetchJSON<UpcomingEarningsEntry[]>(`/data/macro/upcoming-earnings?min_market_cap=${minMarketCap || 100_000_000_000}&universe=${encodeURIComponent(universe || "sp500")}&limit=${limit || 50}`),
   getOptions: (symbols: string[]) =>
     fetchJSON<OptionsData[]>(`/data/options?symbols=${symbols.join(",")}`),
   getCandles: (symbol: string, range: string, interval: string) =>

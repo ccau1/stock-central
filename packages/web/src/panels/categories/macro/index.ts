@@ -12,6 +12,7 @@ import { ipoPanel } from "./IPOPanel";
 import { recessionRiskPanel } from "./RecessionRiskPanel";
 import { marketFrothPanel } from "./MarketFrothPanel";
 import { valuationPanel } from "./ValuationPanel";
+import { upcomingEarningsPanel } from "./UpcomingEarningsPanel";
 
 export const panels: PanelDefinition[] = [
   yieldCurvePanel,
@@ -27,4 +28,5 @@ export const panels: PanelDefinition[] = [
   recessionRiskPanel,
   marketFrothPanel,
   valuationPanel,
+  upcomingEarningsPanel,
 ];

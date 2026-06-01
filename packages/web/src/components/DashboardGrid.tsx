@@ -2,7 +2,7 @@ import { Responsive, useContainerWidth } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useCallback, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core";
 import { PanelRenderer } from "../panels/core";
@@ -141,6 +141,7 @@ interface DashboardGridProps {
   onToggleGroupCollapse?: (groupId: string) => void;
   onMovePanelToGroup?: (panelId: string, groupId: string | null) => void;
   onRemoveGroup?: (groupId: string) => void;
+  onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
 }
 
 export default function DashboardGrid({
@@ -156,6 +157,7 @@ export default function DashboardGrid({
   onToggleGroupCollapse,
   onMovePanelToGroup,
   onRemoveGroup,
+  onUpdatePanelLayout,
   panelWrapperClassName = "bg-white rounded-lg shadow border border-gray-200 overflow-hidden",
 }: DashboardGridProps) {
   const { width, containerRef } = useContainerWidth();
@@ -240,22 +242,33 @@ export default function DashboardGrid({
       >
         {/* Ungrouped panels */}
         {topLevelPanels.map((panel) => (
-          <div key={panel.id} className={`${panelWrapperClassName} relative group`}>
-            {isEditMode && onRemovePanel && (
-              <button
-                onClick={() => onRemovePanel(panel.id)}
-                className="absolute top-1 right-1 z-10 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Remove panel"
-              >
-                <X size={12} />
-              </button>
+          <div
+            key={panel.id}
+            className={`${panelWrapperClassName} relative group ${isEditMode ? "flex flex-col" : ""}`}
+          >
+            {isEditMode && (
+              <div className="panel-drag-handle flex items-center gap-1 px-2 py-0.5 border-b border-gray-100 bg-gray-50/40 cursor-grab active:cursor-grabbing shrink-0">
+                <GripVertical size={10} className="text-gray-300" />
+                <span className="text-[10px] text-gray-400 truncate flex-1">{panel.title}</span>
+                {onRemovePanel && (
+                  <button
+                    onClick={() => onRemovePanel(panel.id)}
+                    className="p-0.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors shrink-0"
+                    title="Remove panel"
+                  >
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
             )}
-            <PanelRenderer
-              panel={panel}
-              filters={filters}
-              refreshKey={(panelRefreshKeys[panel.id] || 0) + globalRefreshKey}
-              onRefresh={() => onRefreshPanel(panel.id)}
-            />
+            <div className={isEditMode ? "flex-1 min-h-0" : ""}>
+              <PanelRenderer
+                panel={panel}
+                filters={filters}
+                refreshKey={(panelRefreshKeys[panel.id] || 0) + globalRefreshKey}
+                onRefresh={() => onRefreshPanel(panel.id)}
+              />
+            </div>
           </div>
         ))}
 
@@ -276,6 +289,7 @@ export default function DashboardGrid({
               onMovePanelToGroup={(panelId, groupId) => onMovePanelToGroup?.(panelId, groupId)}
               onRemovePanel={onRemovePanel}
               onRemoveGroup={onRemoveGroup}
+              onUpdatePanelLayout={onUpdatePanelLayout}
             />
           </div>
         ))}

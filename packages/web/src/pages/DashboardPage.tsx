@@ -297,6 +297,7 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
         onToggleGroupCollapse={toggleGroupCollapse}
         onMovePanelToGroup={handleMovePanelToGroup}
         onRemoveGroup={handleRemoveGroup}
+        onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
       />
 
       {showAddModal && (

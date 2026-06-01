@@ -5,8 +5,24 @@ import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../../co
 
 const RRG_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4"];
 
-const RRG_GROUPS: { label: string; tickers: string[] }[] = [
-  { label: "Sectors", tickers: ["XLK", "XLF", "XLE", "XLI", "XLP", "XLU", "XLV", "XLB", "XLRE", "XLC", "SPY"] },
+const RRG_GROUPS: { label: string; tickers: string[]; aliases?: Record<string, string> }[] = [
+  {
+    label: "Sectors",
+    tickers: ["XLK", "XLF", "XLE", "XLI", "XLP", "XLU", "XLV", "XLB", "XLRE", "XLC", "SPY"],
+    aliases: {
+      XLK: "Technology",
+      XLF: "Financials",
+      XLE: "Energy",
+      XLI: "Industrials",
+      XLP: "Consumer Staples",
+      XLU: "Utilities",
+      XLV: "Health Care",
+      XLB: "Materials",
+      XLRE: "Real Estate",
+      XLC: "Communication Services",
+      SPY: "S&P 500",
+    },
+  },
   { label: "AI + Software", tickers: ["NVDA", "MSFT", "GOOGL", "AMZN", "META", "AVGO", "AMD", "CRM", "ADBE", "ORCL", "PLTR", "PANW"] },
   { label: "Commodities", tickers: ["USO", "UNG", "GLD", "SLV", "PPLT", "CPER", "DBB", "DBC", "GDX", "XLE", "BNO"] },
   { label: "Big Tech", tickers: ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA"] },
@@ -28,6 +44,17 @@ export function RrgPanel({ title, tickers, enabledTickers, inputs, refreshKey, o
     }
     return enabledTickers ?? tickers ?? [];
   }, [group, tickers, enabledTickers]);
+
+  const aliasMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const groupDef = RRG_GROUPS.find((g) => g.label === group);
+    if (groupDef?.aliases) {
+      for (const [sym, alias] of Object.entries(groupDef.aliases)) {
+        map.set(sym, alias);
+      }
+    }
+    return map;
+  }, [group]);
 
   const { data, loading, error } = usePanelData(
     () => dataApi.getRrg(symbols, benchmark, lookback, trailLength),
@@ -151,7 +178,7 @@ export function RrgPanel({ title, tickers, enabledTickers, inputs, refreshKey, o
                         fill="#1f2937"
                         fontWeight="500"
                       >
-                        {trail.symbol}
+                        {aliasMap.get(trail.symbol) ? `${trail.symbol} · ${aliasMap.get(trail.symbol)}` : trail.symbol}
                       </text>
                     );
                   })()}

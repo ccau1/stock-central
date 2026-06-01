@@ -223,6 +223,7 @@ export default function ComparisonsPage() {
         panelRefreshKeys={panelRefreshKeys}
         onRefreshPanel={refreshPanel}
         onLayoutChange={updatePanelLayouts}
+        onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
         isEditMode={isEditMode}
         panelWrapperClassName="h-full w-full"
       />
