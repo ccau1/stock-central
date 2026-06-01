@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { RefreshCw, X, Search, Settings2, HelpCircle, Loader2, Eye, EyeOff, Trash2 } from "lucide-react";
 import { dataApi } from "../lib/api";
 import type { RrgTrail, TickerSearchResult } from "../lib/api";
@@ -33,12 +34,24 @@ const DEFAULT_ETFS = RRG_GROUPS[0].tickers;
 const RRG_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7", "#64748b"];
 
 export default function RrgPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const urlBenchmark = searchParams.get("benchmark");
+  const urlLookback = searchParams.get("lookback");
+  const urlTrail = searchParams.get("trail");
+  const urlGroup = searchParams.get("group");
+  const urlTickers = searchParams.get("tickers");
+  const urlDisabled = searchParams.get("disabled");
+
   const { tickers, setTickers, addTicker, removeTicker, clearTickers } = usePersistentTickers("rrg_tickers", DEFAULT_ETFS);
-  const [benchmark, setBenchmark] = useState("SPY");
-  const [lookback, setLookback] = useState("3m");
-  const [trailLength, setTrailLength] = useState(5);
-  const [group, setGroup] = useState("Sectors");
+  const [benchmark, setBenchmark] = useState(urlBenchmark || "SPY");
+  const [lookback, setLookback] = useState(urlLookback || "3m");
+  const [trailLength, setTrailLength] = useState(urlTrail ? Number(urlTrail) : 5);
+  const [group, setGroup] = useState(urlGroup || "Sectors");
   const [disabled, setDisabled] = useState<Set<string>>(() => {
+    if (urlDisabled) {
+      return new Set(urlDisabled.split(",").filter(Boolean));
+    }
     try {
       const saved = localStorage.getItem("rrg_disabled");
       if (saved) return new Set(JSON.parse(saved));
@@ -57,6 +70,39 @@ export default function RrgPage() {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const [chartSize, setChartSize] = useState({ w: 800, h: 400 });
+
+  // Apply URL params on initial load
+  useEffect(() => {
+    if (urlTickers) {
+      const parsed = urlTickers.split(",").filter(Boolean);
+      if (parsed.length > 0) {
+        setTickers(parsed);
+      }
+    } else if (urlGroup) {
+      const found = RRG_GROUPS.find((g) => g.label === urlGroup);
+      if (found) {
+        setTickers(found.tickers);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync state changes to URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("benchmark", benchmark);
+    params.set("lookback", lookback);
+    params.set("trail", String(trailLength));
+    params.set("group", group);
+    if (tickers.length > 0) {
+      params.set("tickers", tickers.join(","));
+    }
+    if (disabled.size > 0) {
+      params.set("disabled", [...disabled].join(","));
+    }
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [benchmark, lookback, trailLength, group, tickers, disabled]);
 
   useEffect(() => {
     localStorage.setItem("rrg_disabled", JSON.stringify([...disabled]));

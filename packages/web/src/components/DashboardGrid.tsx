@@ -1,12 +1,106 @@
 import { Responsive, useContainerWidth } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { useCallback, useMemo, useState } from "react";
-import { GripVertical, X, FolderInput } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GripVertical, X } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core";
 import { PanelRenderer } from "../panels/core";
-import PanelGroup, { draggedPanelRef } from "./PanelGroup";
+import PanelGroup from "./PanelGroup";
+
+/* Custom mouse-based drag handle for moving panels between groups */
+function CustomDragHandle({
+  panel,
+  onMovePanelToGroup,
+}: {
+  panel: PanelConfig;
+  onMovePanelToGroup?: (panelId: string, groupId: string | null) => void;
+}) {
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const startPosRef = useRef({ x: 0, y: 0 });
+  const hasMovedRef = useRef(false);
+
+  const cleanup = useCallback(() => {
+    if (ghostRef.current) {
+      ghostRef.current.remove();
+      ghostRef.current = null;
+    }
+    document.querySelectorAll(".panel-group-container").forEach((el) => {
+      el.classList.remove("ring-2", "ring-blue-400", "bg-blue-50/50");
+    });
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    console.log("[CustomDrag] mousedown on top-level", panel.id);
+    e.preventDefault();
+    e.stopPropagation();
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    hasMovedRef.current = false;
+
+    const ghost = document.createElement("div");
+    ghost.className = "fixed z-[9999] pointer-events-none bg-white/90 border-2 border-blue-400 rounded-lg shadow-lg px-3 py-2 text-xs font-medium text-blue-600";
+    ghost.textContent = panel.title || panel.id;
+    ghost.style.left = e.clientX + 12 + "px";
+    ghost.style.top = e.clientY + 12 + "px";
+    document.body.appendChild(ghost);
+    ghostRef.current = ghost;
+
+    const onMouseMove = (e: MouseEvent) => {
+      const dx = Math.abs(e.clientX - startPosRef.current.x);
+      const dy = Math.abs(e.clientY - startPosRef.current.y);
+      if (dx < 3 && dy < 3) return;
+      hasMovedRef.current = true;
+      if (ghostRef.current) {
+        ghostRef.current.style.left = e.clientX + 12 + "px";
+        ghostRef.current.style.top = e.clientY + 12 + "px";
+      }
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      document.querySelectorAll(".panel-group-container").forEach((el) => {
+        el.classList.remove("ring-2", "ring-blue-400", "bg-blue-50/50");
+      });
+      const groupEl = target?.closest(".panel-group-container") as HTMLElement | null;
+      if (groupEl) {
+        groupEl.classList.add("ring-2", "ring-blue-400", "bg-blue-50/50");
+      }
+    };
+
+    const onMouseUp = (e: MouseEvent) => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      cleanup();
+      if (!hasMovedRef.current) {
+        console.log("[CustomDrag] mouseup without movement");
+        return;
+      }
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      const groupEl = target?.closest(".panel-group-container") as HTMLElement | null;
+      console.log("[CustomDrag] mouseup top-level", { targetGroupId: groupEl?.getAttribute("data-group-id") });
+      if (groupEl) {
+        const groupId = groupEl.getAttribute("data-group-id");
+        if (groupId) {
+          onMovePanelToGroup?.(panel.id, groupId);
+          return;
+        }
+      }
+      onMovePanelToGroup?.(panel.id, null);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  };
+
+  useEffect(() => cleanup, [cleanup]);
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className="absolute bottom-0 left-0 right-0 z-30 h-3 cursor-grab active:cursor-grabbing opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center"
+      title="Drag into group"
+    >
+      <GripVertical size={10} className="text-gray-400" />
+    </div>
+  );
+}
 
 function computeGroupHeights(
   panels: PanelConfig[],
@@ -214,8 +308,7 @@ export default function DashboardGrid({
     if (!isEditMode) return;
     e.preventDefault();
     setDragOverMain(false);
-    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain") || draggedPanelRef.current;
-    draggedPanelRef.current = null;
+    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
     if (panelId && onMovePanelToGroup) {
       onMovePanelToGroup(panelId, null);
     }
@@ -238,7 +331,7 @@ export default function DashboardGrid({
         width={width}
         onLayoutChange={handleLayoutChange}
         onBreakpointChange={setCurrentBreakpoint}
-        dragConfig={{ enabled: isEditMode, handle: ".panel-drag-handle", cancel: ".panel-refresh-btn" }}
+        dragConfig={{ enabled: isEditMode, handle: ".panel-drag-handle", cancel: ".panel-group-item, .panel-refresh-btn" }}
         resizeConfig={{ enabled: isEditMode, handles: ["se", "e", "s"] }}
       >
         {/* Ungrouped panels */}
@@ -263,26 +356,7 @@ export default function DashboardGrid({
               </div>
             )}
             {isEditMode && (
-              <div
-                draggable
-                onDragStart={(e) => {
-                  draggedPanelRef.current = panel.id;
-                  e.dataTransfer.setData("panel/id", panel.id);
-                  e.dataTransfer.setData("text/plain", panel.id);
-                  e.dataTransfer.effectAllowed = "move";
-                  const el = e.currentTarget.closest(".react-grid-item") as HTMLElement | null;
-                  if (el) {
-                    e.dataTransfer.setDragImage(el, 16, 16);
-                  }
-                }}
-                onDragEnd={() => {
-                  draggedPanelRef.current = null;
-                }}
-                className="absolute bottom-1 left-1 z-10 p-1 rounded bg-white border border-gray-300 shadow cursor-grab active:cursor-grabbing hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                title="Drag into group"
-              >
-                <FolderInput size={12} className="text-gray-500" />
-              </div>
+              <CustomDragHandle panel={panel} onMovePanelToGroup={onMovePanelToGroup} />
             )}
             <div className="flex-1 min-h-0">
               <PanelRenderer

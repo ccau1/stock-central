@@ -26,7 +26,7 @@ const RRG_GROUPS: { label: string; tickers: string[]; aliases?: Record<string, s
   { label: "AI + Software", tickers: ["NVDA", "MSFT", "GOOGL", "AMZN", "META", "AVGO", "AMD", "CRM", "ADBE", "ORCL", "PLTR", "PANW"] },
   { label: "Commodities", tickers: ["USO", "UNG", "GLD", "SLV", "PPLT", "CPER", "DBB", "DBC", "GDX", "XLE", "BNO"] },
   { label: "Big Tech", tickers: ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA"] },
-  { label: "Financials", tickers: ["JPM", "BAC", "GS", "MS", "WFC", "C", "BLK", "BX", "SPY"] },
+  { label: "Financials", tickers: ["JPM", "BAC", "GS", "MS", "WFC", "C", "BLK", "BX", "MA", "V", "SPY"] },
   { label: "China Tech", tickers: ["BABA", "JD", "PDD", "TCEHY", "NTES", "BIDU", "NIO", "LI", "XPEV"] },
 ];
 

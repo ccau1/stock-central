@@ -5,6 +5,11 @@ import { newsFeedPanel } from "./NewsFeedPanel";
 import { fearGreedPanel } from "./FearGreedPanel";
 import { rrgPanel } from "./RrgPanel";
 import { forwardPePanel } from "./ForwardPePanel";
+import { earningsHistoryPanel } from "./EarningsHistoryPanel";
+import { seasonalityPanel } from "./SeasonalityPanel";
+import { drawdownPanel } from "./DrawdownPanel";
+import { analystTargetsPanel } from "./AnalystTargetsPanel";
+import { notebookPanel } from "./NotebookPanel";
 
 export const panels: PanelDefinition[] = [
   lineChartPanel,
@@ -13,4 +18,9 @@ export const panels: PanelDefinition[] = [
   fearGreedPanel,
   rrgPanel,
   forwardPePanel,
+  earningsHistoryPanel,
+  seasonalityPanel,
+  drawdownPanel,
+  analystTargetsPanel,
+  notebookPanel,
 ];

@@ -92,6 +92,11 @@ type ForwardPeData struct {
 	EarningsHistory  []QuarterlyEarning `json:"earnings_history"`
 	NextEarningsDate int64              `json:"next_earnings_date"`
 	NextEarningsTime string             `json:"next_earnings_time"`
+	TargetLow        float64            `json:"target_low"`
+	TargetMean       float64            `json:"target_mean"`
+	TargetHigh       float64            `json:"target_high"`
+	Recommendation   string             `json:"recommendation"`
+	NumAnalystOpinions int              `json:"num_analyst_opinions"`
 }
 
 type UpcomingEarningsEntry struct {
@@ -906,6 +911,11 @@ func (a *API) getForwardPe(w http.ResponseWriter, r *http.Request) {
 			EarningsHistory:  history,
 			NextEarningsDate: m.NextEarningsDate,
 			NextEarningsTime: m.NextEarningsTime,
+			TargetLow:        math.Round(m.TargetLow*100) / 100,
+			TargetMean:       math.Round(m.TargetMean*100) / 100,
+			TargetHigh:       math.Round(m.TargetHigh*100) / 100,
+			Recommendation:   m.Recommendation,
+			NumAnalystOpinions: m.NumAnalystOpinions,
 		})
 	}
 	respondJSON(w, http.StatusOK, result)

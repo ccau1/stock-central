@@ -90,6 +90,11 @@ export interface ForwardPeData {
   earnings_history: QuarterlyEarning[];
   next_earnings_date: number;
   next_earnings_time: string;
+  target_low: number;
+  target_mean: number;
+  target_high: number;
+  recommendation: string;
+  num_analyst_opinions: number;
 }
 
 export interface RsiData {

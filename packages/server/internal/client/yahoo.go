@@ -334,6 +334,12 @@ type QuoteMetrics struct {
 	// Next earnings report
 	NextEarningsDate int64  `json:"next_earnings_date"` // Unix timestamp of next earnings
 	NextEarningsTime string `json:"next_earnings_time"` // "Pre-market", "After-hours", or ""
+	// Analyst targets
+	TargetLow          float64 `json:"target_low"`
+	TargetMean         float64 `json:"target_mean"`
+	TargetHigh         float64 `json:"target_high"`
+	Recommendation     string  `json:"recommendation"`
+	NumAnalystOpinions int     `json:"num_analyst_opinions"`
 }
 
 func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
@@ -366,7 +372,12 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 					ForwardEps  *struct{ Raw float64 `json:"raw"` } `json:"forwardEps"`
 				} `json:"defaultKeyStatistics"`
 				FinancialData struct {
-					CurrentPrice *struct{ Raw float64 `json:"raw"` } `json:"currentPrice"`
+					CurrentPrice            *struct{ Raw float64 `json:"raw"` } `json:"currentPrice"`
+					TargetLowPrice          *struct{ Raw float64 `json:"raw"` } `json:"targetLowPrice"`
+					TargetMeanPrice         *struct{ Raw float64 `json:"raw"` } `json:"targetMeanPrice"`
+					TargetHighPrice         *struct{ Raw float64 `json:"raw"` } `json:"targetHighPrice"`
+					RecommendationKey       string                  `json:"recommendationKey"`
+					NumberOfAnalystOpinions *struct{ Raw int `json:"raw"` } `json:"numberOfAnalystOpinions"`
 				} `json:"financialData"`
 				Price struct {
 					RegularMarketPrice *struct{ Raw float64 `json:"raw"` } `json:"regularMarketPrice"`
@@ -431,6 +442,19 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 		m.Price = r.FinancialData.CurrentPrice.Raw
 	} else if r.Price.RegularMarketPrice != nil {
 		m.Price = r.Price.RegularMarketPrice.Raw
+	}
+	if r.FinancialData.TargetLowPrice != nil {
+		m.TargetLow = r.FinancialData.TargetLowPrice.Raw
+	}
+	if r.FinancialData.TargetMeanPrice != nil {
+		m.TargetMean = r.FinancialData.TargetMeanPrice.Raw
+	}
+	if r.FinancialData.TargetHighPrice != nil {
+		m.TargetHigh = r.FinancialData.TargetHighPrice.Raw
+	}
+	m.Recommendation = r.FinancialData.RecommendationKey
+	if r.FinancialData.NumberOfAnalystOpinions != nil {
+		m.NumAnalystOpinions = r.FinancialData.NumberOfAnalystOpinions.Raw
 	}
 	if r.SummaryDetail.TrailingPE != nil {
 		m.PeTrailing = r.SummaryDetail.TrailingPE.Raw
