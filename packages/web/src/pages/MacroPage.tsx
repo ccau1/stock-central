@@ -23,6 +23,7 @@ export default function MacroPage() {
     clearTickers,
     updatePanelLayouts,
     toggleGroupCollapse,
+    movePanelToGroup,
   } = useDashboard("macro");
 
   useEffect(() => {
@@ -87,6 +88,7 @@ export default function MacroPage() {
         onLayoutChange={updatePanelLayouts}
         onToggleGroupCollapse={toggleGroupCollapse}
         onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
+        onMovePanelToGroup={movePanelToGroup}
         isEditMode={isEditMode}
       />
     </div>

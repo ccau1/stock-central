@@ -4,6 +4,8 @@ import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core/types";
 import { PanelRenderer } from "../panels/core";
 
+export const draggedPanelRef = { current: null as string | null };
+
 interface PanelGroupProps {
   group: GroupConfig;
   panels: PanelConfig[];
@@ -80,7 +82,8 @@ export default function PanelGroup({
     e.stopPropagation();
     dragCounter.current = 0;
     setDragOver(false);
-    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
+    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain") || draggedPanelRef.current;
+    draggedPanelRef.current = null;
     if (panelId) {
       onMovePanelToGroup?.(panelId, group.id);
     }
@@ -157,12 +160,14 @@ export default function PanelGroup({
             <PanelGroupItem
               key={panel.id}
               panel={panel}
+              panels={panels}
               filters={filters}
               globalRefreshKey={globalRefreshKey}
               panelRefreshKeys={panelRefreshKeys}
               onRefreshPanel={onRefreshPanel}
               isEditMode={isEditMode}
               onRemovePanel={onRemovePanel}
+              onMovePanelToGroup={onMovePanelToGroup}
               onUpdatePanelLayout={_onUpdatePanelLayout}
             />
           ))}
@@ -203,26 +208,31 @@ export default function PanelGroup({
 
 function PanelGroupItem({
   panel,
+  panels,
   filters,
   globalRefreshKey,
   panelRefreshKeys,
   onRefreshPanel,
   isEditMode,
   onRemovePanel,
+  onMovePanelToGroup,
   onUpdatePanelLayout,
 }: {
   panel: PanelConfig;
+  panels: PanelConfig[];
   filters: DashboardFilters;
   globalRefreshKey: number;
   panelRefreshKeys: Record<string, number>;
   onRefreshPanel: (panelId: string) => void;
   isEditMode: boolean;
   onRemovePanel?: (panelId: string) => void;
+  onMovePanelToGroup?: (panelId: string, groupId: string | null) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [previewLayout, setPreviewLayout] = useState<{ w: number; h: number } | null>(null);
+  const [dropOver, setDropOver] = useState(false);
   const resizeRef = useRef({ x: 0, y: 0, w: 0, h: 0, pixelW: 0, axis: "both" as "both" | "x" | "y" });
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -230,14 +240,71 @@ function PanelGroupItem({
       e.preventDefault();
       return;
     }
+    draggedPanelRef.current = panel.id;
     e.dataTransfer.setData("panel/id", panel.id);
     e.dataTransfer.setData("text/plain", panel.id);
     e.dataTransfer.effectAllowed = "move";
+    const el = (e.currentTarget as HTMLElement).closest(".panel-group-item") as HTMLElement | null;
+    if (el) {
+      e.dataTransfer.setDragImage(el, 16, 16);
+    }
     setIsDragging(true);
   };
 
   const handleDragEnd = () => {
+    draggedPanelRef.current = null;
     setIsDragging(false);
+  };
+
+  const handleItemDragOver = (e: React.DragEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropOver(true);
+  };
+
+  const handleItemDragLeave = (e: React.DragEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropOver(false);
+  };
+
+  const handleItemDrop = (e: React.DragEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropOver(false);
+    const draggedId = draggedPanelRef.current || e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
+    draggedPanelRef.current = null;
+    if (!draggedId || draggedId === panel.id) return;
+
+    const draggedPanel = panels.find((p) => p.id === draggedId);
+    if (!draggedPanel) {
+      onMovePanelToGroup?.(draggedId, panel.groupId ?? null);
+      return;
+    }
+
+    if (draggedPanel.groupId === panel.groupId && onUpdatePanelLayout) {
+      // Same group: swap positions
+      onUpdatePanelLayout({
+        i: draggedId,
+        x: panel.layout.x,
+        y: panel.layout.y,
+        w: draggedPanel.layout.w,
+        h: draggedPanel.layout.h,
+      });
+      onUpdatePanelLayout({
+        i: panel.id,
+        x: draggedPanel.layout.x,
+        y: draggedPanel.layout.y,
+        w: panel.layout.w,
+        h: panel.layout.h,
+      });
+    } else {
+      // Different group or top-level: move into this group
+      onMovePanelToGroup?.(draggedId, panel.groupId ?? null);
+    }
   };
 
   const startResize = (e: React.MouseEvent, axis: "both" | "x" | "y") => {
@@ -297,21 +364,26 @@ function PanelGroupItem({
 
   return (
     <div
-      draggable={isEditMode}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      onDragOver={handleItemDragOver}
+      onDragLeave={handleItemDragLeave}
+      onDrop={handleItemDrop}
       className={`panel-group-item bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative group ${
         isDragging ? "opacity-50" : ""
-      } ${isResizing ? "ring-2 ring-blue-300" : ""}`}
+      } ${isResizing ? "ring-2 ring-blue-300" : ""} ${dropOver ? "ring-2 ring-blue-400" : ""}`}
       style={{
         gridColumn: `${panel.layout.x + 1} / span ${previewLayout?.w ?? panel.layout.w}`,
         gridRow: `${panel.layout.y + 1} / span ${previewLayout?.h ?? panel.layout.h}`,
         minHeight: 0,
-        zIndex: previewLayout ? 20 : undefined,
+        zIndex: previewLayout || dropOver ? 20 : undefined,
       }}
     >
       {isEditMode && (
-        <div className="absolute top-1 left-1 z-10 p-0.5 rounded bg-white/80 border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing">
+        <div
+          draggable
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          className="absolute top-1 left-1 z-10 p-0.5 rounded bg-white/80 border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing"
+        >
           <GripVertical size={10} className="text-gray-400" />
         </div>
       )}

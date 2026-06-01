@@ -6,7 +6,7 @@ import { GripVertical, X, FolderInput } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core";
 import { PanelRenderer } from "../panels/core";
-import PanelGroup from "./PanelGroup";
+import PanelGroup, { draggedPanelRef } from "./PanelGroup";
 
 function computeGroupHeights(
   panels: PanelConfig[],
@@ -214,7 +214,8 @@ export default function DashboardGrid({
     if (!isEditMode) return;
     e.preventDefault();
     setDragOverMain(false);
-    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
+    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain") || draggedPanelRef.current;
+    draggedPanelRef.current = null;
     if (panelId && onMovePanelToGroup) {
       onMovePanelToGroup(panelId, null);
     }
@@ -244,7 +245,7 @@ export default function DashboardGrid({
         {topLevelPanels.map((panel) => (
           <div
             key={panel.id}
-            className={`${panelWrapperClassName} relative group ${isEditMode ? "flex flex-col" : ""}`}
+            className={`${panelWrapperClassName} relative group flex flex-col`}
           >
             {isEditMode && (
               <div className="panel-drag-handle flex items-center gap-1 px-2 py-0.5 border-b border-gray-100 bg-gray-50/40 cursor-grab active:cursor-grabbing shrink-0">
@@ -265,6 +266,7 @@ export default function DashboardGrid({
               <div
                 draggable
                 onDragStart={(e) => {
+                  draggedPanelRef.current = panel.id;
                   e.dataTransfer.setData("panel/id", panel.id);
                   e.dataTransfer.setData("text/plain", panel.id);
                   e.dataTransfer.effectAllowed = "move";
@@ -273,13 +275,16 @@ export default function DashboardGrid({
                     e.dataTransfer.setDragImage(el, 16, 16);
                   }
                 }}
+                onDragEnd={() => {
+                  draggedPanelRef.current = null;
+                }}
                 className="absolute bottom-1 left-1 z-10 p-1 rounded bg-white border border-gray-300 shadow cursor-grab active:cursor-grabbing hover:border-blue-400 hover:bg-blue-50 transition-colors"
                 title="Drag into group"
               >
                 <FolderInput size={12} className="text-gray-500" />
               </div>
             )}
-            <div className={isEditMode ? "flex-1 min-h-0" : ""}>
+            <div className="flex-1 min-h-0">
               <PanelRenderer
                 panel={panel}
                 filters={filters}

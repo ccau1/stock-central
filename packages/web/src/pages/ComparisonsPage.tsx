@@ -35,6 +35,7 @@ export default function ComparisonsPage() {
     removeTicker,
     clearTickers,
     updatePanelLayouts,
+    movePanelToGroup,
   } = useDashboard("comparisons");
 
   useEffect(() => {
@@ -224,6 +225,7 @@ export default function ComparisonsPage() {
         onRefreshPanel={refreshPanel}
         onLayoutChange={updatePanelLayouts}
         onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
+        onMovePanelToGroup={movePanelToGroup}
         isEditMode={isEditMode}
         panelWrapperClassName="h-full w-full"
       />
