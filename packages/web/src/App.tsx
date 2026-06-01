@@ -9,6 +9,10 @@ import TickerDetailPage from "./pages/TickerDetailPage";
 import HeatmapPage from "./pages/HeatmapPage";
 import DashboardPage from "./pages/DashboardPage";
 import DashboardListPage from "./pages/DashboardListPage";
+import ScreenerPage from "./pages/ScreenerPage";
+import SectorRotationPage from "./pages/SectorRotationPage";
+import EarningsCalendarPage from "./pages/EarningsCalendarPage";
+import WatchlistPage from "./pages/WatchlistPage";
 
 const router = createBrowserRouter([
   {
@@ -19,6 +23,10 @@ const router = createBrowserRouter([
       { path: "/comparisons", element: <ComparisonsPage /> },
       { path: "/ticker/:symbol", element: <TickerDetailPage /> },
       { path: "/heatmap", element: <HeatmapPage /> },
+      { path: "/screener", element: <ScreenerPage /> },
+      { path: "/sector-rotation", element: <SectorRotationPage /> },
+      { path: "/earnings", element: <EarningsCalendarPage /> },
+      { path: "/watchlist", element: <WatchlistPage /> },
       { path: "/dashboards", element: <DashboardListPage /> },
       { path: "/dashboard/:id", element: <DashboardPage /> },
     ],

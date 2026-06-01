@@ -119,7 +119,7 @@ export function UpcomingEarningsPanel({ title, refreshKey, onRefresh, descriptio
       </div>
 
       {grouped.length > 0 ? (
-        <div className="space-y-3 overflow-y-auto pr-1" style={{ maxHeight: "calc(100% - 22px)" }}>
+        <div className="space-y-3 overflow-y-auto pr-1 max-h-[50vh] md:max-h-[calc(100%_-_22px)]">
           {grouped.map(([dateKey, items]) => (
             <div key={dateKey}>
               <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">

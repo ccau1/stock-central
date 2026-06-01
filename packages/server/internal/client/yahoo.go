@@ -539,7 +539,7 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 	// Parse next earnings date
 	if len(r.CalendarEvents.Earnings.EarningsDate) > 0 {
 		m.NextEarningsDate = r.CalendarEvents.Earnings.EarningsDate[0].Raw
-		m.NextEarningsTime = inferEarningsTime(m.NextEarningsDate)
+		m.NextEarningsTime = inferEarningsTime(m.NextEarningsDate, 0)
 	}
 
 	return m, nil
@@ -547,7 +547,9 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 
 // inferEarningsTime guesses whether earnings are pre-market or after-hours
 // based on the hour of the timestamp in Eastern Time.
-func inferEarningsTime(ts int64) string {
+// If the main timestamp is at midnight (hour 0-3), it checks the start timestamp
+// or defaults to After-hours (most common case).
+func inferEarningsTime(ts int64, startTs int64) string {
 	loc, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		return ""
@@ -560,21 +562,47 @@ func inferEarningsTime(ts int64) string {
 	if hour >= 16 && hour <= 23 {
 		return "After-hours"
 	}
-	return ""
+	// Midnight or early morning — try start timestamp if available
+	if startTs > 0 {
+		st := time.Unix(startTs, 0).In(loc)
+		sh := st.Hour()
+		if sh >= 4 && sh < 9 {
+			return "Pre-market"
+		}
+		if sh >= 16 && sh <= 23 {
+			return "After-hours"
+		}
+	}
+	// Default: most earnings are after-hours
+	return "After-hours"
 }
 
 // ---------- Batch Quote ----------
 
 type BatchQuote struct {
-	Symbol        string  `json:"symbol"`
-	Name          string  `json:"name"`
-	Price         float64 `json:"price"`
-	Change        float64 `json:"change"`
-	ChangePercent float64 `json:"change_percent"`
-	MarketCap     float64 `json:"market_cap"`
-	Volume        int64   `json:"volume"`
-	EarningsDate  int64   `json:"earnings_date"`
-	EarningsTime  string  `json:"earnings_time"`
+	Symbol           string  `json:"symbol"`
+	Name             string  `json:"name"`
+	Price            float64 `json:"price"`
+	Change           float64 `json:"change"`
+	ChangePercent    float64 `json:"change_percent"`
+	MarketCap        float64 `json:"market_cap"`
+	Volume           int64   `json:"volume"`
+	EarningsDate     int64   `json:"earnings_date"`
+	EarningsTime     string  `json:"earnings_time"`
+	TrailingPE       float64 `json:"trailing_pe"`
+	ForwardPE        float64 `json:"forward_pe"`
+	EpsTrailing      float64 `json:"eps_trailing"`
+	EpsForward       float64 `json:"eps_forward"`
+	DividendYield    float64 `json:"dividend_yield"`
+	FiftyTwoWeekHigh float64 `json:"fifty_two_week_high"`
+	FiftyTwoWeekLow  float64 `json:"fifty_two_week_low"`
+	FiftyDayAvg      float64 `json:"fifty_day_avg"`
+	TwoHundredDayAvg float64 `json:"two_hundred_day_avg"`
+	ShortRatio       float64 `json:"short_ratio"`
+	ShortPercentFloat float64 `json:"short_percent_float"`
+	PriceToBook      float64 `json:"price_to_book"`
+	BookValue        float64 `json:"book_value"`
+	Sector           string  `json:"sector"`
 }
 
 func GetBatchQuotes(symbols []string) ([]BatchQuote, error) {
@@ -617,14 +645,29 @@ func getBatchQuotesSingle(symbols []string) ([]BatchQuote, error) {
 	var resp struct {
 		QuoteResponse struct {
 			Result []struct {
-				Symbol                 string  `json:"symbol"`
-				ShortName              string  `json:"shortName"`
-				RegularMarketPrice     float64 `json:"regularMarketPrice"`
-				RegularMarketChange    float64 `json:"regularMarketChange"`
+				Symbol                     string  `json:"symbol"`
+				ShortName                  string  `json:"shortName"`
+				RegularMarketPrice         float64 `json:"regularMarketPrice"`
+				RegularMarketChange        float64 `json:"regularMarketChange"`
 				RegularMarketChangePercent float64 `json:"regularMarketChangePercent"`
-				MarketCap              float64 `json:"marketCap"`
-				RegularMarketVolume    int64   `json:"regularMarketVolume"`
-				EarningsTimestamp      int64   `json:"earningsTimestamp"`
+				MarketCap                  float64 `json:"marketCap"`
+				RegularMarketVolume        int64   `json:"regularMarketVolume"`
+				EarningsTimestamp          int64   `json:"earningsTimestamp"`
+				EarningsTimestampStart     int64   `json:"earningsTimestampStart"`
+				TrailingPE                 float64 `json:"trailingPE"`
+				ForwardPE                  float64 `json:"forwardPE"`
+				EpsTrailingTwelveMonths    float64 `json:"epsTrailingTwelveMonths"`
+				EpsForward                 float64 `json:"epsForward"`
+				DividendYield              float64 `json:"dividendYield"`
+				FiftyTwoWeekHigh           float64 `json:"fiftyTwoWeekHigh"`
+				FiftyTwoWeekLow            float64 `json:"fiftyTwoWeekLow"`
+				FiftyDayAverage            float64 `json:"fiftyDayAverage"`
+				TwoHundredDayAverage       float64 `json:"twoHundredDayAverage"`
+				ShortRatio                 float64 `json:"shortRatio"`
+				ShortPercentFloat          float64 `json:"shortPercentFloat"`
+				PriceToBook                float64 `json:"priceToBook"`
+				BookValue                  float64 `json:"bookValue"`
+				Sector                     string  `json:"sector"`
 			} `json:"result"`
 			Error *struct {
 				Description string `json:"description"`
@@ -641,15 +684,29 @@ func getBatchQuotesSingle(symbols []string) ([]BatchQuote, error) {
 	var out []BatchQuote
 	for _, r := range resp.QuoteResponse.Result {
 		out = append(out, BatchQuote{
-			Symbol:        r.Symbol,
-			Name:          r.ShortName,
-			Price:         r.RegularMarketPrice,
-			Change:        r.RegularMarketChange,
-			ChangePercent: r.RegularMarketChangePercent,
-			MarketCap:     r.MarketCap,
-			Volume:        r.RegularMarketVolume,
-			EarningsDate:  r.EarningsTimestamp,
-			EarningsTime:  inferEarningsTime(r.EarningsTimestamp),
+			Symbol:            r.Symbol,
+			Name:              r.ShortName,
+			Price:             r.RegularMarketPrice,
+			Change:            r.RegularMarketChange,
+			ChangePercent:     r.RegularMarketChangePercent,
+			MarketCap:         r.MarketCap,
+			Volume:            r.RegularMarketVolume,
+			EarningsDate:      r.EarningsTimestamp,
+			EarningsTime:      inferEarningsTime(r.EarningsTimestamp, r.EarningsTimestampStart),
+			TrailingPE:        r.TrailingPE,
+			ForwardPE:         r.ForwardPE,
+			EpsTrailing:       r.EpsTrailingTwelveMonths,
+			EpsForward:        r.EpsForward,
+			DividendYield:     r.DividendYield,
+			FiftyTwoWeekHigh:  r.FiftyTwoWeekHigh,
+			FiftyTwoWeekLow:   r.FiftyTwoWeekLow,
+			FiftyDayAvg:       r.FiftyDayAverage,
+			TwoHundredDayAvg:  r.TwoHundredDayAverage,
+			ShortRatio:        r.ShortRatio,
+			ShortPercentFloat: r.ShortPercentFloat,
+			PriceToBook:       r.PriceToBook,
+			BookValue:         r.BookValue,
+			Sector:            r.Sector,
 		})
 	}
 	return out, nil

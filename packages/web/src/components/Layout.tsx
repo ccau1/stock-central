@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { Globe, GitCompare, BarChart3, LayoutGrid, LayoutDashboard, Search, RefreshCw } from "lucide-react";
+import { Globe, GitCompare, BarChart3, LayoutGrid, LayoutDashboard, Search, RefreshCw, Filter, Layers, CalendarDays, Star } from "lucide-react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 
 const navItems = [
@@ -8,6 +8,10 @@ const navItems = [
   { path: "/heatmap", label: "Heatmap", icon: LayoutGrid },
   { path: "/rrg", label: "RRG", icon: BarChart3 },
   { path: "/comparisons", label: "Comparisons", icon: GitCompare },
+  { path: "/screener", label: "Screener", icon: Filter },
+  { path: "/sector-rotation", label: "Sectors", icon: Layers },
+  { path: "/earnings", label: "Earnings", icon: CalendarDays },
+  { path: "/watchlist", label: "Watchlist", icon: Star },
   { path: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
 ];
 

@@ -43,7 +43,7 @@ export function IPOPanel({ title, refreshKey, onRefresh, description }: PanelPro
     <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && data.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-[50vh] overflow-y-auto">
           {data.map((ipo: any) => (
             <div key={ipo.symbol} className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
               <div className="flex items-center justify-between gap-2">

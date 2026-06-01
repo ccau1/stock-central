@@ -254,6 +254,36 @@ export interface UpcomingEarningsEntry {
   earnings_time: string;
 }
 
+export interface SectorRotationItem {
+  symbol: string;
+  name: string;
+  returns: Record<string, number>;
+}
+
+export interface ScreenStock {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  market_cap: number;
+  volume: number;
+  trailing_pe: number;
+  forward_pe: number;
+  eps_trailing: number;
+  eps_forward: number;
+  dividend_yield: number;
+  fifty_two_week_high: number;
+  fifty_two_week_low: number;
+  fifty_day_avg: number;
+  two_hundred_day_avg: number;
+  short_ratio: number;
+  short_percent_float: number;
+  price_to_book: number;
+  book_value: number;
+  sector: string;
+}
+
 export interface TickerSearchResult {
   symbol: string;
   name: string;
@@ -444,6 +474,12 @@ export const dataApi = {
     fetchJSON<HeatmapData>(`/data/heatmap?universe=${encodeURIComponent(universe)}${groupBy ? `&group_by=${groupBy}` : ""}`),
   getHeatmapUniverses: () =>
     fetchJSON<HeatmapUniverse[]>("/data/heatmap/universes"),
+  getScreen: (universe: string) =>
+    fetchJSON<ScreenStock[]>(`/data/screen?universe=${encodeURIComponent(universe)}`),
+  getBatchQuotes: (symbols: string[]) =>
+    fetchJSON<ScreenStock[]>(`/data/batch-quotes?symbols=${symbols.join(",")}`),
+  getSectorRotation: () =>
+    fetchJSON<SectorRotationItem[]>("/data/sector-rotation"),
   getIPOs: (limit?: number) =>
     fetchJSON<IPOEntry[]>(`/data/macro/ipos?limit=${limit || 5}`),
   getRecessionRisk: () =>
@@ -452,8 +488,10 @@ export const dataApi = {
     fetchJSON<FrothData>("/data/macro/froth"),
   getValuation: () =>
     fetchJSON<ValuationData>("/data/macro/valuation"),
-  getUpcomingEarnings: (minMarketCap?: number, universe?: string, limit?: number) =>
-    fetchJSON<UpcomingEarningsEntry[]>(`/data/macro/upcoming-earnings?min_market_cap=${minMarketCap || 100_000_000_000}&universe=${encodeURIComponent(universe || "sp500")}&limit=${limit || 50}`),
+  getUpcomingEarnings: (minMarketCap?: number, universe?: string, limit?: number) => {
+    const capParam = minMarketCap === undefined ? 100_000_000_000 : minMarketCap;
+    return fetchJSON<UpcomingEarningsEntry[]>(`/data/macro/upcoming-earnings?min_market_cap=${capParam}&universe=${encodeURIComponent(universe || "sp500")}&limit=${limit || 50}`);
+  },
   getOptions: (symbols: string[]) =>
     fetchJSON<OptionsData[]>(`/data/options?symbols=${symbols.join(",")}`),
   getCandles: (symbol: string, range: string, interval: string) =>

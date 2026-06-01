@@ -282,6 +282,12 @@ type FormulaResponse struct {
 	Points []IndicatorPoint `json:"points"`
 }
 
+type SectorRotationItem struct {
+	Symbol  string            `json:"symbol"`
+	Name    string            `json:"name"`
+	Returns map[string]float64 `json:"returns"`
+}
+
 
 // ---------- Routes ----------
 
@@ -310,8 +316,11 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/macro/froth", a.getFroth)
 	r.Get("/macro/valuation", a.getValuation)
 	r.Get("/macro/upcoming-earnings", a.getUpcomingEarnings)
+	r.Get("/sector-rotation", a.getSectorRotation)
 	r.Get("/heatmap", a.getHeatmap)
 	r.Get("/heatmap/universes", a.getHeatmapUniverses)
+	r.Get("/screen", a.getScreen)
+	r.Get("/batch-quotes", a.getBatchQuotes)
 	r.Get("/options", a.getOptions)
 }
 
@@ -1830,7 +1839,7 @@ func (a *API) getUpcomingEarnings(w http.ResponseWriter, r *http.Request) {
 
 	minMarketCapStr := r.URL.Query().Get("min_market_cap")
 	minMarketCap, _ := strconv.ParseFloat(minMarketCapStr, 64)
-	if minMarketCap <= 0 {
+	if minMarketCapStr == "" || minMarketCap < 0 {
 		minMarketCap = 100_000_000_000 // default 100B
 	}
 
@@ -1933,6 +1942,150 @@ func (a *API) getUpcomingEarnings(w http.ResponseWriter, r *http.Request) {
 
 	if len(result) > limit {
 		result = result[:limit]
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
+func (a *API) getBatchQuotes(w http.ResponseWriter, r *http.Request) {
+	symbols := parseSymbols(r.URL.Query().Get("symbols"))
+	if len(symbols) == 0 {
+		respondJSON(w, http.StatusOK, []client.BatchQuote{})
+		return
+	}
+	quotes, err := client.GetBatchQuotes(symbols)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, quotes)
+}
+
+func (a *API) getScreen(w http.ResponseWriter, r *http.Request) {
+	universe := r.URL.Query().Get("universe")
+	if universe == "" {
+		universe = "sp500"
+	}
+
+	var symbols []string
+	switch universe {
+	case "nasdaq100":
+		for sym := range nasdaq100Universe {
+			symbols = append(symbols, sym)
+		}
+	case "sp500":
+		for sym := range sp500Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones30":
+		for sym := range dowJones30Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones20":
+		for sym := range dowJones20Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones15":
+		for sym := range dowJones15Universe {
+			symbols = append(symbols, sym)
+		}
+	case "dowjones65":
+		for sym := range dowJones30Universe {
+			symbols = append(symbols, sym)
+		}
+		for sym := range dowJones20Universe {
+			symbols = append(symbols, sym)
+		}
+		for sym := range dowJones15Universe {
+			symbols = append(symbols, sym)
+		}
+	case "kbwBank":
+		for sym := range kbwBankUniverse {
+			symbols = append(symbols, sym)
+		}
+	case "nasdaqComposite":
+		for sym := range nasdaqCompositeUniverse {
+			symbols = append(symbols, sym)
+		}
+	case "russell1000":
+		for sym := range russell1000Universe {
+			symbols = append(symbols, sym)
+		}
+	case "russell2000":
+		for sym := range russell2000Universe {
+			symbols = append(symbols, sym)
+		}
+	case "russell3000", "allUS":
+		for sym := range russell1000Universe {
+			symbols = append(symbols, sym)
+		}
+		for sym := range russell2000Universe {
+			symbols = append(symbols, sym)
+		}
+	default:
+		respondError(w, http.StatusBadRequest, fmt.Errorf("invalid universe"))
+		return
+	}
+
+	if len(symbols) == 0 {
+		respondJSON(w, http.StatusOK, []client.BatchQuote{})
+		return
+	}
+
+	quotes, err := client.GetBatchQuotes(symbols)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, quotes)
+}
+
+func (a *API) getSectorRotation(w http.ResponseWriter, r *http.Request) {
+	sectors := []struct {
+		Symbol string
+		Name   string
+	}{
+		{"XLC", "Communication Services"},
+		{"XLY", "Consumer Discretionary"},
+		{"XLP", "Consumer Staples"},
+		{"XLE", "Energy"},
+		{"XLF", "Financials"},
+		{"XLV", "Health Care"},
+		{"XLI", "Industrials"},
+		{"XLB", "Materials"},
+		{"XLRE", "Real Estate"},
+		{"XLK", "Technology"},
+		{"XLU", "Utilities"},
+	}
+
+	result := make([]SectorRotationItem, 0, len(sectors))
+	for _, s := range sectors {
+		points, err := client.GetChart(s.Symbol, "1y", "1d")
+		if err != nil {
+			continue
+		}
+		if len(points) < 2 {
+			continue
+		}
+
+		returns := map[string]float64{
+			"1d":  computeReturn(points, 1),
+			"1w":  computeReturn(points, 5),
+			"1m":  computeReturn(points, 21),
+			"3m":  computeReturn(points, 63),
+			"6m":  computeReturn(points, 126),
+			"ytd": computeReturn(points, len(points)-1),
+		}
+		for k, v := range returns {
+			returns[k] = math.Round(v*100) / 100
+		}
+
+		result = append(result, SectorRotationItem{
+			Symbol:  s.Symbol,
+			Name:    s.Name,
+			Returns: returns,
+		})
 	}
 
 	respondJSON(w, http.StatusOK, result)

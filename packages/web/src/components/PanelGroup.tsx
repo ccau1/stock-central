@@ -40,6 +40,7 @@ export default function PanelGroup({
   level = 0,
 }: PanelGroupProps) {
   const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
   const collapsed = group.collapsed ?? false;
   const isRow = group.type === '__row__';
 
@@ -53,23 +54,89 @@ export default function PanelGroup({
     setDragOver(true);
   }, [isEditMode]);
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    setDragOver(true);
+  }, [isEditMode]);
+
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     if (!isEditMode) return;
     e.preventDefault();
     e.stopPropagation();
-    setDragOver(false);
+    dragCounter.current--;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragOver(false);
+    }
   }, [isEditMode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     if (!isEditMode) return;
     e.preventDefault();
     e.stopPropagation();
+    dragCounter.current = 0;
     setDragOver(false);
     const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
-    if (panelId) {
-      onMovePanelToGroup?.(panelId, group.id);
+    if (!panelId) return;
+
+    const droppedPanel = panels.find((p) => p.id === panelId);
+    if (!droppedPanel) return;
+
+    // Same group — reposition or swap
+    if (droppedPanel.groupId === group.id) {
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      const itemEl = target?.closest(".panel-group-item") as HTMLElement | null;
+      if (itemEl) {
+        const targetId = itemEl.getAttribute("data-panel-id");
+        const targetPanel = panels.find((p) => p.id === targetId);
+        if (targetPanel && targetPanel.id !== panelId && targetPanel.groupId === group.id && _onUpdatePanelLayout) {
+          _onUpdatePanelLayout({
+            i: panelId,
+            x: targetPanel.layout.x,
+            y: targetPanel.layout.y,
+            w: droppedPanel.layout.w,
+            h: droppedPanel.layout.h,
+          });
+          _onUpdatePanelLayout({
+            i: targetPanel.id,
+            x: droppedPanel.layout.x,
+            y: droppedPanel.layout.y,
+            w: targetPanel.layout.w,
+            h: targetPanel.layout.h,
+          });
+          return;
+        }
+      }
+      // Drop on empty space — compute new grid position
+      const groupEl = document.querySelector(`[data-group-id="${group.id}"]`) as HTMLElement | null;
+      const gridEl = groupEl?.querySelector(".panel-group-grid") as HTMLElement | null;
+      if (gridEl && _onUpdatePanelLayout) {
+        const rect = gridEl.getBoundingClientRect();
+        const gap = 8;
+        const colWidth = (rect.width - gap * 11) / 12;
+        const rowHeight = 30;
+        const relX = e.clientX - rect.left;
+        const relY = e.clientY - rect.top;
+        let col = Math.floor(relX / (colWidth + gap)) + 1;
+        let row = Math.floor(relY / (rowHeight + gap)) + 1;
+        col = Math.max(1, Math.min(12 - droppedPanel.layout.w + 1, col));
+        row = Math.max(1, row);
+        _onUpdatePanelLayout({
+          i: panelId,
+          x: col,
+          y: row,
+          w: droppedPanel.layout.w,
+          h: droppedPanel.layout.h,
+        });
+      }
+      return;
     }
-  }, [isEditMode, group.id, onMovePanelToGroup]);
+
+    onMovePanelToGroup?.(panelId, group.id);
+  }, [isEditMode, group.id, panels, onMovePanelToGroup, _onUpdatePanelLayout]);
 
   const indentClass = level > 0 ? "ml-2 border-l-2 border-gray-100 pl-2" : "";
 
@@ -84,6 +151,7 @@ export default function PanelGroup({
           : `rounded-lg border ${dragOver ? "border-blue-400 bg-blue-50/50" : "border-gray-200 bg-white"}`
       } ${indentClass}`}
       onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
@@ -142,14 +210,12 @@ export default function PanelGroup({
             <PanelGroupItem
               key={panel.id}
               panel={panel}
-              panels={panels}
               filters={filters}
               globalRefreshKey={globalRefreshKey}
               panelRefreshKeys={panelRefreshKeys}
               onRefreshPanel={onRefreshPanel}
               isEditMode={isEditMode}
               onRemovePanel={onRemovePanel}
-              onMovePanelToGroup={onMovePanelToGroup}
               onUpdatePanelLayout={_onUpdatePanelLayout}
             />
           ))}
@@ -190,25 +256,21 @@ export default function PanelGroup({
 
 function PanelGroupItem({
   panel,
-  panels,
   filters,
   globalRefreshKey,
   panelRefreshKeys,
   onRefreshPanel,
   isEditMode,
   onRemovePanel,
-  onMovePanelToGroup,
   onUpdatePanelLayout,
 }: {
   panel: PanelConfig;
-  panels: PanelConfig[];
   filters: DashboardFilters;
   globalRefreshKey: number;
   panelRefreshKeys: Record<string, number>;
   onRefreshPanel: (panelId: string) => void;
   isEditMode: boolean;
   onRemovePanel?: (panelId: string) => void;
-  onMovePanelToGroup?: (panelId: string, groupId: string | null) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
 }) {
   const [isResizing, setIsResizing] = useState(false);
@@ -270,8 +332,21 @@ function PanelGroupItem({
     };
   }, [isResizing, panel, onUpdatePanelLayout]);
 
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!isEditMode) {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.setData("panel/id", panel.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
   return (
     <div
+      draggable={isEditMode}
+      onDragStart={handleDragStart}
+      onMouseDown={(e) => e.stopPropagation()}
+      data-panel-id={panel.id}
       className={`panel-group-item bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative group ${
         isResizing ? "ring-2 ring-blue-300" : ""
       }`}
@@ -282,14 +357,6 @@ function PanelGroupItem({
         zIndex: previewLayout ? 20 : undefined,
       }}
     >
-      {isEditMode && (
-        <CustomDragHandle
-          panel={panel}
-          panels={panels}
-          onMovePanelToGroup={onMovePanelToGroup}
-          onUpdatePanelLayout={onUpdatePanelLayout}
-        />
-      )}
       {isEditMode && onRemovePanel && (
         <button
           onClick={() => onRemovePanel(panel.id)}
@@ -324,178 +391,6 @@ function PanelGroupItem({
         refreshKey={(panelRefreshKeys[panel.id] || 0) + globalRefreshKey}
         onRefresh={() => onRefreshPanel(panel.id)}
       />
-    </div>
-  );
-}
-
-/* Custom mouse-based drag that works even when HTML5 DnD is broken */
-function CustomDragHandle({
-  panel,
-  panels,
-  onMovePanelToGroup,
-  onUpdatePanelLayout,
-}: {
-  panel: PanelConfig;
-  panels: PanelConfig[];
-  onMovePanelToGroup?: (panelId: string, groupId: string | null) => void;
-  onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
-}) {
-  const ghostRef = useRef<HTMLDivElement | null>(null);
-  const startPosRef = useRef({ x: 0, y: 0 });
-  const hasMovedRef = useRef(false);
-
-  const cleanup = useCallback(() => {
-    if (ghostRef.current) {
-      ghostRef.current.remove();
-      ghostRef.current = null;
-    }
-    document.querySelectorAll(".panel-group-container").forEach((el) => {
-      el.classList.remove("ring-2", "ring-blue-400", "bg-blue-50/50");
-    });
-    document.querySelectorAll(".panel-group-item").forEach((el) => {
-      el.classList.remove("ring-2", "ring-blue-400");
-    });
-  }, []);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    console.log("[CustomDrag] mousedown on", panel.id);
-    e.preventDefault();
-    e.stopPropagation();
-    startPosRef.current = { x: e.clientX, y: e.clientY };
-    hasMovedRef.current = false;
-
-    const ghost = document.createElement("div");
-    ghost.className = "fixed z-[9999] pointer-events-none bg-white/90 border-2 border-blue-400 rounded-lg shadow-lg px-3 py-2 text-xs font-medium text-blue-600";
-    ghost.textContent = panel.title || panel.id;
-    ghost.style.left = e.clientX + 12 + "px";
-    ghost.style.top = e.clientY + 12 + "px";
-    document.body.appendChild(ghost);
-    ghostRef.current = ghost;
-
-    const onMouseMove = (e: MouseEvent) => {
-      const dx = Math.abs(e.clientX - startPosRef.current.x);
-      const dy = Math.abs(e.clientY - startPosRef.current.y);
-      if (dx < 3 && dy < 3) return;
-      hasMovedRef.current = true;
-
-      if (ghostRef.current) {
-        ghostRef.current.style.left = e.clientX + 12 + "px";
-        ghostRef.current.style.top = e.clientY + 12 + "px";
-      }
-
-      const target = document.elementFromPoint(e.clientX, e.clientY);
-      document.querySelectorAll(".panel-group-container").forEach((el) => {
-        el.classList.remove("ring-2", "ring-blue-400", "bg-blue-50/50");
-      });
-      document.querySelectorAll(".panel-group-item").forEach((el) => {
-        el.classList.remove("ring-2", "ring-blue-400");
-      });
-
-      const groupEl = target?.closest(".panel-group-container") as HTMLElement | null;
-      if (groupEl) {
-        groupEl.classList.add("ring-2", "ring-blue-400", "bg-blue-50/50");
-      }
-      const itemEl = target?.closest(".panel-group-item") as HTMLElement | null;
-      if (itemEl) {
-        itemEl.classList.add("ring-2", "ring-blue-400");
-      }
-    };
-
-    const onMouseUp = (e: MouseEvent) => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-
-      if (ghostRef.current) {
-        ghostRef.current.remove();
-        ghostRef.current = null;
-      }
-      cleanup();
-
-      if (!hasMovedRef.current) {
-        console.log("[CustomDrag] mouseup without movement");
-        return;
-      }
-
-      const target = document.elementFromPoint(e.clientX, e.clientY);
-      const itemEl = target?.closest(".panel-group-item") as HTMLElement | null;
-      const groupEl = target?.closest(".panel-group-container") as HTMLElement | null;
-
-      console.log("[CustomDrag] mouseup", { targetPanelId: itemEl?.getAttribute("data-panel-id"), targetGroupId: groupEl?.getAttribute("data-group-id") });
-
-      if (itemEl) {
-        const targetId = itemEl.getAttribute("data-panel-id");
-        const targetPanel = panels.find((p) => p.id === targetId);
-        if (targetPanel && targetPanel.id !== panel.id) {
-          if (targetPanel.groupId === panel.groupId && onUpdatePanelLayout) {
-            onUpdatePanelLayout({
-              i: panel.id,
-              x: targetPanel.layout.x,
-              y: targetPanel.layout.y,
-              w: panel.layout.w,
-              h: panel.layout.h,
-            });
-            onUpdatePanelLayout({
-              i: targetPanel.id,
-              x: panel.layout.x,
-              y: panel.layout.y,
-              w: targetPanel.layout.w,
-              h: targetPanel.layout.h,
-            });
-            return;
-          }
-          onMovePanelToGroup?.(panel.id, targetPanel.groupId ?? null);
-          return;
-        }
-      }
-
-      if (groupEl) {
-        const groupId = groupEl.getAttribute("data-group-id");
-        if (groupId) {
-          if (groupId === panel.groupId && onUpdatePanelLayout) {
-            const gridEl = groupEl.querySelector(".panel-group-grid") as HTMLElement | null;
-            if (gridEl) {
-              const rect = gridEl.getBoundingClientRect();
-              const gap = 8;
-              const colWidth = (rect.width - gap * 11) / 12;
-              const rowHeight = 30;
-              const relX = e.clientX - rect.left;
-              const relY = e.clientY - rect.top;
-              let col = Math.floor(relX / (colWidth + gap)) + 1;
-              let row = Math.floor(relY / (rowHeight + gap)) + 1;
-              col = Math.max(1, Math.min(12 - panel.layout.w + 1, col));
-              row = Math.max(1, row);
-              onUpdatePanelLayout({
-                i: panel.id,
-                x: col,
-                y: row,
-                w: panel.layout.w,
-                h: panel.layout.h,
-              });
-            }
-            return;
-          }
-          onMovePanelToGroup?.(panel.id, groupId);
-          return;
-        }
-      }
-
-      onMovePanelToGroup?.(panel.id, null);
-    };
-
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  };
-
-  useEffect(() => cleanup, [cleanup]);
-
-  return (
-    <div
-      data-panel-id={panel.id}
-      onMouseDown={handleMouseDown}
-      className="absolute top-0 left-0 right-0 z-30 h-3 cursor-grab active:cursor-grabbing opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center"
-      title="Drag to move"
-    >
-      <GripVertical size={10} className="text-gray-400" />
     </div>
   );
 }
