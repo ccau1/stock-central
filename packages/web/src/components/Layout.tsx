@@ -106,7 +106,10 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-1 overflow-x-auto">
             {navItems.map((item) => {
-              const active = location.pathname === item.path;
+              const active =
+                item.path === "/dashboards"
+                  ? location.pathname.startsWith("/dashboard")
+                  : location.pathname === item.path;
               return (
                 <Link
                   key={item.path}

@@ -2,7 +2,7 @@ import { Responsive, useContainerWidth } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useCallback, useMemo, useState } from "react";
-import { GripVertical, X } from "lucide-react";
+import { GripVertical, X, FolderInput } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core";
 import { PanelRenderer } from "../panels/core";
@@ -214,7 +214,7 @@ export default function DashboardGrid({
     if (!isEditMode) return;
     e.preventDefault();
     setDragOverMain(false);
-    const panelId = e.dataTransfer.getData("panel/id");
+    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
     if (panelId && onMovePanelToGroup) {
       onMovePanelToGroup(panelId, null);
     }
@@ -259,6 +259,24 @@ export default function DashboardGrid({
                     <X size={10} />
                   </button>
                 )}
+              </div>
+            )}
+            {isEditMode && (
+              <div
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("panel/id", panel.id);
+                  e.dataTransfer.setData("text/plain", panel.id);
+                  e.dataTransfer.effectAllowed = "move";
+                  const el = e.currentTarget.closest(".react-grid-item") as HTMLElement | null;
+                  if (el) {
+                    e.dataTransfer.setDragImage(el, 16, 16);
+                  }
+                }}
+                className="absolute bottom-1 left-1 z-10 p-1 rounded bg-white border border-gray-300 shadow cursor-grab active:cursor-grabbing hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                title="Drag into group"
+              >
+                <FolderInput size={12} className="text-gray-500" />
               </div>
             )}
             <div className={isEditMode ? "flex-1 min-h-0" : ""}>

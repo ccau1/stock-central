@@ -23,9 +23,16 @@ export function useDisabledTickers(storageKey: string) {
           if (t !== symbol) next.add(t);
         });
       } else {
-        // Some hidden → toggle this one
-        if (next.has(symbol)) next.delete(symbol);
-        else next.add(symbol);
+        const enabledCount = allTickers.filter((t) => !next.has(t)).length;
+        const isOnlyEnabled = enabledCount === 1 && !next.has(symbol);
+        if (isOnlyEnabled) {
+          // Clicked the only enabled ticker → show all
+          next.clear();
+        } else {
+          // Some hidden → toggle this one
+          if (next.has(symbol)) next.delete(symbol);
+          else next.add(symbol);
+        }
       }
       return next;
     });

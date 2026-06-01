@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, ChevronRight, Folder, X, GripVertical, Maximize2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, X, GripVertical } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/core/types";
 import { PanelRenderer } from "../panels/core";
@@ -15,7 +15,7 @@ interface PanelGroupProps {
   onRefreshPanel: (panelId: string) => void;
   isEditMode: boolean;
   onToggleGroupCollapse: (groupId: string) => void;
-  onMovePanelToGroup: (panelId: string, groupId: string | null) => void;
+  onMovePanelToGroup?: (panelId: string, groupId: string | null) => void;
   onRemovePanel?: (panelId: string) => void;
   onRemoveGroup?: (groupId: string) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
@@ -42,32 +42,47 @@ export default function PanelGroup({
   const [dragOver, setDragOver] = useState(false);
   const collapsed = group.collapsed ?? false;
   const isRow = group.type === '__row__';
+  const dragCounter = useRef(0);
 
   const childPanels = panels.filter((p) => p.groupId === group.id);
   const childGroups = groups.filter((g) => g.groupId === group.id);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (dragCounter.current === 1) {
+      setDragOver(true);
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     if (!isEditMode) return;
     e.preventDefault();
     e.stopPropagation();
-    setDragOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     if (!isEditMode) return;
     e.preventDefault();
     e.stopPropagation();
-    setDragOver(false);
+    dragCounter.current--;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragOver(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     if (!isEditMode) return;
     e.preventDefault();
     e.stopPropagation();
+    dragCounter.current = 0;
     setDragOver(false);
-    const panelId = e.dataTransfer.getData("panel/id");
+    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
     if (panelId) {
-      onMovePanelToGroup(panelId, group.id);
+      onMovePanelToGroup?.(panelId, group.id);
     }
   };
 
@@ -82,6 +97,7 @@ export default function PanelGroup({
             : ""
           : `rounded-lg border ${dragOver ? "border-blue-400 bg-blue-50/50" : "border-gray-200 bg-white"}`
       } ${indentClass}`}
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -206,7 +222,8 @@ function PanelGroupItem({
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const resizeRef = useRef({ x: 0, y: 0, w: 0, h: 0, pixelW: 0 });
+  const [previewLayout, setPreviewLayout] = useState<{ w: number; h: number } | null>(null);
+  const resizeRef = useRef({ x: 0, y: 0, w: 0, h: 0, pixelW: 0, axis: "both" as "both" | "x" | "y" });
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!isEditMode) {
@@ -214,6 +231,7 @@ function PanelGroupItem({
       return;
     }
     e.dataTransfer.setData("panel/id", panel.id);
+    e.dataTransfer.setData("text/plain", panel.id);
     e.dataTransfer.effectAllowed = "move";
     setIsDragging(true);
   };
@@ -222,7 +240,7 @@ function PanelGroupItem({
     setIsDragging(false);
   };
 
-  const handleResizeStart = (e: React.MouseEvent) => {
+  const startResize = (e: React.MouseEvent, axis: "both" | "x" | "y") => {
     e.preventDefault();
     e.stopPropagation();
     const el = (e.currentTarget as HTMLElement).parentElement;
@@ -234,18 +252,29 @@ function PanelGroupItem({
       w: panel.layout.w,
       h: panel.layout.h,
       pixelW: rect.width,
+      axis,
     };
     setIsResizing(true);
   };
 
   useEffect(() => {
     if (!isResizing) return;
+    const onMove = (e: MouseEvent) => {
+      const dx = e.clientX - resizeRef.current.x;
+      const dy = e.clientY - resizeRef.current.y;
+      const colWidth = resizeRef.current.pixelW / resizeRef.current.w;
+      const axis = resizeRef.current.axis;
+      const newW = axis === "y" ? panel.layout.w : Math.max(1, resizeRef.current.w + Math.round(dx / colWidth));
+      const newH = axis === "x" ? panel.layout.h : Math.max(1, resizeRef.current.h + Math.round(dy / 30));
+      setPreviewLayout({ w: newW, h: newH });
+    };
     const onUp = (e: MouseEvent) => {
       const dx = e.clientX - resizeRef.current.x;
       const dy = e.clientY - resizeRef.current.y;
       const colWidth = resizeRef.current.pixelW / resizeRef.current.w;
-      const newW = Math.max(1, resizeRef.current.w + Math.round(dx / colWidth));
-      const newH = Math.max(1, resizeRef.current.h + Math.round(dy / 30));
+      const axis = resizeRef.current.axis;
+      const newW = axis === "y" ? panel.layout.w : Math.max(1, resizeRef.current.w + Math.round(dx / colWidth));
+      const newH = axis === "x" ? panel.layout.h : Math.max(1, resizeRef.current.h + Math.round(dy / 30));
       if (newW !== panel.layout.w || newH !== panel.layout.h) {
         onUpdatePanelLayout?.({
           i: panel.id,
@@ -255,10 +284,15 @@ function PanelGroupItem({
           h: newH,
         });
       }
+      setPreviewLayout(null);
       setIsResizing(false);
     };
+    window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-    return () => window.removeEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
   }, [isResizing, panel, onUpdatePanelLayout]);
 
   return (
@@ -270,9 +304,10 @@ function PanelGroupItem({
         isDragging ? "opacity-50" : ""
       } ${isResizing ? "ring-2 ring-blue-300" : ""}`}
       style={{
-        gridColumn: `${panel.layout.x + 1} / span ${panel.layout.w}`,
-        gridRow: `${panel.layout.y + 1} / span ${panel.layout.h}`,
+        gridColumn: `${panel.layout.x + 1} / span ${previewLayout?.w ?? panel.layout.w}`,
+        gridRow: `${panel.layout.y + 1} / span ${previewLayout?.h ?? panel.layout.h}`,
         minHeight: 0,
+        zIndex: previewLayout ? 20 : undefined,
       }}
     >
       {isEditMode && (
@@ -290,13 +325,23 @@ function PanelGroupItem({
         </button>
       )}
       {isEditMode && onUpdatePanelLayout && (
-        <div
-          onMouseDown={handleResizeStart}
-          className="absolute bottom-0 right-0 z-10 w-4 h-4 cursor-se-resize flex items-end justify-end p-0.5"
-          title="Resize panel"
-        >
-          <Maximize2 size={8} className="text-gray-300 hover:text-gray-500" />
-        </div>
+        <>
+          <div
+            onMouseDown={(e) => startResize(e, "both")}
+            className="group-resize-handle group-resize-handle-se"
+            title="Resize"
+          />
+          <div
+            onMouseDown={(e) => startResize(e, "x")}
+            className="group-resize-handle group-resize-handle-e"
+            title="Resize width"
+          />
+          <div
+            onMouseDown={(e) => startResize(e, "y")}
+            className="group-resize-handle group-resize-handle-s"
+            title="Resize height"
+          />
+        </>
       )}
       <PanelRenderer
         panel={panel}

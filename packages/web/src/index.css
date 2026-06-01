@@ -62,6 +62,70 @@ body {
   display: none !important;
 }
 
+/* Panel group resize handles — match RGL visual style */
+.group-resize-handle {
+  position: absolute;
+  z-index: 10;
+}
+.group-resize-handle-se {
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: se-resize;
+}
+.group-resize-handle-e {
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  cursor: e-resize;
+}
+.group-resize-handle-s {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  cursor: s-resize;
+}
+.group-resize-handle-se::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
+  border-radius: 0 0 2px 0;
+}
+.group-resize-handle-e::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 14px;
+  border-left: 2px solid #9ca3af;
+  border-right: 2px solid #9ca3af;
+  border-radius: 2px;
+}
+.group-resize-handle-s::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 3px;
+  border-top: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
+  border-radius: 2px;
+}
+
 /* Panel group grid: responsive collapse to single column on small screens */
 .panel-group-grid {
   grid-template-columns: repeat(12, 1fr);
