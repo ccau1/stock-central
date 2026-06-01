@@ -46,3 +46,5 @@ Thumbs.db
 deploy/ssl/
 *.pem
 *.key
+
+packages/server/stockcentral
