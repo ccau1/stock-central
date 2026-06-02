@@ -181,6 +181,7 @@ export default function RealTimeNewsBox() {
           title="Real-Time News"
           badge={newCount > 0 ? newCount : undefined}
           defaultOpen={true}
+          storageKey="stockcentral_realtime_news_open"
         >
           <NewsList items={items} connected={connected} onOpenArticle={openArticle} />
         </CollapsibleBox>

@@ -20,6 +20,19 @@ function formatMarketCap(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
+function formatEarningsClockTime(ts: number): string {
+  try {
+    return new Date(ts * 1000).toLocaleTimeString("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }) + " ET";
+  } catch {
+    return "";
+  }
+}
+
 function daysUntil(ts: number): string {
   const now = Date.now();
   const diff = ts * 1000 - now;
@@ -175,8 +188,13 @@ export default function EarningsCalendarPage() {
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-medium text-gray-600">{formatMarketCap(e.market_cap)}</div>
-                        <div className={`text-[10px] ${e.earnings_time === "Pre-market" ? "text-orange-600" : "text-purple-600"}`}>
-                          {e.earnings_time || "TBD"}
+                        <div className="flex items-center gap-1">
+                          <span className={`text-[9px] px-1 py-0.5 rounded border font-medium ${e.earnings_time === "Pre-market" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-purple-50 text-purple-700 border-purple-200"}`}>
+                            {e.earnings_time === "Pre-market" ? "Pre" : "Post"}
+                          </span>
+                          <span className="text-[10px] text-gray-600">
+                            {formatEarningsClockTime(e.earnings_date) || e.earnings_time || "TBD"}
+                          </span>
                         </div>
                         <div className="text-[10px] text-gray-400">{daysUntil(e.earnings_date)}</div>
                       </div>

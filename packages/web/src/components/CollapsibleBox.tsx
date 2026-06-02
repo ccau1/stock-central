@@ -9,6 +9,7 @@ interface CollapsibleBoxProps {
   onClose?: () => void;
   badge?: string | number;
   width?: number;
+  storageKey?: string;
 }
 
 export default function CollapsibleBox({
@@ -18,8 +19,33 @@ export default function CollapsibleBox({
   onClose,
   badge,
   width = 320,
+  storageKey,
 }: CollapsibleBoxProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, setIsOpen] = useState(() => {
+    if (storageKey) {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored !== null) return stored === "true";
+      } catch {
+        // ignore
+      }
+    }
+    return defaultOpen;
+  });
+
+  const toggle = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (storageKey) {
+        try {
+          localStorage.setItem(storageKey, String(next));
+        } catch {
+          // ignore
+        }
+      }
+      return next;
+    });
+  };
 
   return (
     <div
@@ -28,7 +54,7 @@ export default function CollapsibleBox({
     >
       <div
         className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100 cursor-pointer select-none"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={toggle}
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-gray-700">{title}</span>

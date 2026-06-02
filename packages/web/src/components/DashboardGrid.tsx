@@ -4,8 +4,8 @@ import "react-resizable/css/styles.css";
 import { useCallback, useMemo, useState } from "react";
 import { GripVertical, X } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
-import type { DashboardFilters } from "../panels/core";
-import { PanelRenderer } from "../panels/core";
+import type { DashboardFilters } from "../panels/_core";
+import { PanelRenderer } from "../panels/_core";
 import PanelGroup from "./PanelGroup";
 
 function computeGroupHeights(

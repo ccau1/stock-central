@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronRight, Folder, X, GripVertical } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
-import type { DashboardFilters } from "../panels/core/types";
-import { PanelRenderer } from "../panels/core";
+import type { DashboardFilters } from "../panels/_core/types";
+import { PanelRenderer } from "../panels/_core";
 
 interface PanelGroupProps {
   group: GroupConfig;
@@ -320,7 +320,7 @@ export default function PanelGroup({
     >
       {/* Group / Row Header */}
       <div
-        className={`panel-drag-handle flex items-center gap-1.5 px-2 py-1 transition-colors ${
+        className={`panel-drag-handle flex items-center gap-1.5 pl-2 ${isEditMode ? "pr-4" : "pr-2"} py-1 transition-colors ${
           isRow
             ? ""
             : "border-b border-gray-100 bg-gray-50/80 rounded-t-lg"

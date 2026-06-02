@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, X, LayoutGrid } from "lucide-react";
+import { Plus, X, LayoutGrid, Info } from "lucide-react";
 import { useDashboard, parseDashboardYaml, serializeDashboardYaml } from "../stores/useDashboardStore";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import { useDisabledTickers } from "../hooks/useDisabledTickers";
@@ -8,11 +8,12 @@ import { useEditMode } from "../hooks/useEditMode";
 import { dataApi } from "../lib/api";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import { addMyDashboard } from "../lib/myDashboards";
-import { getAllPanelTypes } from "../panels/core/registry";
-import type { PanelDefinition } from "../panels/core/types";
+import { getAllPanelTypes } from "../panels/_core/registry";
+import type { PanelDefinition } from "../panels/_core/types";
 
 import DashboardGrid from "../components/DashboardGrid";
 import TickerFilterBar from "../components/TickerFilterBar";
+import PanelPreviewModal from "../components/PanelPreviewModal";
 
 interface DashboardPageProps {
   staticYaml?: string;
@@ -106,6 +107,7 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
   const [showAddModal, setShowAddModal] = useState(false);
   const [availablePanels, setAvailablePanels] = useState<PanelDefinition[]>([]);
   const [panelLoading, setPanelLoading] = useState(false);
+  const [previewPanel, setPreviewPanel] = useState<PanelDefinition | null>(null);
 
   useEffect(() => {
     if (!showAddModal) return;
@@ -253,7 +255,9 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
     );
   }
 
-  const categories = Array.from(new Set(availablePanels.map((p) => p.category)));
+  const categories = Array.from(
+    new Set(availablePanels.flatMap((p) => (p.categories && p.categories.length > 0 ? p.categories : ["others"])))
+  );
 
   return (
     <div className="h-screen flex flex-col bg-gray-100">
@@ -327,19 +331,39 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
                       <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{cat}</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {availablePanels
-                          .filter((p) => p.category === cat)
+                          .filter((p) => {
+                            const hasCats = p.categories && p.categories.length > 0;
+                            if (cat === "others") return !hasCats;
+                            return hasCats && p.categories!.includes(cat);
+                          })
                           .map((p) => (
-                            <button
+                            <div
                               key={p.id}
-                              onClick={() => handleAddPanel(p)}
-                              className="flex items-start gap-3 p-3 text-left border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                              className="group flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
                             >
-                              <LayoutGrid size={16} className="text-gray-400 mt-0.5 shrink-0" />
-                              <div>
-                                <div className="text-xs font-semibold text-gray-800">{p.name}</div>
-                                <div className="text-[11px] text-gray-500 mt-0.5 leading-tight">{p.description}</div>
-                              </div>
-                            </button>
+                              <button
+                                onClick={() => handleAddPanel(p)}
+                                className="flex items-start gap-3 text-left flex-1"
+                              >
+                                <LayoutGrid size={16} className="text-gray-400 mt-0.5 shrink-0" />
+                                <div>
+                                  <div className="text-xs font-semibold text-gray-800">{p.name}</div>
+                                  <div className="text-[11px] text-gray-500 mt-0.5 leading-tight">{p.description}</div>
+                                </div>
+                              </button>
+                              {p.preview && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewPanel(p);
+                                  }}
+                                  className="p-1 text-gray-300 hover:text-blue-500 transition-colors shrink-0"
+                                  title="Preview"
+                                >
+                                  <Info size={14} />
+                                </button>
+                              )}
+                            </div>
                           ))}
                       </div>
                     </div>
@@ -350,6 +374,8 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
           </div>
         </div>
       )}
+
+      <PanelPreviewModal panel={previewPanel} onClose={() => setPreviewPanel(null)} />
     </div>
   );
 }
