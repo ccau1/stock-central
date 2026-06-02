@@ -40,7 +40,7 @@ export default function DashboardListPage() {
   const fetchDashboards = async () => {
     setLoading(true);
     try {
-      const list = await dataApi.listDashboards();
+      const list = (await dataApi.listDashboards()) ?? [];
       const myIds = getMyDashboardIds();
       // First visit: seed with all existing dashboards so the user doesn't see an empty list
       if (myIds.length === 0 && list.length > 0) {

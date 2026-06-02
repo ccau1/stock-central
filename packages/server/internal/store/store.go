@@ -83,7 +83,7 @@ func (s *Store) ListDashboards(ctx context.Context) ([]Dashboard, error) {
 	}
 	defer rows.Close()
 
-	var dashboards []Dashboard
+	dashboards := make([]Dashboard, 0)
 	for rows.Next() {
 		var d Dashboard
 		if err := rows.Scan(&d.ID, &d.Name, &d.YAML, &d.CreatedAt, &d.UpdatedAt); err != nil {
