@@ -10,6 +10,7 @@ interface CollapsibleBoxProps {
   badge?: string | number;
   width?: number;
   storageKey?: string;
+  onToggle?: (isOpen: boolean) => void;
 }
 
 export default function CollapsibleBox({
@@ -20,6 +21,7 @@ export default function CollapsibleBox({
   badge,
   width = 320,
   storageKey,
+  onToggle,
 }: CollapsibleBoxProps) {
   const [isOpen, setIsOpen] = useState(() => {
     if (storageKey) {
@@ -43,6 +45,7 @@ export default function CollapsibleBox({
           // ignore
         }
       }
+      onToggle?.(next);
       return next;
     });
   };

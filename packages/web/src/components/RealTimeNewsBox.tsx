@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Newspaper, X } from "lucide-react";
 
@@ -8,6 +8,7 @@ import CollapsibleBox from "./CollapsibleBox";
 import ArticleModal from "./ArticleModal";
 
 const LOAD_TIME_KEY = "stockcentral_news_load_time";
+const SEEN_KEY = "stockcentral_news_seen";
 
 function getLoadTime(): number {
   const stored = sessionStorage.getItem(LOAD_TIME_KEY);
@@ -15,6 +16,34 @@ function getLoadTime(): number {
   const now = Math.floor(Date.now() / 1000);
   sessionStorage.setItem(LOAD_TIME_KEY, now.toString());
   return now;
+}
+
+function getSeenSet(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(SEEN_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {
+    // ignore
+  }
+  return new Set();
+}
+
+function saveSeenSet(set: Set<string>) {
+  try {
+    sessionStorage.setItem(SEEN_KEY, JSON.stringify([...set]));
+  } catch {
+    // ignore
+  }
+}
+
+function getInitialDesktopOpen(): boolean {
+  try {
+    const raw = localStorage.getItem("stockcentral_realtime_news_open");
+    if (raw !== null) return raw === "true";
+  } catch {
+    // ignore
+  }
+  return true;
 }
 
 function timeAgo(ts: number): string {
@@ -126,6 +155,9 @@ export default function RealTimeNewsBox() {
   const [items, setItems] = useState<NewsStreamItem[]>([]);
   const [connected, setConnected] = useState(false);
   const [loadTime] = useState(() => getLoadTime());
+  const [desktopOpen, setDesktopOpen] = useState(() => getInitialDesktopOpen());
+  const seenRef = useRef<Set<string>>(getSeenSet());
+  const [, setSeenVersion] = useState(0);
   const esRef = useRef<EventSource | null>(null);
 
   const [modalUrl, setModalUrl] = useState<string | null>(null);
@@ -135,6 +167,32 @@ export default function RealTimeNewsBox() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileAnimating, setMobileAnimating] = useState(false);
+
+  const isVisibleRef = useRef(desktopOpen || mobileOpen);
+  useEffect(() => {
+    isVisibleRef.current = desktopOpen || mobileOpen;
+  }, [desktopOpen, mobileOpen]);
+
+  const markSeen = useCallback((uuids: string[]) => {
+    let changed = false;
+    for (const id of uuids) {
+      if (!seenRef.current.has(id)) {
+        seenRef.current.add(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveSeenSet(seenRef.current);
+      setSeenVersion((v) => v + 1);
+    }
+  }, []);
+
+  // Mark all current items as seen whenever the news list becomes visible
+  useEffect(() => {
+    if (desktopOpen || mobileOpen) {
+      markSeen(items.map((i) => i.uuid));
+    }
+  }, [desktopOpen, mobileOpen, items, markSeen]);
 
   useEffect(() => {
     const es = createNewsStream(
@@ -151,6 +209,10 @@ export default function RealTimeNewsBox() {
           }
           return deduped.slice(0, 50);
         });
+        // If the news list is currently visible, mark newly arrived items as seen immediately
+        if (isVisibleRef.current) {
+          markSeen(newItems.map((i) => i.uuid));
+        }
         setConnected(true);
       },
       () => {
@@ -162,9 +224,11 @@ export default function RealTimeNewsBox() {
     return () => {
       es.close();
     };
-  }, []);
+  }, [markSeen]);
 
-  const newCount = items.filter((i) => i.published > loadTime).length;
+  const newCount = items.filter(
+    (i) => i.published > loadTime && !seenRef.current.has(i.uuid)
+  ).length;
 
   const openArticle = (item: NewsStreamItem) => {
     setModalUrl(item.url);
@@ -182,6 +246,7 @@ export default function RealTimeNewsBox() {
           badge={newCount > 0 ? newCount : undefined}
           defaultOpen={true}
           storageKey="stockcentral_realtime_news_open"
+          onToggle={setDesktopOpen}
         >
           <NewsList items={items} connected={connected} onOpenArticle={openArticle} />
         </CollapsibleBox>
