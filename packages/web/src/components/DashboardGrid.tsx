@@ -1,4 +1,5 @@
 import { Responsive, useContainerWidth } from "react-grid-layout";
+import type { ResizeHandleAxis } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useCallback, useMemo, useState } from "react";
@@ -56,7 +57,7 @@ function buildResponsiveLayouts(
     ...topLevelPanels.map((p) => ({
       id: p.id,
       ...p.layout,
-      resizeHandles: ["se", "e", "s"] as const,
+      resizeHandles: ["se", "e", "s"] as ResizeHandleAxis[],
     })),
     ...topLevelGroups.map((g) => ({
       id: g.id,
@@ -64,7 +65,7 @@ function buildResponsiveLayouts(
       y: g.layout.y,
       w: g.layout.w,
       h: g.collapsed ? 1 : (groupHeights[g.id] || g.layout.h || 4),
-      resizeHandles: ["e"] as const,
+      resizeHandles: ["e"] as ResizeHandleAxis[],
     })),
   ];
 
