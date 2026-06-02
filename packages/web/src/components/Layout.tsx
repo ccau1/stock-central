@@ -105,12 +105,15 @@ export default function Layout() {
       {/* Top Navigation */}
       <nav className="shrink-0 bg-white border-b border-gray-200">
         <div className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2">
-          <div className="flex items-center gap-2 mr-2 sm:mr-6 shrink-0">
+          <Link
+            to="/"
+            className="flex items-center gap-2 mr-2 sm:mr-6 shrink-0 hover:opacity-80 transition-opacity"
+          >
             <div className="p-1.5 bg-blue-600 rounded-lg">
               <BarChart3 size={16} className="text-white" />
             </div>
             <span className="text-sm font-bold text-gray-800 hidden sm:inline">StockCentral</span>
-          </div>
+          </Link>
           <div className="flex items-center gap-1 overflow-x-auto thin-scrollbar">
             {navItems.map((item) => {
               const active =
