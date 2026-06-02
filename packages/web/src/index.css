@@ -32,84 +32,98 @@ body {
 }
 
 /* Unified resize handles — RGL (outside groups) and inner panels */
-.react-resizable-handle,
 .group-resize-handle {
   position: absolute;
   z-index: 10;
 }
 
-.react-resizable-handle {
+/* Force RGL handles visible and strip default backgrounds */
+.react-grid-item > .react-resizable-handle {
+  opacity: 1 !important;
   background-image: none;
   padding: 0;
 }
 
-.react-resizable-handle-se,
+/* Handle positioning — matches inner panels */
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se,
 .group-resize-handle-se {
   bottom: 0;
   right: 0;
   width: 20px;
   height: 20px;
   cursor: se-resize;
+  transform: none !important;
 }
 
-.react-resizable-handle-e,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e,
 .group-resize-handle-e {
   right: 0;
   top: 50%;
-  margin-top: 0;
-  transform: translateY(-50%);
+  margin-top: 0 !important;
+  transform: translateY(-50%) !important;
   width: 20px;
   height: 20px;
   cursor: ew-resize;
 }
 
-.react-resizable-handle-s,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s,
 .group-resize-handle-s {
   bottom: 0;
   left: 50%;
-  margin-left: 0;
-  transform: translateX(-50%);
+  margin-left: 0 !important;
+  transform: translateX(-50%) !important;
   width: 20px;
   height: 20px;
   cursor: ns-resize;
 }
 
-.react-resizable-handle-se::after,
+/* Override RGL's default ::after and draw our own bar icons */
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se::after,
 .group-resize-handle-se::after {
   content: '';
   position: absolute;
-  bottom: 4px;
-  right: 4px;
+  top: auto;
+  left: auto;
+  transform: none;
+  bottom: 2px;
+  right: 2px;
   width: 10px;
   height: 10px;
+  border: none;
   border-right: 2px solid #9ca3af;
   border-bottom: 2px solid #9ca3af;
   border-radius: 0 0 2px 0;
 }
 
-.react-resizable-handle-e::after,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e::after,
 .group-resize-handle-e::after {
   content: '';
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  right: 2px;
+  left: auto;
+  bottom: auto;
+  transform: translateY(-50%);
   width: 3px;
   height: 14px;
+  border: none;
   border-left: 2px solid #9ca3af;
   border-right: 2px solid #9ca3af;
   border-radius: 2px;
 }
 
-.react-resizable-handle-s::after,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s::after,
 .group-resize-handle-s::after {
   content: '';
   position: absolute;
-  top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  bottom: 2px;
+  top: auto;
+  right: auto;
+  transform: translateX(-50%);
   width: 14px;
   height: 3px;
+  border: none;
   border-top: 2px solid #9ca3af;
   border-bottom: 2px solid #9ca3af;
   border-radius: 2px;

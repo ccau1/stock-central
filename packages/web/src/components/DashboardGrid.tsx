@@ -53,13 +53,18 @@ function buildResponsiveLayouts(
   const topLevelGroups = groups.filter((g) => !g.groupId);
 
   const items = [
-    ...topLevelPanels.map((p) => ({ id: p.id, ...p.layout })),
+    ...topLevelPanels.map((p) => ({
+      id: p.id,
+      ...p.layout,
+      resizeHandles: ["se", "e", "s"] as const,
+    })),
     ...topLevelGroups.map((g) => ({
       id: g.id,
       x: g.layout.x,
       y: g.layout.y,
       w: g.layout.w,
       h: g.collapsed ? 1 : (groupHeights[g.id] || g.layout.h || 4),
+      resizeHandles: ["e"] as const,
     })),
   ];
 
@@ -71,6 +76,7 @@ function buildResponsiveLayouts(
     h: p.h,
     minW: 2,
     minH: 1,
+    resizeHandles: p.resizeHandles,
   }));
 
   const stack = (cols: number) => {
@@ -84,6 +90,7 @@ function buildResponsiveLayouts(
         h: p.h,
         minW: Math.min(2, cols),
         minH: 1,
+        resizeHandles: p.resizeHandles,
       };
       y += p.h;
       return item;
@@ -111,6 +118,7 @@ function buildResponsiveLayouts(
         h: p.h,
         minW: Math.min(2, w),
         minH: 1,
+        resizeHandles: p.resizeHandles,
       });
       currentRowMaxH = Math.max(currentRowMaxH, p.h);
       x += w;
