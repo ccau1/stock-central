@@ -300,6 +300,30 @@ export interface OptionsData {
   put_call_oi_ratio: number;
 }
 
+export interface NewsStreamItem {
+  uuid: string;
+  title: string;
+  source: string;
+  published: number;
+  url: string;
+  impact: number;
+  impact_label: string;
+  tickers: string[];
+}
+
+export interface ImportantPersonTrade {
+  person: string;
+  person_title: string;
+  ticker: string;
+  company: string;
+  action: string;
+  shares: number;
+  value: number;
+  date: string;
+  filing_url: string;
+  notes: string;
+}
+
 export interface CandleData {
   date: string;
   open: number;
@@ -407,6 +431,24 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // ---------- Data API ----------
+
+export function createNewsStream(onNews: (items: NewsStreamItem[]) => void, onError?: () => void): EventSource {
+  const es = new EventSource(`${API_BASE}/stream/news`);
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (Array.isArray(data)) {
+        onNews(data);
+      }
+    } catch {
+      // ignore heartbeat or malformed
+    }
+  };
+  es.onerror = () => {
+    onError?.();
+  };
+  return es;
+}
 
 export const dataApi = {
   getPriceHistory: (symbols: string[], range: string) =>
@@ -523,6 +565,9 @@ export const dataApi = {
     fetchJSON<void>(`/dashboards/${id}`, { method: "DELETE" }),
   cloneDashboard: (id: string, newName: string) =>
     fetchJSON<DashboardRecord>(`/dashboards/${id}/clone`, { method: "POST", body: JSON.stringify({ name: newName }) }),
+
+  getImportantPeopleTrades: () =>
+    fetchJSON<ImportantPersonTrade[]>("/insider/important-people"),
 
   getTickerDetail: async (symbol: string) => {
     const [price, marketCap, forwardPe, rsi, ytd, priceHistory, news] = await Promise.all([

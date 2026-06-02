@@ -59,6 +59,10 @@ func New(s *store.Store, corsOrigin string) http.Handler {
 		a.tickerRoutes(r)
 	})
 
+	r.Get("/api/v1/stream/news", a.newsStream)
+
+	r.Get("/api/v1/insider/important-people", a.importantPeopleTrades)
+
 	return r
 }
 

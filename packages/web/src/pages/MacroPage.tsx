@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
 import { useDashboard, parseDashboardYaml } from "../stores/useDashboardStore";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import { useDisabledTickers } from "../hooks/useDisabledTickers";
@@ -79,12 +78,7 @@ export default function MacroPage() {
         searchRef={search.searchRef}
       />
 
-      {isEditMode && (dashboard.groups || []).length > 0 && (
-        <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 flex items-center gap-2">
-          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-          <span className="text-xs text-amber-800 font-medium">Groups are under construction.</span>
-        </div>
-      )}
+
 
       <DashboardGrid
         panels={dashboard.panels}

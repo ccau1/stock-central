@@ -5,6 +5,7 @@ import { dataApi } from "../lib/api";
 import type { TickerDetail, OptionsData } from "../lib/api";
 import CandlestickChart from "../components/CandlestickChart";
 import ArticleModal from "../components/ArticleModal";
+import TechnicalSummary from "../components/TechnicalSummary";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -35,6 +36,7 @@ export default function TickerDetailPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
+  const [batchQuote, setBatchQuote] = useState<any | null>(null);
   const [modalUrl, setModalUrl] = useState<string | null>(null);
   const [modalTitle, setModalTitle] = useState<string>("");
   const [modalSource, setModalSource] = useState<string>("");
@@ -64,9 +66,20 @@ export default function TickerDetailPage() {
     }
   };
 
+  const fetchBatchQuote = async () => {
+    if (!ticker) return;
+    try {
+      const quotes = await dataApi.getBatchQuotes([ticker]);
+      setBatchQuote(quotes[0] ?? null);
+    } catch (e: any) {
+      // silently fail
+    }
+  };
+
   useEffect(() => {
     fetchDetail();
     fetchOptions();
+    fetchBatchQuote();
   }, [ticker]);
 
   const ytd = data?.ytd;
@@ -115,7 +128,7 @@ export default function TickerDetailPage() {
       {error && <div className="text-xs text-red-500 mb-4">{error}</div>}
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="text-[10px] text-gray-500 uppercase mb-1">Price</div>
           <div className="text-sm font-bold text-gray-900">{price ? price.label : "–"}</div>
@@ -157,7 +170,39 @@ export default function TickerDetailPage() {
             {rsi ? rsi.rsi.toFixed(1) : "–"}
           </div>
         </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="text-[10px] text-gray-500 uppercase mb-1">Div Yield</div>
+          <div className="text-sm font-bold text-gray-900">
+            {batchQuote && batchQuote.dividend_yield > 0
+              ? `${(batchQuote.dividend_yield * 100).toFixed(2)}%`
+              : "–"}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="text-[10px] text-gray-500 uppercase mb-1">Short % Float</div>
+          <div className={`text-sm font-bold ${
+            batchQuote && batchQuote.short_percent_float > 0.2
+              ? "text-red-600"
+              : batchQuote && batchQuote.short_percent_float > 0.1
+              ? "text-amber-600"
+              : "text-gray-900"
+          }`}>
+            {batchQuote && batchQuote.short_percent_float > 0
+              ? `${(batchQuote.short_percent_float * 100).toFixed(1)}%`
+              : "–"}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="text-[10px] text-gray-500 uppercase mb-1">Short Ratio</div>
+          <div className="text-sm font-bold text-gray-900">
+            {batchQuote && batchQuote.short_ratio > 0
+              ? batchQuote.short_ratio.toFixed(2)
+              : "–"}
+          </div>
+        </div>
       </div>
+
+      <TechnicalSummary symbol={ticker} />
 
       {/* Options Metrics */}
       {optionsData && (

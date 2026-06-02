@@ -317,6 +317,8 @@ type QuoteMetrics struct {
 	PeForwardNextFY  float64 `json:"pe_forward_next_fy"` // next fiscal year (+1y)
 	MarketCap        float64 `json:"market_cap"`
 	DivYield         float64 `json:"dividend_yield"`
+	ShortRatio       float64 `json:"short_ratio"`
+	ShortPercentFloat float64 `json:"short_percent_float"`
 	Volume           int64   `json:"volume"`
 	EpsTrailing      float64 `json:"eps_trailing"`
 	EpsForward       float64 `json:"eps_forward"`         // current fiscal year (0y)
@@ -370,6 +372,8 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 				DefaultKeyStatistics struct {
 					TrailingEps *struct{ Raw float64 `json:"raw"` } `json:"trailingEps"`
 					ForwardEps  *struct{ Raw float64 `json:"raw"` } `json:"forwardEps"`
+					ShortRatio  *struct{ Raw float64 `json:"raw"` } `json:"shortRatio"`
+					ShortPercentFloat *struct{ Raw float64 `json:"raw"` } `json:"shortPercentFloat"`
 				} `json:"defaultKeyStatistics"`
 				FinancialData struct {
 					CurrentPrice            *struct{ Raw float64 `json:"raw"` } `json:"currentPrice"`
@@ -476,6 +480,12 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 	}
 	if r.DefaultKeyStatistics.ForwardEps != nil {
 		m.EpsForwardNextFY = r.DefaultKeyStatistics.ForwardEps.Raw
+	}
+	if r.DefaultKeyStatistics.ShortRatio != nil {
+		m.ShortRatio = r.DefaultKeyStatistics.ShortRatio.Raw
+	}
+	if r.DefaultKeyStatistics.ShortPercentFloat != nil {
+		m.ShortPercentFloat = r.DefaultKeyStatistics.ShortPercentFloat.Raw
 	}
 
 	// Yahoo's summaryDetail.forwardPE uses the *next fiscal year* (+1y) estimate,

@@ -1,7 +1,9 @@
 import { useRef, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { Globe, GitCompare, BarChart3, LayoutGrid, LayoutDashboard, Search, RefreshCw, Filter, Layers, CalendarDays, Star } from "lucide-react";
+import { Globe, GitCompare, BarChart3, LayoutGrid, LayoutDashboard, Search, RefreshCw, Filter, Layers, CalendarDays, Star, Briefcase } from "lucide-react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
+import BottomRightDock from "./BottomRightDock";
+import RealTimeNewsBox from "./RealTimeNewsBox";
 
 const navItems = [
   { path: "/", label: "Overview", icon: Globe },
@@ -13,6 +15,7 @@ const navItems = [
   { path: "/earnings", label: "Earnings", icon: CalendarDays },
   { path: "/watchlist", label: "Watchlist", icon: Star },
   { path: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
+  { path: "/portfolio", label: "Portfolio", icon: Briefcase },
 ];
 
 function HeaderSearch() {
@@ -108,7 +111,7 @@ export default function Layout() {
             </div>
             <span className="text-sm font-bold text-gray-800 hidden sm:inline">StockCentral</span>
           </div>
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div className="flex items-center gap-1 overflow-x-auto thin-scrollbar">
             {navItems.map((item) => {
               const active =
                 item.path === "/dashboards"
@@ -137,9 +140,13 @@ export default function Layout() {
       </nav>
 
       {/* Page Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto pb-12 sm:pb-0">
         <Outlet />
       </main>
+
+      <BottomRightDock>
+        <RealTimeNewsBox />
+      </BottomRightDock>
     </div>
   );
 }

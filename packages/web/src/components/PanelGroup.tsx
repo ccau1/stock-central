@@ -22,6 +22,86 @@ interface PanelGroupProps {
   level?: number;
 }
 
+function rectsOverlap(
+  ax: number, ay: number, aw: number, ah: number,
+  bx: number, by: number, bw: number, bh: number
+) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+/** Find the nearest non-overlapping grid position for a panel inside a group. */
+function resolveGridPosition(
+  desiredX: number,
+  desiredY: number,
+  w: number,
+  h: number,
+  panelId: string,
+  panels: PanelConfig[],
+  groupId: string
+) {
+  const others = panels.filter((p) => p.groupId === groupId && p.id !== panelId);
+
+  const hasOverlap = (x: number, y: number) =>
+    others.some((p) =>
+      rectsOverlap(x, y, w, h, p.layout.x, p.layout.y, p.layout.w, p.layout.h)
+    );
+
+  if (!hasOverlap(desiredX, desiredY)) {
+    return { x: desiredX, y: desiredY };
+  }
+
+  // Spiral search outward from the desired position
+  for (let radius = 1; radius < 50; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+        const x = Math.max(0, Math.min(12 - w, desiredX + dx));
+        const y = Math.max(0, desiredY + dy);
+        if (!hasOverlap(x, y)) {
+          return { x, y };
+        }
+      }
+    }
+  }
+
+  return { x: desiredX, y: desiredY };
+}
+
+/** Convert a mouse coordinate to a 1-indexed CSS Grid column/row inside a 12-column grid. */
+function getGridPosition(
+  gridEl: HTMLElement,
+  clientX: number,
+  clientY: number,
+  panelW: number
+) {
+  const rect = gridEl.getBoundingClientRect();
+  const style = window.getComputedStyle(gridEl);
+  const padLeft = parseFloat(style.paddingLeft) || 0;
+  const padRight = parseFloat(style.paddingRight) || 0;
+  const padTop = parseFloat(style.paddingTop) || 0;
+  const colGap = parseFloat(style.columnGap) || parseFloat(style.gap) || 0;
+  const rowGap = parseFloat(style.rowGap) || parseFloat(style.gap) || 0;
+
+  const contentWidth = rect.width - padLeft - padRight;
+  const colWidth = (contentWidth - colGap * 11) / 12;
+  const rowHeight = 30; // matches grid-auto-rows in CSS
+
+  if (colWidth <= 0) {
+    return { col: 1, row: 1 };
+  }
+
+  const relX = clientX - rect.left - padLeft;
+  const relY = clientY - rect.top - padTop;
+
+  let col = Math.floor(relX / (colWidth + colGap)) + 1;
+  let row = Math.floor(relY / (rowHeight + rowGap)) + 1;
+
+  col = Math.max(1, Math.min(12 - panelW + 1, col));
+  row = Math.max(1, row);
+
+  return { col, row };
+}
+
 export default function PanelGroup({
   group,
   panels,
@@ -40,103 +120,186 @@ export default function PanelGroup({
   level = 0,
 }: PanelGroupProps) {
   const [dragOver, setDragOver] = useState(false);
+  const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
+  const [dropPreview, setDropPreview] = useState<
+    | { type: "swap"; targetId: string }
+    | { type: "grid"; x: number; y: number; w: number; h: number }
+    | null
+  >(null);
   const dragCounter = useRef(0);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
   const collapsed = group.collapsed ?? false;
-  const isRow = group.type === '__row__';
+  const isRow = group.type === "__row__";
 
   const childPanels = panels.filter((p) => p.groupId === group.id);
   const childGroups = groups.filter((g) => g.groupId === group.id);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (!isEditMode) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(true);
-  }, [isEditMode]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!isEditMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(true);
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    if (!isEditMode) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current++;
-    setDragOver(true);
-  }, [isEditMode]);
+      const draggedPanel = panels.find((p) => p.id === draggingPanelId);
+      if (!draggedPanel || draggedPanel.groupId !== group.id) return;
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!isEditMode) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current--;
-    if (dragCounter.current <= 0) {
-      dragCounter.current = 0;
-      setDragOver(false);
-    }
-  }, [isEditMode]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    if (!isEditMode) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current = 0;
-    setDragOver(false);
-    const panelId = e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
-    if (!panelId) return;
-
-    const droppedPanel = panels.find((p) => p.id === panelId);
-    if (!droppedPanel) return;
-
-    // Same group — reposition or swap
-    if (droppedPanel.groupId === group.id) {
       const target = document.elementFromPoint(e.clientX, e.clientY);
       const itemEl = target?.closest(".panel-group-item") as HTMLElement | null;
       if (itemEl) {
         const targetId = itemEl.getAttribute("data-panel-id");
-        const targetPanel = panels.find((p) => p.id === targetId);
-        if (targetPanel && targetPanel.id !== panelId && targetPanel.groupId === group.id && _onUpdatePanelLayout) {
-          _onUpdatePanelLayout({
-            i: panelId,
-            x: targetPanel.layout.x,
-            y: targetPanel.layout.y,
-            w: droppedPanel.layout.w,
-            h: droppedPanel.layout.h,
-          });
-          _onUpdatePanelLayout({
-            i: targetPanel.id,
-            x: droppedPanel.layout.x,
-            y: droppedPanel.layout.y,
-            w: targetPanel.layout.w,
-            h: targetPanel.layout.h,
-          });
+        if (targetId && targetId !== draggingPanelId) {
+          setDropPreview({ type: "swap", targetId });
           return;
         }
       }
-      // Drop on empty space — compute new grid position
-      const groupEl = document.querySelector(`[data-group-id="${group.id}"]`) as HTMLElement | null;
-      const gridEl = groupEl?.querySelector(".panel-group-grid") as HTMLElement | null;
-      if (gridEl && _onUpdatePanelLayout) {
-        const rect = gridEl.getBoundingClientRect();
-        const gap = 8;
-        const colWidth = (rect.width - gap * 11) / 12;
-        const rowHeight = 30;
-        const relX = e.clientX - rect.left;
-        const relY = e.clientY - rect.top;
-        let col = Math.floor(relX / (colWidth + gap)) + 1;
-        let row = Math.floor(relY / (rowHeight + gap)) + 1;
-        col = Math.max(1, Math.min(12 - droppedPanel.layout.w + 1, col));
-        row = Math.max(1, row);
-        _onUpdatePanelLayout({
-          i: panelId,
-          x: col,
-          y: row,
-          w: droppedPanel.layout.w,
-          h: droppedPanel.layout.h,
+
+      const gridEl = (e.currentTarget as HTMLElement).querySelector(
+        ".panel-group-grid"
+      ) as HTMLElement | null;
+      if (gridEl) {
+        const { col, row } = getGridPosition(
+          gridEl,
+          e.clientX - dragOffsetRef.current.x,
+          e.clientY - dragOffsetRef.current.y,
+          draggedPanel.layout.w
+        );
+        const resolved = resolveGridPosition(
+          col - 1,
+          row - 1,
+          draggedPanel.layout.w,
+          draggedPanel.layout.h,
+          draggedPanel.id,
+          panels,
+          group.id
+        );
+        setDropPreview({
+          type: "grid",
+          x: resolved.x,
+          y: resolved.y,
+          w: draggedPanel.layout.w,
+          h: draggedPanel.layout.h,
         });
       }
-      return;
-    }
+    },
+    [isEditMode, draggingPanelId, panels, group.id]
+  );
 
-    onMovePanelToGroup?.(panelId, group.id);
-  }, [isEditMode, group.id, panels, onMovePanelToGroup, _onUpdatePanelLayout]);
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!isEditMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current++;
+      setDragOver(true);
+    },
+    [isEditMode]
+  );
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!isEditMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current--;
+      if (dragCounter.current <= 0) {
+        dragCounter.current = 0;
+        setDragOver(false);
+        setDropPreview(null);
+        setDraggingPanelId(null);
+      }
+    },
+    [isEditMode]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!isEditMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Capture offset before clearing state
+      const offsetX = dragOffsetRef.current.x;
+      const offsetY = dragOffsetRef.current.y;
+
+      dragCounter.current = 0;
+      setDragOver(false);
+      setDropPreview(null);
+      setDraggingPanelId(null);
+      dragOffsetRef.current = { x: 0, y: 0 };
+
+      const panelId =
+        e.dataTransfer.getData("panel/id") || e.dataTransfer.getData("text/plain");
+      if (!panelId) return;
+
+      const droppedPanel = panels.find((p) => p.id === panelId);
+      if (!droppedPanel) return;
+
+      // Same group — reposition or swap
+      if (droppedPanel.groupId === group.id) {
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        const itemEl = target?.closest(".panel-group-item") as HTMLElement | null;
+        if (itemEl) {
+          const targetId = itemEl.getAttribute("data-panel-id");
+          const targetPanel = panels.find((p) => p.id === targetId);
+          if (
+            targetPanel &&
+            targetPanel.id !== panelId &&
+            targetPanel.groupId === group.id &&
+            _onUpdatePanelLayout
+          ) {
+            _onUpdatePanelLayout({
+              i: panelId,
+              x: targetPanel.layout.x,
+              y: targetPanel.layout.y,
+              w: droppedPanel.layout.w,
+              h: droppedPanel.layout.h,
+            });
+            _onUpdatePanelLayout({
+              i: targetPanel.id,
+              x: droppedPanel.layout.x,
+              y: droppedPanel.layout.y,
+              w: targetPanel.layout.w,
+              h: targetPanel.layout.h,
+            });
+            return;
+          }
+        }
+        // Drop on empty space — compute new grid position
+        const gridEl = (e.currentTarget as HTMLElement).querySelector(
+          ".panel-group-grid"
+        ) as HTMLElement | null;
+        if (gridEl && _onUpdatePanelLayout) {
+          const { col, row } = getGridPosition(
+            gridEl,
+            e.clientX - offsetX,
+            e.clientY - offsetY,
+            droppedPanel.layout.w
+          );
+          const resolved = resolveGridPosition(
+            col - 1,
+            row - 1,
+            droppedPanel.layout.w,
+            droppedPanel.layout.h,
+            panelId,
+            panels,
+            group.id
+          );
+          _onUpdatePanelLayout({
+            i: panelId,
+            x: resolved.x,
+            y: resolved.y,
+            w: droppedPanel.layout.w,
+            h: droppedPanel.layout.h,
+          });
+        }
+        return;
+      }
+
+      onMovePanelToGroup?.(panelId, group.id);
+    },
+    [isEditMode, group.id, panels, onMovePanelToGroup, _onUpdatePanelLayout]
+  );
 
   const indentClass = level > 0 ? "ml-2 border-l-2 border-gray-100 pl-2" : "";
 
@@ -177,9 +340,7 @@ export default function PanelGroup({
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </button>
-        {!isRow && (
-          <Folder size={14} className="text-gray-400 shrink-0" />
-        )}
+        {!isRow && <Folder size={14} className="text-gray-400 shrink-0" />}
         <span
           className={`truncate select-none ${
             isRow ? "text-xs font-medium text-gray-500" : "text-xs font-semibold text-gray-700"
@@ -189,7 +350,8 @@ export default function PanelGroup({
         </span>
         {!isRow && (
           <span className="text-[10px] text-gray-400 ml-auto shrink-0">
-            {childPanels.length + childGroups.length} item{childPanels.length + childGroups.length !== 1 ? "s" : ""}
+            {childPanels.length + childGroups.length} item
+            {childPanels.length + childGroups.length !== 1 ? "s" : ""}
           </span>
         )}
         {isEditMode && onRemoveGroup && (
@@ -217,8 +379,28 @@ export default function PanelGroup({
               isEditMode={isEditMode}
               onRemovePanel={onRemovePanel}
               onUpdatePanelLayout={_onUpdatePanelLayout}
+              isDragging={draggingPanelId === panel.id}
+              isDropTarget={dropPreview?.type === "swap" && dropPreview.targetId === panel.id}
+              onDragStartPanel={(id, ox, oy) => {
+                setDraggingPanelId(id);
+                dragOffsetRef.current = { x: ox, y: oy };
+              }}
+              onDragEndPanel={() => {
+                setDraggingPanelId(null);
+                dragOffsetRef.current = { x: 0, y: 0 };
+              }}
             />
           ))}
+          {dropPreview?.type === "grid" && (
+            <div
+              className="rounded-lg border-2 border-dashed border-red-400 bg-red-50/50 pointer-events-none"
+              style={{
+                gridColumn: `${dropPreview.x + 1} / span ${dropPreview.w}`,
+                gridRow: `${dropPreview.y + 1} / span ${dropPreview.h}`,
+                minHeight: 0,
+              }}
+            />
+          )}
           {childGroups.map((childGroup) => (
             <div
               key={childGroup.id}
@@ -263,6 +445,10 @@ function PanelGroupItem({
   isEditMode,
   onRemovePanel,
   onUpdatePanelLayout,
+  isDragging,
+  isDropTarget,
+  onDragStartPanel,
+  onDragEndPanel,
 }: {
   panel: PanelConfig;
   filters: DashboardFilters;
@@ -272,6 +458,10 @@ function PanelGroupItem({
   isEditMode: boolean;
   onRemovePanel?: (panelId: string) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
+  isDragging?: boolean;
+  isDropTarget?: boolean;
+  onDragStartPanel?: (panelId: string, offsetX: number, offsetY: number) => void;
+  onDragEndPanel?: () => void;
 }) {
   const [isResizing, setIsResizing] = useState(false);
   const [previewLayout, setPreviewLayout] = useState<{ w: number; h: number } | null>(null);
@@ -339,16 +529,25 @@ function PanelGroupItem({
     }
     e.dataTransfer.setData("panel/id", panel.id);
     e.dataTransfer.effectAllowed = "move";
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    onDragStartPanel?.(panel.id, offsetX, offsetY);
   };
 
   return (
     <div
       draggable={isEditMode}
       onDragStart={handleDragStart}
+      onDragEnd={() => onDragEndPanel?.()}
       onMouseDown={(e) => e.stopPropagation()}
       data-panel-id={panel.id}
-      className={`panel-group-item bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative group ${
+      className={`panel-group-item rounded-lg shadow-sm overflow-hidden relative group ${
         isResizing ? "ring-2 ring-blue-300" : ""
+      } ${isDragging ? "opacity-30" : ""} ${
+        isDropTarget && !isResizing
+          ? "border-2 border-dashed border-red-400 bg-red-50/50"
+          : "bg-white border border-gray-200"
       }`}
       style={{
         gridColumn: `${panel.layout.x + 1} / span ${previewLayout?.w ?? panel.layout.w}`,

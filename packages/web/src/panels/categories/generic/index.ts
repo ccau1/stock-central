@@ -10,6 +10,7 @@ import { seasonalityPanel } from "./SeasonalityPanel";
 import { drawdownPanel } from "./DrawdownPanel";
 import { analystTargetsPanel } from "./AnalystTargetsPanel";
 import { notebookPanel } from "./NotebookPanel";
+import { importantPeopleTradesPanel } from "./ImportantPeopleTradesPanel";
 
 export const panels: PanelDefinition[] = [
   lineChartPanel,
@@ -23,4 +24,5 @@ export const panels: PanelDefinition[] = [
   drawdownPanel,
   analystTargetsPanel,
   notebookPanel,
+  importantPeopleTradesPanel,
 ];

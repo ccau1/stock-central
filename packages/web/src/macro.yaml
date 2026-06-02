@@ -200,6 +200,16 @@ panels:
     inputs: {}
     refresh_interval: 300
 
+  # ============================================================
+  # Row 67: Insider Watch
+  # ============================================================
+  - id: important-people-trades
+    type: important-people-trades
+    title: Important People Trades
+    layout: { x: 0, y: 67, w: 12, h: 10 }
+    inputs: {}
+    refresh_interval: 300
+
 groups:
   - id: row-overview
     type: __row__

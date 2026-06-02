@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Very thin scrollbar for nav menu */
+.thin-scrollbar::-webkit-scrollbar {
+  height: 3px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 9999px;
+}
+
 body {
   @apply bg-gray-50 text-gray-900;
 }

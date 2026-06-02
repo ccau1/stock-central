@@ -5,6 +5,7 @@ import { useTickerSearch } from "../hooks/useTickerSearch";
 import { useDisabledTickers } from "../hooks/useDisabledTickers";
 import { useEditMode } from "../hooks/useEditMode";
 import DashboardGrid from "../components/DashboardGrid";
+import ComparisonMetricsBar from "../components/ComparisonMetricsBar";
 import comparisonsYaml from "../comparisons.yaml?raw";
 
 const STATIC_DASHBOARD = parseDashboardYaml(comparisonsYaml);
@@ -215,6 +216,8 @@ export default function ComparisonsPage() {
           </div>
         )}
       </div>
+
+      <ComparisonMetricsBar tickers={tickers} enabledTickers={enabled} />
 
       <DashboardGrid
         panels={dashboard.panels}

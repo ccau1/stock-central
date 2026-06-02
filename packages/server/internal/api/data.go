@@ -601,7 +601,7 @@ var commonWords = map[string]bool{
 
 func extractTickers(text string) []string {
 	seen := make(map[string]bool)
-	var candidates []string
+	candidates := make([]string, 0)
 
 	for _, m := range exchangeTickerRe.FindAllStringSubmatch(text, -1) {
 		sym := strings.ToUpper(m[1])
@@ -2124,6 +2124,10 @@ func extractMetric(m *client.QuoteMetrics, metric string) (float64, string) {
 		return m.MarketCap, formatMarketCap(m.MarketCap)
 	case "dividend_yield":
 		return m.DivYield * 100, fmt.Sprintf("%.2f%%", m.DivYield*100)
+	case "short_ratio":
+		return m.ShortRatio, fmt.Sprintf("%.2f", m.ShortRatio)
+	case "short_percent_float":
+		return m.ShortPercentFloat * 100, fmt.Sprintf("%.2f%%", m.ShortPercentFloat*100)
 	default:
 		return m.Price, fmt.Sprintf("$%.2f", m.Price)
 	}
