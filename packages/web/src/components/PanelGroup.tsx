@@ -369,7 +369,7 @@ export default function PanelGroup({
 
       {/* Children Grid */}
       {!collapsed && (
-        <div className={`panel-group-grid grid ${isRow ? "gap-3" : "gap-2 p-2"}`}>
+        <div className={`panel-group-grid grid ${isRow ? "gap-[10.5px]" : "gap-2 p-2"}`}>
           {childPanels.map((panel) => (
             <PanelGroupItem
               key={panel.id}
