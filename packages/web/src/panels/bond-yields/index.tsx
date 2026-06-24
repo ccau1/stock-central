@@ -34,10 +34,10 @@ function formatShortDate(dateStr: string) {
 }
 
 function MultiLineChart({
-  history,
+  history = [],
   colors,
 }: {
-  history: BondYieldPoint[];
+  history?: BondYieldPoint[];
   colors: Record<string, string>;
 }) {
   const { ref: containerRef, size } = useSvgContainerSize<HTMLDivElement>(300, 110);
@@ -169,10 +169,10 @@ function MultiLineChart({
 }
 
 function Legend({
-  history,
+  history = [],
   colors,
 }: {
-  history: BondYieldPoint[];
+  history?: BondYieldPoint[];
   colors: Record<string, string>;
 }) {
   const keys = ["3m", "2y", "5y", "10y", "30y"].filter(
