@@ -19,7 +19,7 @@ function timeAgo(dateStr: string): string {
   return `${months}mo ago`;
 }
 
-export function NewsFeedPanel({ title, tickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function NewsFeedPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const maxItems = inputs.maxItems || 5;
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
@@ -43,10 +43,10 @@ export function NewsFeedPanel({ title, tickers, inputs, refreshKey, onRefresh, d
     setModalUrl(null);
   };
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && (
         <div className="space-y-2">

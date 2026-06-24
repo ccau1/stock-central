@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -71,7 +72,53 @@ func (a *API) health(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) listDashboards(w http.ResponseWriter, r *http.Request) {
-	dashboards, err := a.store.ListDashboards(r.Context())
+	q := r.URL.Query()
+
+	var opts store.ListDashboardsOptions
+
+	if idsStr := q.Get("ids"); idsStr != "" {
+		for _, s := range strings.Split(idsStr, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			id, err := uuid.Parse(s)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, fmt.Errorf("invalid id %q: %w", s, err))
+				return
+			}
+			opts.IDs = append(opts.IDs, id)
+		}
+	}
+
+	if after := q.Get("after"); after != "" {
+		c, err := store.ParseDashboardCursor(after)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid after cursor: %w", err))
+			return
+		}
+		opts.After = c
+	}
+
+	if before := q.Get("before"); before != "" {
+		c, err := store.ParseDashboardCursor(before)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, fmt.Errorf("invalid before cursor: %w", err))
+			return
+		}
+		opts.Before = c
+	}
+
+	if limitStr := q.Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit <= 0 {
+			respondError(w, http.StatusBadRequest, errors.New("invalid limit"))
+			return
+		}
+		opts.Limit = limit
+	}
+
+	dashboards, err := a.store.ListDashboards(r.Context(), opts)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err)
 		return

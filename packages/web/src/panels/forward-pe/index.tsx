@@ -5,7 +5,7 @@ import { dataApi } from "../../lib/api";
 import type { ForwardPeData } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function ForwardPePanel({ title, tickers, refreshKey, onRefresh, description }: PanelProps) {
+export function ForwardPePanel({ title, tickers, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
     () => dataApi.getForwardPe(symbols),
@@ -13,7 +13,7 @@ export function ForwardPePanel({ title, tickers, refreshKey, onRefresh, descript
   );
   const [peMode, setPeMode] = useState<"current_fy" | "next_fy">("current_fy");
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const peValue = (d: ForwardPeData) => peMode === "current_fy" ? d.forward_pe : d.forward_pe_next_fy;
   const epsValue = (d: ForwardPeData) => peMode === "current_fy" ? d.forward_eps : d.forward_eps_next_fy;
@@ -21,7 +21,7 @@ export function ForwardPePanel({ title, tickers, refreshKey, onRefresh, descript
   const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="flex items-center justify-between mb-1">
         <div className="text-[10px] text-gray-400">Source: Yahoo Finance</div>

@@ -12,7 +12,7 @@ function computeDrawdown(points: { date: string; price: number }[]) {
   });
 }
 
-export function DrawdownPanel({ title, tickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function DrawdownPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const timeRange = inputs.timeRange || "1y";
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
@@ -36,13 +36,13 @@ export function DrawdownPanel({ title, tickers, inputs, refreshKey, onRefresh, d
     return () => ro.disconnect();
   }, [data]);
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const validSymbols = symbols.filter((s) => data && data[s] && data[s].length > 1);
 
   if (validSymbols.length === 0) {
     return (
-      <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+      <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
         {error && <PanelError message={error} />}
         <div className="text-xs text-gray-400">No price data available</div>
       </PanelContainer>
@@ -61,7 +61,7 @@ export function DrawdownPanel({ title, tickers, inputs, refreshKey, onRefresh, d
   const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6"];
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div ref={chartRef} className="flex-1 min-h-0 relative max-md:min-h-[200px]">
         <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-full">

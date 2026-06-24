@@ -3,7 +3,7 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function MetricCardPanel({ title, tickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function MetricCardPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const metric = inputs.metric || "price";
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
@@ -11,10 +11,10 @@ export function MetricCardPanel({ title, tickers, inputs, refreshKey, onRefresh,
     [symbols, metric, refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && (
         <div className="grid grid-cols-2 gap-2">

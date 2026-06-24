@@ -21,20 +21,20 @@ function signalIcon(signal: string) {
   }
 }
 
-export function MarketFrothPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function MarketFrothPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getFroth(),
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const score = data?.froth_score ?? 0;
   const scoreColor = score >= 75 ? "text-purple-600" : score >= 50 ? "text-red-600" : score >= 25 ? "text-amber-600" : "text-green-600";
   const scoreBg = score >= 75 ? "bg-purple-100" : score >= 50 ? "bg-red-100" : score >= 25 ? "bg-amber-100" : "bg-green-100";
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="space-y-2">
         {/* Froth Score Header */}

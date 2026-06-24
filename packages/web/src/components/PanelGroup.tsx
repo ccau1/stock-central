@@ -19,6 +19,7 @@ interface PanelGroupProps {
   onRemovePanel?: (panelId: string) => void;
   onRemoveGroup?: (groupId: string) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
+  onExpandPanel?: (panel: PanelConfig) => void;
   level?: number;
 }
 
@@ -117,6 +118,7 @@ export default function PanelGroup({
   onRemovePanel,
   onRemoveGroup,
   onUpdatePanelLayout: _onUpdatePanelLayout,
+  onExpandPanel,
   level = 0,
 }: PanelGroupProps) {
   const [dragOver, setDragOver] = useState(false);
@@ -379,6 +381,7 @@ export default function PanelGroup({
               isEditMode={isEditMode}
               onRemovePanel={onRemovePanel}
               onUpdatePanelLayout={_onUpdatePanelLayout}
+              onExpandPanel={onExpandPanel}
               isDragging={draggingPanelId === panel.id}
               isDropTarget={dropPreview?.type === "swap" && dropPreview.targetId === panel.id}
               onDragStartPanel={(id, ox, oy) => {
@@ -404,7 +407,7 @@ export default function PanelGroup({
           {childGroups.map((childGroup) => (
             <div
               key={childGroup.id}
-              className="panel-group-item"
+              className="panel-group-item flex flex-col min-h-0"
               style={{
                 gridColumn: `${childGroup.layout.x + 1} / span ${childGroup.layout.w}`,
                 gridRow: `${childGroup.layout.y + 1} / span ${groupHeights[childGroup.id] || childGroup.layout.h || 4}`,
@@ -426,6 +429,7 @@ export default function PanelGroup({
                 onRemovePanel={onRemovePanel}
                 onRemoveGroup={onRemoveGroup}
                 onUpdatePanelLayout={_onUpdatePanelLayout}
+                onExpandPanel={onExpandPanel}
                 level={level + 1}
               />
             </div>
@@ -445,6 +449,7 @@ function PanelGroupItem({
   isEditMode,
   onRemovePanel,
   onUpdatePanelLayout,
+  onExpandPanel,
   isDragging,
   isDropTarget,
   onDragStartPanel,
@@ -458,6 +463,7 @@ function PanelGroupItem({
   isEditMode: boolean;
   onRemovePanel?: (panelId: string) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
+  onExpandPanel?: (panel: PanelConfig) => void;
   isDragging?: boolean;
   isDropTarget?: boolean;
   onDragStartPanel?: (panelId: string, offsetX: number, offsetY: number) => void;
@@ -542,7 +548,7 @@ function PanelGroupItem({
       onDragEnd={() => onDragEndPanel?.()}
       onMouseDown={(e) => e.stopPropagation()}
       data-panel-id={panel.id}
-      className={`panel-group-item rounded-lg shadow-sm overflow-hidden relative group ${
+      className={`panel-group-item rounded-lg shadow-sm overflow-hidden relative group flex flex-col min-h-0 ${
         isResizing ? "ring-2 ring-blue-300" : ""
       } ${isDragging ? "opacity-30" : ""} ${
         isDropTarget && !isResizing
@@ -589,6 +595,7 @@ function PanelGroupItem({
         filters={filters}
         refreshKey={(panelRefreshKeys[panel.id] || 0) + globalRefreshKey}
         onRefresh={() => onRefreshPanel(panel.id)}
+        onExpand={() => onExpandPanel?.(panel)}
       />
     </div>
   );

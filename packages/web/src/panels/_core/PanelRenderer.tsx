@@ -9,9 +9,10 @@ interface PanelRendererProps {
   filters: DashboardFilters;
   refreshKey: number;
   onRefresh: () => void;
+  onExpand?: () => void;
 }
 
-export function PanelRenderer({ panel, filters, refreshKey, onRefresh }: PanelRendererProps) {
+export function PanelRenderer({ panel, filters, refreshKey, onRefresh, onExpand }: PanelRendererProps) {
   const [typeDef, setTypeDef] = useState<PanelDefinition | undefined>(undefined);
   const [loading, setLoading] = useState(!isRegistryLoaded());
 
@@ -64,6 +65,11 @@ export function PanelRenderer({ panel, filters, refreshKey, onRefresh }: PanelRe
     inputs = { ...inputs, timeRange: filters.timeRange };
   }
 
+  // Merge country filter into inputs if configured
+  if (fc?.injectCountry && filters.country) {
+    inputs = { ...inputs, country: filters.country };
+  }
+
   return (
     <Component
       title={panel.title}
@@ -72,6 +78,7 @@ export function PanelRenderer({ panel, filters, refreshKey, onRefresh }: PanelRe
       inputs={inputs}
       refreshKey={refreshKey}
       onRefresh={onRefresh}
+      onExpand={onExpand}
       description={typeDef.description}
     />
   );

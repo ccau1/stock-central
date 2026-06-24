@@ -2,20 +2,20 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function AnalystTargetsPanel({ title, tickers, refreshKey, onRefresh, description }: PanelProps) {
+export function AnalystTargetsPanel({ title, tickers, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
     () => dataApi.getForwardPe(symbols),
     [symbols.join(","), refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const items = (data || []).filter((d) => symbols.includes(d.symbol));
 
   if (items.length === 0) {
     return (
-      <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+      <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
         {error && <PanelError message={error} />}
         <div className="text-xs text-gray-400">No analyst data available</div>
       </PanelContainer>
@@ -39,7 +39,7 @@ export function AnalystTargetsPanel({ title, tickers, refreshKey, onRefresh, des
   };
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="space-y-4 overflow-auto h-full">
         {items.map((d) => {

@@ -149,13 +149,13 @@ jobs:
 
       - name: Health check
         run: |
-          HEALTH_URL="http://${{ secrets.HETZNER_HOST }}/health"
+          HEALTH_URL="https://${{ secrets.HETZNER_HOST }}/health"
           echo "Testing health endpoint: $HEALTH_URL"
           echo "Waiting for containers to start..."
           for i in {1..12}; do
             sleep 5
-            echo "Attempt $i/12: curl -sf $HEALTH_URL"
-            if curl -sf "$HEALTH_URL"; then
+            echo "Attempt $i/12: curl -sfk $HEALTH_URL"
+            if curl -sfk "$HEALTH_URL"; then
               echo "Health check passed: $HEALTH_URL"
               exit 0
             fi

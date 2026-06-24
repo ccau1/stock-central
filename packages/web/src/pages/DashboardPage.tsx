@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, X, LayoutGrid, Info } from "lucide-react";
+import { Plus, X, LayoutGrid, Info, Search } from "lucide-react";
 import { useDashboard, parseDashboardYaml, serializeDashboardYaml } from "../stores/useDashboardStore";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import { useDisabledTickers } from "../hooks/useDisabledTickers";
@@ -14,6 +14,8 @@ import type { PanelDefinition } from "../panels/_core/types";
 import DashboardGrid from "../components/DashboardGrid";
 import TickerFilterBar from "../components/TickerFilterBar";
 import PanelPreviewModal from "../components/PanelPreviewModal";
+import { ExpandedPanelModal } from "../components/ExpandedPanelModal";
+import { useExpandedPanel } from "../hooks/useExpandedPanel";
 
 interface DashboardPageProps {
   staticYaml?: string;
@@ -108,6 +110,8 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
   const [availablePanels, setAvailablePanels] = useState<PanelDefinition[]>([]);
   const [panelLoading, setPanelLoading] = useState(false);
   const [previewPanel, setPreviewPanel] = useState<PanelDefinition | null>(null);
+  const [panelSearchQuery, setPanelSearchQuery] = useState("");
+  const { expandedPanel, setExpandedPanel } = useExpandedPanel(dashboard?.panels);
 
   useEffect(() => {
     if (!showAddModal) return;
@@ -255,8 +259,17 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
     );
   }
 
+  const panelSearchLower = panelSearchQuery.trim().toLowerCase();
+  const filteredPanels = availablePanels.filter((p) => {
+    if (!panelSearchLower) return true;
+    return (
+      p.name.toLowerCase().includes(panelSearchLower) ||
+      p.description.toLowerCase().includes(panelSearchLower)
+    );
+  });
+
   const categories = Array.from(
-    new Set(availablePanels.flatMap((p) => (p.categories && p.categories.length > 0 ? p.categories : ["others"])))
+    new Set(filteredPanels.flatMap((p) => (p.categories && p.categories.length > 0 ? p.categories : ["others"])))
   );
 
   return (
@@ -304,11 +317,18 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
         onMovePanelToGroup={handleMovePanelToGroup}
         onRemoveGroup={handleRemoveGroup}
         onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
+        onExpandPanel={setExpandedPanel}
       />
 
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowAddModal(false)}
+        >
+          <div
+            className="bg-white rounded-xl border border-gray-200 shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Plus size={14} />
@@ -321,16 +341,30 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
                 <X size={14} />
               </button>
             </div>
+            <div className="px-4 py-3 border-b border-gray-100">
+              <div className="relative">
+                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={panelSearchQuery}
+                  onChange={(e) => setPanelSearchQuery(e.target.value)}
+                  placeholder="Search panels by name or description..."
+                  className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+                />
+              </div>
+            </div>
             <div className="flex-1 overflow-auto p-4">
               {panelLoading ? (
                 <div className="text-sm text-gray-500">Loading panels...</div>
+              ) : filteredPanels.length === 0 ? (
+                <div className="text-sm text-gray-500">No panels match your search.</div>
               ) : (
                 <div className="space-y-6">
                   {categories.map((cat) => (
                     <div key={cat}>
                       <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{cat}</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {availablePanels
+                        {filteredPanels
                           .filter((p) => {
                             const hasCats = p.categories && p.categories.length > 0;
                             if (cat === "others") return !hasCats;
@@ -376,6 +410,15 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
       )}
 
       <PanelPreviewModal panel={previewPanel} onClose={() => setPreviewPanel(null)} />
+
+      <ExpandedPanelModal
+        panel={expandedPanel}
+        onClose={() => setExpandedPanel(null)}
+        filters={{ tickers, enabledTickers: enabled, timeRange }}
+        globalRefreshKey={globalRefreshKey}
+        panelRefreshKeys={panelRefreshKeys}
+        onRefreshPanel={refreshPanel}
+      />
     </div>
   );
 }

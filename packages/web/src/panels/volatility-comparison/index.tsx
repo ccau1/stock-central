@@ -23,7 +23,7 @@ function computeVolatility(returns: number[]): number {
   return dailyStd * Math.sqrt(252) * 100; // annualized %
 }
 
-export function VolatilityComparisonPanel({ title, tickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function VolatilityComparisonPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const timeRange = inputs.timeRange || "1y";
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
@@ -31,7 +31,7 @@ export function VolatilityComparisonPanel({ title, tickers, inputs, refreshKey, 
     [symbols.join(","), timeRange, refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const activeSymbols = symbols.filter((s) => data && data[s] && data[s].length > 1);
   const volatilities = activeSymbols.map((sym) => ({
@@ -42,7 +42,7 @@ export function VolatilityComparisonPanel({ title, tickers, inputs, refreshKey, 
   const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="space-y-3">
         {volatilities.map((v, i) => (

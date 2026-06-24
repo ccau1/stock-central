@@ -23,20 +23,20 @@ function computeSeasonality(points: { date: string; price: number }[]) {
   );
 }
 
-export function SeasonalityPanel({ title, tickers, refreshKey, onRefresh, description }: PanelProps) {
+export function SeasonalityPanel({ title, tickers, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
     () => dataApi.getPriceHistory(symbols, "5y"),
     [symbols.join(","), refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const validSymbols = symbols.filter((s) => data && data[s] && data[s].length > 1);
 
   if (validSymbols.length === 0) {
     return (
-      <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+      <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
         {error && <PanelError message={error} />}
         <div className="text-xs text-gray-400">No price data available</div>
       </PanelContainer>
@@ -54,7 +54,7 @@ export function SeasonalityPanel({ title, tickers, refreshKey, onRefresh, descri
   );
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="space-y-3 overflow-auto h-full">
         {seasonality.map((s) => (

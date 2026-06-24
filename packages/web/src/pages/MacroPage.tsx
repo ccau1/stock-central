@@ -3,8 +3,10 @@ import { useDashboard, parseDashboardYaml } from "../stores/useDashboardStore";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import { useDisabledTickers } from "../hooks/useDisabledTickers";
 import { useEditMode } from "../hooks/useEditMode";
+import { useExpandedPanel } from "../hooks/useExpandedPanel";
 import DashboardGrid from "../components/DashboardGrid";
 import TickerFilterBar from "../components/TickerFilterBar";
+import { ExpandedPanelModal } from "../components/ExpandedPanelModal";
 import macroYaml from "../macro.yaml?raw";
 
 const STATIC_DASHBOARD = parseDashboardYaml(macroYaml);
@@ -52,6 +54,7 @@ export default function MacroPage() {
   };
 
   const enabled = enabledTickers(tickers);
+  const { expandedPanel, setExpandedPanel } = useExpandedPanel(dashboard?.panels);
 
   if (!dashboard) return null;
 
@@ -92,6 +95,16 @@ export default function MacroPage() {
         onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
         onMovePanelToGroup={movePanelToGroup}
         isEditMode={isEditMode}
+        onExpandPanel={setExpandedPanel}
+      />
+
+      <ExpandedPanelModal
+        panel={expandedPanel}
+        onClose={() => setExpandedPanel(null)}
+        filters={{ tickers, enabledTickers: enabled }}
+        globalRefreshKey={globalRefreshKey}
+        panelRefreshKeys={panelRefreshKeys}
+        onRefreshPanel={refreshPanel}
       />
     </div>
   );

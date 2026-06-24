@@ -3,7 +3,7 @@ import { dataApi } from "../../lib/api";
 import type { MacroIndicator, IndexPerformance } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function MacroCardGridPanel({ title, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function MacroCardGridPanel({ title, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols: string[] = inputs.symbols || ["^TNX", "^FVX", "^DJI", "^IXIC"];
 
   const { data: macroData, loading, error } = usePanelData(
@@ -17,7 +17,7 @@ export function MacroCardGridPanel({ title, inputs, refreshKey, onRefresh, descr
     [refreshKey]
   );
 
-  if (loading && !macroData) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !macroData) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const allData = [...(macroData?.macro || []), ...(macroData?.index || [])];
   const filtered = symbols.map((sym) => allData.find((d) => d.symbol === sym)).filter(Boolean) as (MacroIndicator | IndexPerformance)[];
@@ -25,7 +25,7 @@ export function MacroCardGridPanel({ title, inputs, refreshKey, onRefresh, descr
   const getValue = (d: MacroIndicator | IndexPerformance) => "value" in d ? d.value : d.price;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {filtered.map((m) => {

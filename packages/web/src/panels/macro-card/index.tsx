@@ -4,7 +4,7 @@ import { dataApi } from "../../lib/api";
 import type { IndexPerformance } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function MacroCardPanel({ title, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function MacroCardPanel({ title, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const source = inputs.source || "macro";
   const symbol = inputs.symbol || "^VIX";
   const invertColors = inputs.invert_colors === true;
@@ -21,7 +21,7 @@ export function MacroCardPanel({ title, inputs, refreshKey, onRefresh, descripti
     [refreshKey, source, symbol]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const up = (data?.change ?? 0) >= 0;
   const isTreasury = symbol === "^TNX" || symbol === "^FVX" || symbol === "^TYX";
@@ -41,7 +41,7 @@ export function MacroCardPanel({ title, inputs, refreshKey, onRefresh, descripti
   const val = data && "value" in data ? data.value : (data as IndexPerformance)?.price;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && val !== undefined ? (
         <div className="flex flex-col h-full justify-center">

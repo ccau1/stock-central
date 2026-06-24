@@ -3,13 +3,13 @@ import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 import ComparisonChart from "../../components/ComparisonChart";
 
-export function VixPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function VixPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getPriceHistory(["^VIX"], "1y"),
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const vixPoints = data?.["^VIX"];
   const current = vixPoints && vixPoints.length > 0 ? vixPoints[vixPoints.length - 1].price : 0;
@@ -30,7 +30,7 @@ export function VixPanel({ title, refreshKey, onRefresh, description }: PanelPro
   }
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="flex items-center gap-4 px-3 py-2 mb-1">
         <div>

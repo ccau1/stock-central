@@ -151,6 +151,7 @@ interface DashboardGridProps {
   onMovePanelToGroup?: (panelId: string, groupId: string | null) => void;
   onRemoveGroup?: (groupId: string) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
+  onExpandPanel?: (panel: PanelConfig) => void;
 }
 
 export default function DashboardGrid({
@@ -167,6 +168,7 @@ export default function DashboardGrid({
   onMovePanelToGroup,
   onRemoveGroup,
   onUpdatePanelLayout,
+  onExpandPanel,
   panelWrapperClassName = "bg-white rounded-lg shadow border border-gray-200 overflow-hidden",
 }: DashboardGridProps) {
   const { width, containerRef } = useContainerWidth();
@@ -243,7 +245,7 @@ export default function DashboardGrid({
         width={width}
         onLayoutChange={handleLayoutChange}
         onBreakpointChange={setCurrentBreakpoint}
-        dragConfig={{ enabled: isEditMode, handle: ".panel-drag-handle", cancel: ".panel-group-item, .panel-refresh-btn" }}
+        dragConfig={{ enabled: isEditMode, handle: ".panel-drag-handle", cancel: ".panel-group-item, .panel-refresh-btn, .panel-expand-btn" }}
         resizeConfig={{ enabled: isEditMode, handles: ["se", "e", "s"] }}
       >
         {/* Ungrouped panels */}
@@ -285,6 +287,7 @@ export default function DashboardGrid({
                 filters={filters}
                 refreshKey={(panelRefreshKeys[panel.id] || 0) + globalRefreshKey}
                 onRefresh={() => onRefreshPanel(panel.id)}
+                onExpand={() => onExpandPanel?.(panel)}
               />
             </div>
           </div>
@@ -308,6 +311,7 @@ export default function DashboardGrid({
               onRemovePanel={onRemovePanel}
               onRemoveGroup={onRemoveGroup}
               onUpdatePanelLayout={onUpdatePanelLayout}
+              onExpandPanel={onExpandPanel}
             />
           </div>
         ))}

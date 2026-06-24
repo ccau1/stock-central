@@ -6,7 +6,7 @@ import type { HeatmapUniverse } from "../../lib/api";
 import StockTreemap from "../../components/StockTreemap";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function StockHeatmapPanel({ title, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function StockHeatmapPanel({ title, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const [universe, setUniverse] = useState<string>(inputs.universe || "sp500");
   const [groupBy, setGroupBy] = useState<"sector" | "industry">("industry");
   const [universes, setUniverses] = useState<HeatmapUniverse[]>([]);
@@ -49,10 +49,10 @@ export function StockHeatmapPanel({ title, inputs, refreshKey, onRefresh, descri
 
   const selectedName = universes.find((u) => u.id === universe)?.name || universe;
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description} noPadding><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description} noPadding><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description} noPadding>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description} noPadding>
       {error && <PanelError message={error} />}
       <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center gap-2 mb-2 shrink-0 px-3 pt-3">

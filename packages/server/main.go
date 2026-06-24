@@ -29,7 +29,7 @@ func main() {
 	}
 	corsOrigin := os.Getenv("CORS_ORIGIN")
 	if corsOrigin == "" {
-		corsOrigin = "http://localhost:5000"
+		corsOrigin = "http://localhost:5173"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

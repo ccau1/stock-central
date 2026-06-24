@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"embed"
 	"fmt"
 	"strings"
@@ -72,12 +74,72 @@ func (s *Store) Migrate() error {
 	return nil
 }
 
-func (s *Store) ListDashboards(ctx context.Context) ([]Dashboard, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT id, name, yaml, created_at, updated_at
-		FROM dashboards
-		ORDER BY updated_at DESC
-	`)
+type DashboardCursor struct {
+	UpdatedAt time.Time `json:"u"`
+	ID        uuid.UUID `json:"i"`
+}
+
+func (c DashboardCursor) Encode() string {
+	b, _ := json.Marshal(c)
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+func ParseDashboardCursor(s string) (*DashboardCursor, error) {
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	var c DashboardCursor
+	if err := json.Unmarshal(b, &c); err != nil {
+		return nil, err
+	}
+	if c.ID == uuid.Nil || c.UpdatedAt.IsZero() {
+		return nil, fmt.Errorf("invalid cursor")
+	}
+	return &c, nil
+}
+
+type ListDashboardsOptions struct {
+	IDs   []uuid.UUID
+	After *DashboardCursor
+	Before *DashboardCursor
+	Limit int
+}
+
+func (s *Store) ListDashboards(ctx context.Context, opts ListDashboardsOptions) ([]Dashboard, error) {
+	args := []any{}
+	where := []string{}
+	argIdx := 1
+
+	if len(opts.IDs) > 0 {
+		where = append(where, fmt.Sprintf("id = ANY($%d::uuid[])", argIdx))
+		args = append(args, opts.IDs)
+		argIdx++
+	}
+
+	if opts.After != nil {
+		where = append(where, fmt.Sprintf("(updated_at, id) < ($%d, $%d)", argIdx, argIdx+1))
+		args = append(args, opts.After.UpdatedAt, opts.After.ID)
+		argIdx += 2
+	}
+
+	if opts.Before != nil {
+		where = append(where, fmt.Sprintf("(updated_at, id) > ($%d, $%d)", argIdx, argIdx+1))
+		args = append(args, opts.Before.UpdatedAt, opts.Before.ID)
+		argIdx += 2
+	}
+
+	query := "SELECT id, name, yaml, created_at, updated_at FROM dashboards"
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+	query += " ORDER BY updated_at DESC, id DESC"
+	if opts.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argIdx)
+		args = append(args, opts.Limit)
+	}
+
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

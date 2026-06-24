@@ -3,7 +3,7 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function MarketBreadthPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function MarketBreadthPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getBreadth(),
     [refreshKey]
@@ -25,7 +25,7 @@ export function MarketBreadthPanel({ title, refreshKey, onRefresh, description }
     return () => ro.disconnect();
   }, [data]);
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const chartW = chartSize.w || 300;
   const chartH = chartSize.h || 150;
@@ -63,7 +63,7 @@ export function MarketBreadthPanel({ title, refreshKey, onRefresh, description }
   const ma200Path = data ? buildPath(data.map((d: any) => (d.ma_200 > 0 ? d.ma_200 : null))) : "";
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="h-full flex flex-col">
         {data && data.length > 0 ? (

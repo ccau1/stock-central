@@ -25,6 +25,7 @@ export function usePanel<T>(
         <PanelContainer
           title={props.title}
           onRefresh={props.onRefresh}
+          onExpand={props.onExpand}
           loading={true}
           description={props.description}
           noPadding={options?.noPadding}
@@ -34,7 +35,7 @@ export function usePanel<T>(
       );
     }
     return null;
-  }, [loading, data, props.title, props.onRefresh, props.description, options?.noPadding]);
+  }, [loading, data, props.title, props.onRefresh, props.onExpand, props.description, options?.noPadding]);
 
   return { data, error, container };
 }

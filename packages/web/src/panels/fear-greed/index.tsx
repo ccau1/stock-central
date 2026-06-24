@@ -2,23 +2,23 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function FearGreedPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function FearGreedPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getFearGreed(),
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const value = data?.value ?? 50;
   const prev = data?.previous_value ?? 50;
   const label = data?.label ?? "Neutral";
   const rotation = -90 + (value / 100) * 180;
   const colorClass =
-    value <= 20 ? "text-red-600" :
-    value <= 40 ? "text-orange-600" :
-    value <= 60 ? "text-yellow-600" :
-    value <= 80 ? "text-lime-600" : "text-green-600";
+    value <= 24 ? "text-red-500" :
+    value <= 44 ? "text-orange-500" :
+    value <= 55 ? "text-yellow-500" :
+    value <= 75 ? "text-lime-500" : "text-green-500";
 
   const delta = value - prev;
   const deltaPercent = prev !== 0 ? Math.round((delta / prev) * 100) : 0;
@@ -27,16 +27,17 @@ export function FearGreedPanel({ title, refreshKey, onRefresh, description }: Pa
   const deltaArrow = deltaUp ? "↑" : "↓";
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="flex flex-col items-center justify-center h-full">
         <div className="relative w-full max-w-[180px] aspect-[2/1]">
           <svg viewBox="0 0 200 110" className="w-full h-full">
-            <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#e5e7eb" strokeWidth="20" strokeLinecap="round" />
-            <path d="M 20 100 A 80 80 0 0 1 80 35" fill="none" stroke="#ef4444" strokeWidth="20" strokeLinecap="round" />
-            <path d="M 80 35 A 80 80 0 0 1 120 35" fill="none" stroke="#eab308" strokeWidth="20" strokeLinecap="round" />
-            <path d="M 120 35 A 80 80 0 0 1 180 100" fill="none" stroke="#22c55e" strokeWidth="20" strokeLinecap="round" />
-            <line x1="100" y1="100" x2="100" y2="30" stroke="#374151" strokeWidth="3" strokeLinecap="round" transform={`rotate(${rotation} 100 100)`} />
+            <path d="M 35 100 A 65 65 0 0 1 52.6 55.5" fill="none" stroke="#ef4444" strokeWidth="20" strokeLinecap="butt" />
+            <path d="M 52.6 55.5 A 65 65 0 0 1 87.8 36.2" fill="none" stroke="#f97316" strokeWidth="20" strokeLinecap="butt" />
+            <path d="M 87.8 36.2 A 65 65 0 0 1 110.2 35.8" fill="none" stroke="#eab308" strokeWidth="20" strokeLinecap="butt" />
+            <path d="M 110.2 35.8 A 65 65 0 0 1 146.0 54.0" fill="none" stroke="#84cc16" strokeWidth="20" strokeLinecap="butt" />
+            <path d="M 146.0 54.0 A 65 65 0 0 1 165 100" fill="none" stroke="#22c55e" strokeWidth="20" strokeLinecap="butt" />
+            <line x1="100" y1="100" x2="100" y2="35" stroke="#374151" strokeWidth="3" strokeLinecap="round" transform={`rotate(${rotation} 100 100)`} />
             <circle cx="100" cy="100" r="5" fill="#374151" />
           </svg>
         </div>

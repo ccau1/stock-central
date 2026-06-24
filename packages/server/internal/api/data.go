@@ -130,6 +130,41 @@ type YieldCurveData struct {
 	Spreads map[string]float64 `json:"spreads"`
 }
 
+type BondYieldPoint struct {
+	Date   string             `json:"date"`
+	Yields map[string]float64 `json:"yields"`
+}
+
+type BondYieldCountryData struct {
+	Yields  map[string]float64 `json:"yields"`
+	Spreads map[string]float64 `json:"spreads"`
+	Source  string             `json:"source"`
+	Note    string             `json:"note,omitempty"`
+	History []BondYieldPoint   `json:"history,omitempty"`
+}
+
+type BondYieldsData struct {
+	US   BondYieldCountryData `json:"us"`
+	JP   BondYieldCountryData `json:"jp"`
+	Meta map[string]string    `json:"meta"`
+}
+
+type DebtToGdpPoint struct {
+	Date  string  `json:"date"`
+	Year  string  `json:"year"`
+	Value float64 `json:"value"`
+}
+
+type DebtToGdpData struct {
+	Country     string           `json:"country"`
+	CountryName string           `json:"country_name"`
+	Current     float64          `json:"current"`
+	CurrentYear string           `json:"current_year"`
+	Unit        string           `json:"unit"`
+	History     []DebtToGdpPoint `json:"history"`
+	Source      string           `json:"source"`
+}
+
 type IndexPerformance struct {
 	Symbol    string  `json:"symbol"`
 	Name      string  `json:"name"`
@@ -172,6 +207,33 @@ type RatioPoint struct {
 type RatioData struct {
 	Name   string       `json:"name"`
 	Points []RatioPoint `json:"points"`
+}
+
+type RealEstatePoint struct {
+	Date  string  `json:"date"`
+	Value float64 `json:"value"`
+}
+
+type RealEstateSeries struct {
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Unit      string            `json:"unit"`
+	Frequency string            `json:"frequency"`
+	Current   float64           `json:"current"`
+	ChangeMoM float64           `json:"change_mom"`
+	ChangeYoY float64           `json:"change_yoy"`
+	History   []RealEstatePoint `json:"history"`
+}
+
+type RealEstateOverviewData struct {
+	Inventory *RealEstateSeries `json:"inventory"`
+	Sales     *RealEstateSeries `json:"sales"`
+	Prices    *RealEstateSeries `json:"prices"`
+	Mortgage  *RealEstateSeries `json:"mortgage"`
+}
+
+type RealEstateSeriesResponse struct {
+	Series []RealEstateSeries `json:"series"`
 }
 
 type RecessionIndicator struct {
@@ -306,6 +368,8 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/ytd", a.getYtd)
 	r.Get("/macro", a.getMacro)
 	r.Get("/macro/yield-curve", a.getYieldCurve)
+	r.Get("/macro/bond-yields", a.getBondYields)
+	r.Get("/macro/debt-to-gdp", a.getDebtToGdp)
 	r.Get("/macro/indexes", a.getIndexPerformance)
 	r.Get("/macro/breadth", a.getBreadth)
 	r.Get("/macro/asset-classes", a.getAssetClasses)
@@ -322,6 +386,13 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/screen", a.getScreen)
 	r.Get("/batch-quotes", a.getBatchQuotes)
 	r.Get("/options", a.getOptions)
+
+	r.Route("/real-estate/us", func(r chi.Router) {
+		r.Get("/overview", a.getRealEstateUsOverview)
+		r.Get("/inventory", a.getRealEstateUsInventory)
+		r.Get("/sales", a.getRealEstateUsSales)
+		r.Get("/prices", a.getRealEstateUsPrices)
+	})
 }
 
 func (a *API) tickerRoutes(r chi.Router) {
@@ -1076,6 +1147,339 @@ func (a *API) getYieldCurve(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+const bondYieldHistoryLimit = 550 // ~2 years of business-day observations
+
+// fetchUSYieldHistory fetches daily Treasury yields from FRED and returns a
+// date-aligned history. The caller must ensure FRED is enabled.
+func fetchUSYieldHistory() ([]BondYieldPoint, error) {
+	fredSeries := map[string]string{
+		"3m":  "DGS3MO",
+		"2y":  "DGS2",
+		"5y":  "DGS5",
+		"10y": "DGS10",
+		"30y": "DGS30",
+	}
+
+	seriesData := make(map[string][]client.FredObservation)
+	for key, seriesID := range fredSeries {
+		obs, err := client.GetFredSeries(seriesID, bondYieldHistoryLimit)
+		if err != nil {
+			return nil, err
+		}
+		seriesData[key] = obs
+	}
+
+	dateYields := make(map[string]map[string]float64)
+	for key, obs := range seriesData {
+		for _, o := range obs {
+			if _, ok := dateYields[o.Date]; !ok {
+				dateYields[o.Date] = make(map[string]float64)
+			}
+			v, err := strconv.ParseFloat(o.Value, 64)
+			if err != nil {
+				continue
+			}
+			dateYields[o.Date][key] = math.Round(v*100) / 100
+		}
+	}
+
+	dates := make([]string, 0, len(dateYields))
+	for d := range dateYields {
+		dates = append(dates, d)
+	}
+	sort.Strings(dates)
+
+	history := make([]BondYieldPoint, 0, len(dates))
+	for _, d := range dates {
+		history = append(history, BondYieldPoint{
+			Date:   d,
+			Yields: dateYields[d],
+		})
+	}
+	return history, nil
+}
+
+// fetchJapanYieldHistory fetches JGB benchmark yields from the Ministry of Finance.
+func fetchJapanYieldHistory() ([]BondYieldPoint, error) {
+	points, err := client.GetMofJgbYields(bondYieldHistoryLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	history := make([]BondYieldPoint, 0, len(points))
+	for _, p := range points {
+		rounded := make(map[string]float64, len(p.Yields))
+		for k, v := range p.Yields {
+			rounded[k] = math.Round(v*100) / 100
+		}
+		history = append(history, BondYieldPoint{
+			Date:   p.Date,
+			Yields: rounded,
+		})
+	}
+	return history, nil
+}
+
+func latestYieldsFromHistory(history []BondYieldPoint) map[string]float64 {
+	if len(history) == 0 {
+		return map[string]float64{}
+	}
+	latest := history[len(history)-1]
+	out := make(map[string]float64, len(latest.Yields))
+	for k, v := range latest.Yields {
+		out[k] = v
+	}
+	return out
+}
+
+// fetchJapanFredYieldHistory fetches monthly JGB 10Y yields from FRED as a fallback
+// when the Ministry of Finance CSV is unavailable.
+func fetchJapanFredYieldHistory() ([]BondYieldPoint, error) {
+	obs, err := client.GetFredSeries("IRLTLT01JPM156N", bondYieldHistoryLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	history := make([]BondYieldPoint, 0, len(obs))
+	for _, o := range obs {
+		v, err := strconv.ParseFloat(o.Value, 64)
+		if err != nil {
+			continue
+		}
+		history = append(history, BondYieldPoint{
+			Date: o.Date,
+			Yields: map[string]float64{
+				"10y": math.Round(v*100) / 100,
+			},
+		})
+	}
+
+	if len(history) == 0 {
+		return nil, fmt.Errorf("no valid japan fred observations")
+	}
+
+	sort.Slice(history, func(i, j int) bool {
+		return history[i].Date < history[j].Date
+	})
+	return history, nil
+}
+
+func (a *API) getBondYields(w http.ResponseWriter, r *http.Request) {
+	result := BondYieldsData{
+		US: BondYieldCountryData{
+			Yields:  make(map[string]float64),
+			Spreads: make(map[string]float64),
+			Source:  "Yahoo Finance",
+			History: []BondYieldPoint{},
+		},
+		JP: BondYieldCountryData{
+			Yields:  make(map[string]float64),
+			Spreads: make(map[string]float64),
+			Source:  "",
+			History: []BondYieldPoint{},
+		},
+		Meta: make(map[string]string),
+	}
+
+	computeSpreads := func(yields map[string]float64) map[string]float64 {
+		spreads := make(map[string]float64)
+		y10, ok10 := yields["10y"]
+		if !ok10 {
+			return spreads
+		}
+		if y2, ok := yields["2y"]; ok {
+			spreads["10y_2y"] = math.Round((y10-y2)*100) / 100
+		}
+		if y3m, ok := yields["3m"]; ok {
+			spreads["10y_3m"] = math.Round((y10-y3m)*100) / 100
+		}
+		if y5y, ok := yields["5y"]; ok {
+			spreads["10y_5y"] = math.Round((y10-y5y)*100) / 100
+		}
+		if y30y, ok := yields["30y"]; ok {
+			spreads["30y_10y"] = math.Round((y30y-y10)*100) / 100
+		}
+		return spreads
+	}
+
+	// ---- US yields ----
+	usFromFred := false
+	if client.FredEnabled() {
+		if history, err := fetchUSYieldHistory(); err == nil && len(history) > 0 {
+			result.US.History = history
+			result.US.Yields = latestYieldsFromHistory(history)
+			result.US.Source = "FRED"
+			usFromFred = true
+		}
+	}
+
+	// Fallback to Yahoo Finance for US if FRED is unavailable.
+	if !usFromFred {
+		usSymbols := []struct {
+			Symbol string
+			Key    string
+		}{
+			{"^IRX", "3m"},
+			{"^FVX", "5y"},
+			{"^TNX", "10y"},
+			{"^TYX", "30y"},
+		}
+		for _, s := range usSymbols {
+			points, err := client.GetChart(s.Symbol, "5d", "1d")
+			if err != nil {
+				points, err = client.GetChart(s.Symbol, "1mo", "1d")
+				if err != nil {
+					continue
+				}
+			}
+			if len(points) > 0 {
+				result.US.Yields[s.Key] = math.Round(points[len(points)-1].Price*100) / 100
+			}
+		}
+	}
+
+	// ---- JP yields ----
+	jpFromMof := false
+	if history, err := fetchJapanYieldHistory(); err == nil && len(history) > 0 {
+		result.JP.History = history
+		result.JP.Yields = latestYieldsFromHistory(history)
+		result.JP.Source = "MOF Japan"
+		result.JP.Note = "Daily JGB benchmark yields"
+		jpFromMof = true
+	}
+
+	if !jpFromMof {
+		if client.FredEnabled() {
+			if history, err := fetchJapanFredYieldHistory(); err == nil && len(history) > 0 {
+				result.JP.History = history
+				result.JP.Yields = latestYieldsFromHistory(history)
+				result.JP.Source = "FRED (OECD)"
+				result.JP.Note = "Monthly 10Y only — full JGB curve unavailable from FRED"
+			} else {
+				result.JP.Note = "Japan yields unavailable from FRED"
+			}
+		} else {
+			result.JP.Note = "Configure FRED_API_KEY for Japan yields"
+		}
+	}
+
+	result.US.Spreads = computeSpreads(result.US.Yields)
+	result.JP.Spreads = computeSpreads(result.JP.Yields)
+
+	// ---- US-JP 10Y spread ----
+	if us10, ok := result.US.Yields["10y"]; ok {
+		if jp10, ok := result.JP.Yields["10y"]; ok {
+			result.Meta["us_jp_10y_spread"] = fmt.Sprintf("%.2f", math.Round((us10-jp10)*100)/100)
+		}
+	}
+	if !client.FredEnabled() {
+		result.Meta["fred_api_key"] = "not configured"
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
+func (a *API) getDebtToGdp(w http.ResponseWriter, r *http.Request) {
+	country := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("country")))
+	if country == "" {
+		country = "USA"
+	}
+
+	countryNames := map[string]string{
+		"USA": "United States",
+		"JPN": "Japan",
+		"GBR": "United Kingdom",
+		"FRA": "France",
+		"ITA": "Italy",
+		"DEU": "Germany",
+		"CAN": "Canada",
+		"AUS": "Australia",
+		"BRA": "Brazil",
+		"IND": "India",
+		"CHN": "China",
+		"KOR": "South Korea",
+		"MEX": "Mexico",
+		"ESP": "Spain",
+		"IRL": "Ireland",
+		"PRT": "Portugal",
+		"GRC": "Greece",
+	}
+
+	// FRED IMF WEO country codes differ from ISO-3166 alpha-3 codes for some countries.
+	fredCountryCodes := map[string]string{
+		"USA": "USA",
+		"JPN": "JPA",
+		"GBR": "GBA",
+		"FRA": "FRA",
+		"ITA": "ITA",
+		"DEU": "DEA",
+		"CAN": "CAA",
+		"AUS": "AUA",
+		"BRA": "BRA",
+		"IND": "INA",
+		"CHN": "CNA",
+		"KOR": "KRA",
+		"MEX": "MXA",
+		"ESP": "ESA",
+		"IRL": "IRL",
+		"PRT": "PRT",
+		"GRC": "GRC",
+	}
+
+	countryName := countryNames[country]
+	fredCode := fredCountryCodes[country]
+	if countryName == "" || fredCode == "" {
+		respondError(w, http.StatusBadRequest, fmt.Errorf("unsupported country: %s", country))
+		return
+	}
+
+	seriesID := fmt.Sprintf("GGGDTA%s188N", fredCode)
+	observations, err := client.GetFredSeries(seriesID, 15)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	history := make([]DebtToGdpPoint, 0, len(observations))
+	for _, obs := range observations {
+		v, err := strconv.ParseFloat(obs.Value, 64)
+		if err != nil {
+			continue
+		}
+		year := obs.Date
+		if len(year) >= 4 {
+			year = year[:4]
+		}
+		history = append(history, DebtToGdpPoint{
+			Date:  obs.Date,
+			Year:  year,
+			Value: math.Round(v*100) / 100,
+		})
+	}
+
+	if len(history) == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("no debt-to-gdp data for %s", country))
+		return
+	}
+
+	// History is returned descending; reverse to chronological order.
+	for i, j := 0, len(history)-1; i < j; i, j = i+1, j-1 {
+		history[i], history[j] = history[j], history[i]
+	}
+
+	current := history[len(history)-1]
+
+	respondJSON(w, http.StatusOK, DebtToGdpData{
+		Country:     country,
+		CountryName: countryName,
+		Current:     current.Value,
+		CurrentYear: current.Year,
+		Unit:        "% of GDP",
+		History:     history,
+		Source:      "FRED / IMF WEO",
+	})
+}
+
 func (a *API) getIndexPerformance(w http.ResponseWriter, r *http.Request) {
 	indexSymbols := []struct {
 		Symbol string
@@ -1242,10 +1646,64 @@ func (a *API) getCreditSpread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) getRatios(w http.ResponseWriter, r *http.Request) {
+	yearsStr := r.URL.Query().Get("years")
+	years, _ := strconv.Atoi(yearsStr)
+	if years <= 0 {
+		years = 1
+	}
+	if years > 5 {
+		years = 5
+	}
+
+	rangeVal := "1y"
+	switch years {
+	case 2:
+		rangeVal = "yoy"
+	case 3, 4, 5:
+		rangeVal = "max"
+	}
+
+	mode := r.URL.Query().Get("mode")
+	if mode != "sector" {
+		mode = "ratio"
+	}
+
+	if mode == "sector" {
+		sectors := []struct {
+			Symbol string
+			Name   string
+		}{
+			{"XLK", "Tech"},
+			{"XLU", "Utilities"},
+			{"XLY", "Discretionary"},
+			{"XLP", "Staples"},
+			{"CPER", "Copper"},
+			{"GLD", "Gold"},
+			{"IWM", "Small Cap"},
+			{"SPY", "Large Cap"},
+			{"VWO", "Emerging"},
+			{"VEA", "Developed"},
+		}
+
+		var result []RatioData
+		for _, s := range sectors {
+			points, err := client.GetChart(s.Symbol, rangeVal, "1d")
+			if err != nil {
+				continue
+			}
+			result = append(result, RatioData{
+				Name:   s.Name,
+				Points: chartToRatioPoints(points),
+			})
+		}
+		respondJSON(w, http.StatusOK, result)
+		return
+	}
+
 	ratios := []struct {
-		Num   string
-		Den   string
-		Name  string
+		Num  string
+		Den  string
+		Name string
 	}{
 		{"CPER", "GLD", "Copper / Gold"},
 		{"XLY", "XLP", "Discretionary / Staples"},
@@ -1256,11 +1714,11 @@ func (a *API) getRatios(w http.ResponseWriter, r *http.Request) {
 
 	var result []RatioData
 	for _, r := range ratios {
-		numPoints, err := client.GetChart(r.Num, "1y", "1d")
+		numPoints, err := client.GetChart(r.Num, rangeVal, "1d")
 		if err != nil {
 			continue
 		}
-		denPoints, err := client.GetChart(r.Den, "1y", "1d")
+		denPoints, err := client.GetChart(r.Den, rangeVal, "1d")
 		if err != nil {
 			continue
 		}
@@ -2308,6 +2766,17 @@ func alignAndRatio(numPoints, denPoints []client.ChartPoint) []RatioPoint {
 	return result
 }
 
+func chartToRatioPoints(points []client.ChartPoint) []RatioPoint {
+	result := make([]RatioPoint, len(points))
+	for i, p := range points {
+		result[i] = RatioPoint{
+			Date:  p.Date,
+			Ratio: math.Round(p.Price*1000) / 1000,
+		}
+	}
+	return result
+}
+
 // ---------- Technical Indicator Helpers ----------
 
 func computeSMASeries(candles []client.Candle, period int) IndicatorSeries {
@@ -2913,3 +3382,165 @@ func computeOBVSeries(candles []client.Candle) IndicatorSeries {
 }
 
 
+
+// ---------- Real Estate (US) ----------
+
+var (
+	realEstateUsInventorySeries = []struct {
+		ID        string
+		Name      string
+		Unit      string
+		Frequency string
+	}{
+		{"HOSSUPUSM673N", "Existing Home Months Supply", "months", "monthly"},
+		{"MSACSR", "New Home Months Supply", "months", "monthly"},
+	}
+
+	realEstateUsSalesSeries = []struct {
+		ID        string
+		Name      string
+		Unit      string
+		Frequency string
+	}{
+		{"EXHOSLUSM495S", "Existing Home Sales", "millions SAAR", "monthly"},
+		{"HSN1F", "New Home Sales", "thousands SAAR", "monthly"},
+	}
+
+	realEstateUsPriceSeries = []struct {
+		ID        string
+		Name      string
+		Unit      string
+		Frequency string
+	}{
+		{"CSUSHPISA", "Case-Shiller National HPI", "index", "monthly"},
+		{"USSTHPI", "FHFA All-Transactions HPI", "index", "quarterly"},
+		{"ASPUS", "Average Sales Price", "$", "quarterly"},
+		{"MSPUS", "Median Sales Price", "$", "quarterly"},
+	}
+)
+
+func fetchRealEstateSeries(seriesID, name, unit, frequency string, limit int) (*RealEstateSeries, error) {
+	observations, err := client.GetFredSeries(seriesID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	points := make([]RealEstatePoint, 0, len(observations))
+	for _, obs := range observations {
+		v, err := strconv.ParseFloat(obs.Value, 64)
+		if err != nil {
+			continue
+		}
+		points = append(points, RealEstatePoint{
+			Date:  obs.Date,
+			Value: math.Round(v*100) / 100,
+		})
+	}
+	if len(points) == 0 {
+		return nil, fmt.Errorf("no data for %s", seriesID)
+	}
+
+	series := &RealEstateSeries{
+		ID:        seriesID,
+		Name:      name,
+		Unit:      unit,
+		Frequency: frequency,
+		Current:   points[0].Value,
+		History:   make([]RealEstatePoint, len(points)),
+	}
+
+	// Reverse to chronological order for charting.
+	for i := range points {
+		series.History[i] = points[len(points)-1-i]
+	}
+
+	if len(points) > 1 {
+		series.ChangeMoM = computePctChange(points[0].Value, points[1].Value)
+	}
+
+	yoyOffset := 12
+	switch frequency {
+	case "weekly":
+		yoyOffset = 52
+	case "quarterly":
+		yoyOffset = 4
+	}
+	if len(points) > yoyOffset {
+		series.ChangeYoY = computePctChange(points[0].Value, points[yoyOffset].Value)
+	}
+
+	return series, nil
+}
+
+func computePctChange(current, previous float64) float64 {
+	if previous == 0 {
+		return 0
+	}
+	return math.Round((current-previous)/previous*10000) / 100
+}
+
+func (a *API) getRealEstateUsOverview(w http.ResponseWriter, r *http.Request) {
+	overview := RealEstateOverviewData{}
+
+	if s, err := fetchRealEstateSeries("HOSSUPUSM673N", "Existing Home Months Supply", "months", "monthly", 24); err == nil {
+		overview.Inventory = s
+	}
+	if s, err := fetchRealEstateSeries("EXHOSLUSM495S", "Existing Home Sales", "millions SAAR", "monthly", 24); err == nil {
+		overview.Sales = s
+	}
+	if s, err := fetchRealEstateSeries("CSUSHPISA", "Case-Shiller National HPI", "index", "monthly", 24); err == nil {
+		overview.Prices = s
+	}
+	if s, err := fetchRealEstateSeries("MORTGAGE30US", "30-Year Mortgage Rate", "%", "weekly", 60); err == nil {
+		overview.Mortgage = s
+	}
+
+	if overview.Inventory == nil && overview.Sales == nil && overview.Prices == nil && overview.Mortgage == nil {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("FRED real estate data unavailable; ensure FRED_API_KEY is configured"))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, overview)
+}
+
+func (a *API) getRealEstateUsInventory(w http.ResponseWriter, r *http.Request) {
+	var series []RealEstateSeries
+	for _, cfg := range realEstateUsInventorySeries {
+		if s, err := fetchRealEstateSeries(cfg.ID, cfg.Name, cfg.Unit, cfg.Frequency, 36); err == nil {
+			series = append(series, *s)
+		}
+	}
+	if len(series) == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("FRED inventory data unavailable; ensure FRED_API_KEY is configured"))
+		return
+	}
+	respondJSON(w, http.StatusOK, RealEstateSeriesResponse{Series: series})
+}
+
+func (a *API) getRealEstateUsSales(w http.ResponseWriter, r *http.Request) {
+	var series []RealEstateSeries
+	for _, cfg := range realEstateUsSalesSeries {
+		if s, err := fetchRealEstateSeries(cfg.ID, cfg.Name, cfg.Unit, cfg.Frequency, 36); err == nil {
+			series = append(series, *s)
+		}
+	}
+	if len(series) == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("FRED sales data unavailable; ensure FRED_API_KEY is configured"))
+		return
+	}
+	respondJSON(w, http.StatusOK, RealEstateSeriesResponse{Series: series})
+}
+
+func (a *API) getRealEstateUsPrices(w http.ResponseWriter, r *http.Request) {
+	var series []RealEstateSeries
+	for _, cfg := range realEstateUsPriceSeries {
+		if s, err := fetchRealEstateSeries(cfg.ID, cfg.Name, cfg.Unit, cfg.Frequency, 36); err == nil {
+			series = append(series, *s)
+		}
+	}
+	if len(series) == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("FRED price data unavailable; ensure FRED_API_KEY is configured"))
+		return
+	}
+	respondJSON(w, http.StatusOK, RealEstateSeriesResponse{Series: series})
+}

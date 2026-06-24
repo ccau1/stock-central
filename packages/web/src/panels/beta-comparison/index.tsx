@@ -35,7 +35,7 @@ function computeBeta(stockReturns: number[], marketReturns: number[]): number {
   return varM === 0 ? 0 : cov / varM;
 }
 
-export function BetaComparisonPanel({ title, tickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function BetaComparisonPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const timeRange = inputs.timeRange || "1y";
   const symbols = tickers ?? [];
 
@@ -48,7 +48,7 @@ export function BetaComparisonPanel({ title, tickers, inputs, refreshKey, onRefr
     [symbols.join(","), timeRange, refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const marketReturns = data?.history["SPY"] ? computeDailyReturns(data.history["SPY"]) : [];
   const activeSymbols = symbols.filter((s) => data?.history[s] && data.history[s].length > 1);
@@ -61,7 +61,7 @@ export function BetaComparisonPanel({ title, tickers, inputs, refreshKey, onRefr
   const maxBeta = Math.max(...betas.map((b) => Math.abs(b.beta)), 0.1);
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="text-[10px] text-gray-400 mb-2">Beta relative to SPY</div>
       <div className="space-y-3">

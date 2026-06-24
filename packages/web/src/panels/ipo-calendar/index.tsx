@@ -31,19 +31,19 @@ function statusColor(status: string): string {
   }
 }
 
-export function IPOPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function IPOPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getIPOs(5),
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && data.length > 0 ? (
-        <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+        <div className="space-y-2">
           {data.map((ipo: any) => (
             <div key={ipo.symbol} className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
               <div className="flex items-center justify-between gap-2">

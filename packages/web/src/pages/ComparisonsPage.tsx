@@ -4,8 +4,10 @@ import { useDashboard, parseDashboardYaml } from "../stores/useDashboardStore";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import { useDisabledTickers } from "../hooks/useDisabledTickers";
 import { useEditMode } from "../hooks/useEditMode";
+import { useExpandedPanel } from "../hooks/useExpandedPanel";
 import DashboardGrid from "../components/DashboardGrid";
 import ComparisonMetricsBar from "../components/ComparisonMetricsBar";
+import { ExpandedPanelModal } from "../components/ExpandedPanelModal";
 import comparisonsYaml from "../comparisons.yaml?raw";
 
 const STATIC_DASHBOARD = parseDashboardYaml(comparisonsYaml);
@@ -55,6 +57,7 @@ export default function ComparisonsPage() {
   } = useDisabledTickers("comparisons_disabled_tickers");
 
   const { isEditMode, setIsEditMode } = useEditMode("comparisons_edit_mode");
+  const { expandedPanel, setExpandedPanel } = useExpandedPanel(dashboard?.panels);
 
   const search = useTickerSearch({
     existingTickers: tickers,
@@ -231,6 +234,16 @@ export default function ComparisonsPage() {
         onMovePanelToGroup={movePanelToGroup}
         isEditMode={isEditMode}
         panelWrapperClassName="h-full w-full"
+        onExpandPanel={setExpandedPanel}
+      />
+
+      <ExpandedPanelModal
+        panel={expandedPanel}
+        onClose={() => setExpandedPanel(null)}
+        filters={{ tickers, enabledTickers: enabled, timeRange }}
+        globalRefreshKey={globalRefreshKey}
+        panelRefreshKeys={panelRefreshKeys}
+        onRefreshPanel={refreshPanel}
       />
     </div>
   );

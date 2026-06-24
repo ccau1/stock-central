@@ -120,6 +120,41 @@ export interface YieldCurveData {
   spreads: Record<string, number>;
 }
 
+export interface BondYieldPoint {
+  date: string;
+  yields: Record<string, number>;
+}
+
+export interface BondYieldCountryData {
+  yields: Record<string, number>;
+  spreads: Record<string, number>;
+  source: string;
+  note?: string;
+  history: BondYieldPoint[];
+}
+
+export interface BondYieldsData {
+  us: BondYieldCountryData;
+  jp: BondYieldCountryData;
+  meta: Record<string, string>;
+}
+
+export interface DebtToGdpPoint {
+  date: string;
+  year: string;
+  value: number;
+}
+
+export interface DebtToGdpData {
+  country: string;
+  country_name: string;
+  current: number;
+  current_year: string;
+  unit: string;
+  history: DebtToGdpPoint[];
+  source: string;
+}
+
 export interface IndexPerformance {
   symbol: string;
   name: string;
@@ -416,6 +451,33 @@ export interface DashboardYAML {
   groups?: GroupConfig[];
 }
 
+export interface RealEstatePoint {
+  date: string;
+  value: number;
+}
+
+export interface RealEstateSeries {
+  id: string;
+  name: string;
+  unit: string;
+  frequency: string;
+  current: number;
+  change_mom: number;
+  change_yoy: number;
+  history: RealEstatePoint[];
+}
+
+export interface RealEstateOverviewData {
+  inventory: RealEstateSeries | null;
+  sales: RealEstateSeries | null;
+  prices: RealEstateSeries | null;
+  mortgage: RealEstateSeries | null;
+}
+
+export interface RealEstateSeriesResponse {
+  series: RealEstateSeries[];
+}
+
 // ---------- Helpers ----------
 
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
@@ -502,6 +564,10 @@ export const dataApi = {
     fetchJSON<MacroIndicator[]>("/data/macro"),
   getYieldCurve: () =>
     fetchJSON<YieldCurveData>("/data/macro/yield-curve"),
+  getBondYields: () =>
+    fetchJSON<BondYieldsData>("/data/macro/bond-yields"),
+  getDebtToGdp: (country?: string) =>
+    fetchJSON<DebtToGdpData>(`/data/macro/debt-to-gdp?country=${country || "USA"}`),
   getIndexPerformance: () =>
     fetchJSON<IndexPerformance[]>("/data/macro/indexes"),
   getBreadth: () =>
@@ -510,8 +576,8 @@ export const dataApi = {
     fetchJSON<AssetClassData[]>("/data/macro/asset-classes"),
   getCreditSpread: () =>
     fetchJSON<CreditSpreadPoint[]>("/data/macro/credit-spread"),
-  getRatios: () =>
-    fetchJSON<RatioData[]>("/data/macro/ratios"),
+  getRatios: (years = 5, mode: "ratio" | "sector" = "ratio") =>
+    fetchJSON<RatioData[]>(`/data/macro/ratios?years=${years}&mode=${mode}`),
   getHeatmap: (universe: string, groupBy?: "sector" | "industry") =>
     fetchJSON<HeatmapData>(`/data/heatmap?universe=${encodeURIComponent(universe)}${groupBy ? `&group_by=${groupBy}` : ""}`),
   getHeatmapUniverses: () =>
@@ -555,7 +621,14 @@ export const dataApi = {
   searchTickers: (query: string) =>
     fetchJSON<TickerSearchResult[]>(`/tickers/search?q=${encodeURIComponent(query)}`),
   // Dashboards API
-  listDashboards: () => fetchJSON<DashboardRecord[]>("/dashboards"),
+  listDashboards: (opts?: { ids?: string[]; after?: string; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (opts?.ids && opts.ids.length > 0) query.set("ids", opts.ids.join(","));
+    if (opts?.after) query.set("after", opts.after);
+    if (opts?.limit && opts.limit > 0) query.set("limit", opts.limit.toString());
+    const qs = query.toString();
+    return fetchJSON<DashboardRecord[]>(`/dashboards${qs ? `?${qs}` : ""}`);
+  },
   getDashboard: (id: string) => fetchJSON<DashboardRecord>(`/dashboards/${id}`),
   createDashboard: (name: string, yaml: string) =>
     fetchJSON<DashboardRecord>("/dashboards", { method: "POST", body: JSON.stringify({ name, yaml }) }),
@@ -568,6 +641,15 @@ export const dataApi = {
 
   getImportantPeopleTrades: () =>
     fetchJSON<ImportantPersonTrade[]>("/insider/important-people"),
+
+  getRealEstateUsOverview: () =>
+    fetchJSON<RealEstateOverviewData>("/data/real-estate/us/overview"),
+  getRealEstateUsInventory: () =>
+    fetchJSON<RealEstateSeriesResponse>("/data/real-estate/us/inventory"),
+  getRealEstateUsSales: () =>
+    fetchJSON<RealEstateSeriesResponse>("/data/real-estate/us/sales"),
+  getRealEstateUsPrices: () =>
+    fetchJSON<RealEstateSeriesResponse>("/data/real-estate/us/prices"),
 
   getTickerDetail: async (symbol: string) => {
     const [price, marketCap, forwardPe, rsi, ytd, priceHistory, news] = await Promise.all([

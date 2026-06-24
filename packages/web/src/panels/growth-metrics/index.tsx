@@ -5,7 +5,7 @@ import { dataApi } from "../../lib/api";
 import type { ForwardPeData } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function GrowthMetricsPanel({ title, tickers, refreshKey, onRefresh, description }: PanelProps) {
+export function GrowthMetricsPanel({ title, tickers, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
     () => dataApi.getForwardPe(symbols),
@@ -13,14 +13,14 @@ export function GrowthMetricsPanel({ title, tickers, refreshKey, onRefresh, desc
   );
   const [mode, setMode] = useState<"eps" | "revenue">("eps");
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const growthValue = (d: ForwardPeData) => (mode === "eps" ? d.eps_growth : d.revenue_growth);
   const maxGrowth = Math.max(...(data?.map((d) => Math.abs(growthValue(d))) || [0.01]), 0.01);
   const colors = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="flex items-center justify-between mb-1">
         <div className="text-[10px] text-gray-400">Source: Yahoo Finance</div>

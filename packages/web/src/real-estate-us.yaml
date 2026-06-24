@@ -1,0 +1,43 @@
+id: real-estate-us
+name: U.S. Real Estate
+filters:
+  tickers: []
+panels:
+  - id: re-overview
+    type: real-estate-overview
+    title: U.S. Real Estate Overview
+    group: row-real-estate
+    layout: { x: 0, y: 0, w: 12, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: re-inventory
+    type: real-estate-inventory
+    title: Months of Inventory
+    group: row-real-estate
+    layout: { x: 0, y: 8, w: 6, h: 10 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: re-sales
+    type: real-estate-sales
+    title: Home Sales
+    group: row-real-estate
+    layout: { x: 6, y: 8, w: 6, h: 10 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: re-prices
+    type: real-estate-prices
+    title: Home Price Changes
+    group: row-real-estate
+    layout: { x: 0, y: 18, w: 12, h: 10 }
+    inputs: {}
+    refresh_interval: 300
+
+groups:
+  - id: row-real-estate
+    type: __row__
+    title: U.S. Real Estate
+    layout: { x: 0, y: 0, w: 12, h: 29 }
+    collapsed: false

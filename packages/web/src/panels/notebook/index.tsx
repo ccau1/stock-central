@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import type { PanelProps, PanelDefinition } from "../_core/types";
 import { PanelContainer } from "../_core";
 
-export function NotebookPanel({ title, inputs, onRefresh, description }: PanelProps) {
+export function NotebookPanel({ title, inputs, onRefresh, onExpand, description }: PanelProps) {
   const [text, setText] = useState<string>(inputs.notes || "");
   const [saved, setSaved] = useState(true);
 
@@ -22,7 +22,7 @@ export function NotebookPanel({ title, inputs, onRefresh, description }: PanelPr
   }, [text, inputs]);
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={false} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={false} description={description}>
       <div className="flex flex-col h-full">
         <textarea
           value={text}

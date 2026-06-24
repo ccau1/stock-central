@@ -17,7 +17,7 @@ function formatEarningsClockTime(ts: number): string {
   }
 }
 
-export function ComparisonGridPanel({ title, tickers, enabledTickers, refreshKey, onRefresh, description }: PanelProps) {
+export function ComparisonGridPanel({ title, tickers, enabledTickers, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols = tickers ?? [];
   const enabledSymbols = enabledTickers ?? symbols;
 
@@ -42,10 +42,10 @@ export function ComparisonGridPanel({ title, tickers, enabledTickers, refreshKey
   const getMc = (sym: string) => marketCap?.find((d: any) => d.symbol === sym);
   const getOpt = (sym: string) => options?.find((d) => d.symbol === sym);
 
-  if (loading && !forwardPe) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !forwardPe) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {symbols.map((sym) => {

@@ -19,20 +19,20 @@ function signalIcon(signal: string) {
   }
 }
 
-export function RecessionRiskPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function RecessionRiskPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getRecessionRisk(),
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const score = data?.risk_score ?? 0;
   const scoreColor = score >= 75 ? "text-red-600" : score >= 50 ? "text-amber-600" : score >= 25 ? "text-yellow-600" : "text-green-600";
   const scoreBg = score >= 75 ? "bg-red-100" : score >= 50 ? "bg-amber-100" : score >= 25 ? "bg-yellow-100" : "bg-green-100";
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="space-y-2">
         {/* Risk Score Header */}

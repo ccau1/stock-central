@@ -81,7 +81,7 @@ function timeBadgeClass(time: string): string {
   return "bg-gray-100 text-gray-500 border-gray-200";
 }
 
-export function UpcomingEarningsPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function UpcomingEarningsPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const [minMarketCap, setMinMarketCap] = useState<number>(100_000_000_000);
 
   const { data, loading, error } = usePanelData(
@@ -106,14 +106,14 @@ export function UpcomingEarningsPanel({ title, refreshKey, onRefresh, descriptio
 
   if (loading && !data) {
     return (
-      <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}>
+      <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}>
         <PanelLoading />
       </PanelContainer>
     );
   }
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
 
       <div className="flex items-center gap-1 mb-1.5">

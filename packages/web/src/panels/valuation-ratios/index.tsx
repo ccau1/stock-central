@@ -4,14 +4,14 @@ import { dataApi } from "../../lib/api";
 import type { ScreenStock } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
-export function ValuationRatiosPanel({ title, tickers, refreshKey, onRefresh, description }: PanelProps) {
+export function ValuationRatiosPanel({ title, tickers, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
     () => dataApi.getBatchQuotes(symbols),
     [symbols, refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const metrics: { key: keyof ScreenStock; label: string; fmt: (v: number) => string }[] = [
     { key: "trailing_pe", label: "P/E (TTM)", fmt: (v) => (v > 0 ? `${v.toFixed(1)}x` : "–") },
@@ -21,7 +21,7 @@ export function ValuationRatiosPanel({ title, tickers, refreshKey, onRefresh, de
   ];
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="overflow-auto">
         <table className="w-full text-[11px]">

@@ -30,7 +30,7 @@ const RRG_GROUPS: { label: string; tickers: string[]; aliases?: Record<string, s
   { label: "China Tech", tickers: ["BABA", "JD", "PDD", "TCEHY", "NTES", "BIDU", "NIO", "LI", "XPEV"] },
 ];
 
-export function RrgPanel({ title, tickers, enabledTickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function RrgPanel({ title, tickers, enabledTickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const benchmark = inputs.benchmark || "SPY";
   const lookback = inputs.lookback || "3m";
 
@@ -80,7 +80,7 @@ export function RrgPanel({ title, tickers, enabledTickers, inputs, refreshKey, o
     return () => ro.disconnect();
   }, [data]);
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const { w, h } = chartSize;
   const s = Math.min(w, h) / 200;
@@ -92,7 +92,7 @@ export function RrgPanel({ title, tickers, enabledTickers, inputs, refreshKey, o
   const sy = (rm: number) => h - pad - (rm / 100) * (h - 2 * pad);
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       <div className="flex flex-col h-full">
         {error && <PanelError message={error} />}
         <div className="flex flex-wrap items-center gap-2 mb-1">

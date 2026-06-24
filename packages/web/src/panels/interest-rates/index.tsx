@@ -11,18 +11,18 @@ const RATE_NAMES: Record<string, string> = {
   "^TYX": "30-Year",
 };
 
-export function InterestRatesPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function InterestRatesPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getPriceHistory(RATE_SYMBOLS, "1y"),
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const activeSymbols = RATE_SYMBOLS.filter((s) => data && data[s] && data[s].length > 0);
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         {activeSymbols.map((sym) => {

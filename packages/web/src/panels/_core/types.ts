@@ -7,6 +7,7 @@ export interface PanelProps {
   inputs: Record<string, any>;
   refreshKey: number;
   onRefresh: () => void;
+  onExpand?: () => void;
   description?: string;
 }
 
@@ -15,6 +16,8 @@ export interface PanelFilterConfig {
   tickerMode?: "none" | "enabled" | "all";
   /** Whether to inject the dashboard's timeRange into panel inputs */
   injectTimeRange?: boolean;
+  /** Whether to inject the dashboard's country filter into panel inputs */
+  injectCountry?: boolean;
 }
 
 export interface PanelPreview {
@@ -40,4 +43,5 @@ export interface DashboardFilters {
   tickers: string[];
   enabledTickers?: string[];
   timeRange?: string;
+  country?: string;
 }

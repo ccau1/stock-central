@@ -7,7 +7,7 @@ import { useSvgContainerSize } from "../../hooks/useSvgContainerSize";
 
 import { CHART_COLORS } from "../_core/constants";
 
-export function EpsBeatPanel({ title, tickers, refreshKey, onRefresh, description }: PanelProps) {
+export function EpsBeatPanel({ title, tickers, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
     () => dataApi.getForwardPe(symbols),
@@ -19,14 +19,14 @@ export function EpsBeatPanel({ title, tickers, refreshKey, onRefresh, descriptio
   const svgRef = useRef<SVGSVGElement>(null);
   const { ref: svgContainerRef, size } = useSvgContainerSize(800, 300);
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const items = (data || []).filter((d: any) => symbols.includes(d.symbol));
   const validItems = items.filter((d: any) => d.earnings_history && d.earnings_history.length > 0);
 
   if (validItems.length === 0) {
     return (
-      <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+      <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
         {error && <PanelError message={error} />}
         <div className="text-xs text-gray-400">No earnings data available</div>
       </PanelContainer>
@@ -93,7 +93,7 @@ export function EpsBeatPanel({ title, tickers, refreshKey, onRefresh, descriptio
   const hoverDate = hoveredData[0]?.q.date ?? "";
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="h-full flex flex-col">
         {/* Legend */}

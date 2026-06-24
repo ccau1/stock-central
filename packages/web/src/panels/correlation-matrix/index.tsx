@@ -37,7 +37,7 @@ function computeCorrelation(a: number[], b: number[]): number {
   return den === 0 ? 0 : num / den;
 }
 
-export function CorrelationMatrixPanel({ title, tickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function CorrelationMatrixPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const timeRange = inputs.timeRange || "1y";
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
@@ -45,7 +45,7 @@ export function CorrelationMatrixPanel({ title, tickers, inputs, refreshKey, onR
     [symbols.join(","), timeRange, refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const activeSymbols = symbols.filter((s) => data && data[s] && data[s].length > 1);
   const returnsMap = new Map<string, number[]>();
@@ -72,7 +72,7 @@ export function CorrelationMatrixPanel({ title, tickers, inputs, refreshKey, onR
   }
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {activeSymbols.length > 0 ? (
         <div className="overflow-auto">

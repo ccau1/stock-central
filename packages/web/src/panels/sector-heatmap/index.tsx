@@ -16,7 +16,7 @@ const SECTOR_ETFS = [
   { symbol: "XLC", name: "Communication" },
 ];
 
-export function SectorHeatmapPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function SectorHeatmapPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     async () => {
       const sectorSymbols = SECTOR_ETFS.map((s) => s.symbol);
@@ -36,10 +36,10 @@ export function SectorHeatmapPanel({ title, refreshKey, onRefresh, description }
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && data.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">

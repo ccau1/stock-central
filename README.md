@@ -54,7 +54,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5000
+Then open http://localhost:5173
 
 ## Panel Types
 

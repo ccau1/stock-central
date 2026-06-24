@@ -107,9 +107,9 @@ panels:
 
   - id: ratio-chart
     type: ratio-chart
-    title: Intermarket Ratios
+    title: Intermarket Comparison
     group: row-recession
-    layout: { x: 0, y: 8, w: 6, h: 8 }
+    layout: { x: 0, y: 8, w: 6, h: 9 }
     inputs: {}
     refresh_interval: 300
 
@@ -117,12 +117,34 @@ panels:
     type: market-breadth
     title: Market Breadth
     group: row-recession
-    layout: { x: 6, y: 8, w: 6, h: 8 }
+    layout: { x: 6, y: 8, w: 6, h: 9 }
     inputs: {}
     refresh_interval: 300
 
   # ============================================================
-  # Row 39: Sectors & Assets
+  # Row 39: Bond Yields
+  # ============================================================
+  - id: bond-yields
+    type: bond-yields
+    title: Bond Yields (US & JP)
+    group: row-bond-yields
+    layout: { x: 0, y: 0, w: 12, h: 11 }
+    inputs: {}
+    refresh_interval: 300
+
+  # ============================================================
+  # Row 48: Fiscal Indicators
+  # ============================================================
+  - id: debt-to-gdp
+    type: debt-to-gdp
+    title: Debt-to-GDP Ratio
+    group: row-debt
+    layout: { x: 0, y: 0, w: 12, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  # ============================================================
+  # Row 56: Sectors & Assets
   # ============================================================
   - id: sector-heatmap
     type: sector-heatmap
@@ -150,7 +172,7 @@ panels:
     refresh_interval: 300
 
   # ============================================================
-  # Row 48: Analysis
+  # Row 65: Analysis
   # ============================================================
   - id: rrg
     type: rrg
@@ -182,7 +204,7 @@ panels:
     refresh_interval: 180
 
   # ============================================================
-  # Row 58: Risk & Valuation
+  # Row 75: Risk & Valuation
   # ============================================================
   - id: valuation
     type: valuation
@@ -201,12 +223,12 @@ panels:
     refresh_interval: 300
 
   # ============================================================
-  # Row 67: Insider Watch
+  # Row 84: Insider Watch
   # ============================================================
   - id: important-people-trades
     type: important-people-trades
     title: Important People Trades
-    layout: { x: 0, y: 67, w: 12, h: 10 }
+    layout: { x: 0, y: 84, w: 12, h: 10 }
     inputs: {}
     refresh_interval: 300
 
@@ -226,23 +248,35 @@ groups:
   - id: row-recession
     type: __row__
     title: Recession Watch
-    layout: { x: 0, y: 22, w: 12, h: 17 }
+    layout: { x: 0, y: 22, w: 12, h: 18 }
+    collapsed: false
+
+  - id: row-bond-yields
+    type: __row__
+    title: Bond Yields
+    layout: { x: 0, y: 39, w: 12, h: 11 }
+    collapsed: false
+
+  - id: row-debt
+    type: __row__
+    title: Fiscal Indicators
+    layout: { x: 0, y: 48, w: 12, h: 8 }
     collapsed: false
 
   - id: row-sectors
     type: __row__
     title: Sectors & Assets
-    layout: { x: 0, y: 39, w: 12, h: 9 }
+    layout: { x: 0, y: 56, w: 12, h: 9 }
     collapsed: false
 
   - id: row-analysis
     type: __row__
     title: Analysis
-    layout: { x: 0, y: 48, w: 12, h: 10 }
+    layout: { x: 0, y: 65, w: 12, h: 10 }
     collapsed: false
 
   - id: row-risk
     type: __row__
     title: Risk & Valuation
-    layout: { x: 0, y: 58, w: 12, h: 9 }
+    layout: { x: 0, y: 75, w: 12, h: 9 }
     collapsed: false

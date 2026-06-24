@@ -17,7 +17,7 @@ function formatShares(n: number): string {
   return n.toLocaleString();
 }
 
-export function ImportantPeopleTradesPanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function ImportantPeopleTradesPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const [filter, setFilter] = useState<string>("all");
   const { data, loading, error } = usePanelData(
     () => dataApi.getImportantPeopleTrades(),
@@ -26,7 +26,7 @@ export function ImportantPeopleTradesPanel({ title, refreshKey, onRefresh, descr
 
   if (loading && !data) {
     return (
-      <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}>
+      <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}>
         <PanelLoading />
       </PanelContainer>
     );
@@ -37,7 +37,7 @@ export function ImportantPeopleTradesPanel({ title, refreshKey, onRefresh, descr
   const filtered = filter === "all" ? trades : trades.filter((t) => t.person === filter);
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
 
       {/* Filter pills */}

@@ -2,13 +2,13 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, renderSvgLine, usePanelData } from "../_core";
 
-export function YieldCurvePanel({ title, refreshKey, onRefresh, description }: PanelProps) {
+export function YieldCurvePanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getYieldCurve(),
     [refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   const spread10y3m = data?.spreads?.["10y_3m"] ?? 0;
   const inverted = spread10y3m < 0;
@@ -27,7 +27,7 @@ export function YieldCurvePanel({ title, refreshKey, onRefresh, description }: P
   const ycRange = ycMax - ycMin || 1;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       <div className="space-y-2">
         <div className="flex justify-between text-xs">

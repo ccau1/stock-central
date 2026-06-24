@@ -3,7 +3,7 @@ import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 import ComparisonChart from "../../components/ComparisonChart";
 
-export function LineChartPanel({ title, tickers, inputs, refreshKey, onRefresh, description }: PanelProps) {
+export function LineChartPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const timeRange = inputs.timeRange || "1y";
   const symbols = tickers ?? [];
   const { data, loading, error } = usePanelData(
@@ -11,10 +11,10 @@ export function LineChartPanel({ title, tickers, inputs, refreshKey, onRefresh, 
     [symbols, timeRange, refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} loading={loading} description={description}>
+    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && <ComparisonChart data={data} symbols={symbols.slice(0, 5)} mode="price" />}
     </PanelContainer>

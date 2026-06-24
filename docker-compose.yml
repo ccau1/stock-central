@@ -22,8 +22,9 @@ services:
     environment:
       PORT: 8000
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/stockcentral?sslmode=disable
-      CORS_ORIGIN: "http://localhost:5000"
+      CORS_ORIGIN: "http://localhost:5173"
       LOG_LEVEL: debug
+      FRED_API_KEY: ${FRED_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -35,7 +36,7 @@ services:
       context: ./packages/web
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "5173:5173"
     environment:
       VITE_API_BASE: http://localhost:8000/api/v1
     volumes:
