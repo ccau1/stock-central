@@ -241,6 +241,24 @@ export interface ValuationData {
   forward_pe: number;
 }
 
+export interface EquityRiskPremiumPoint {
+  date: string;
+  premium: number;
+  earnings_yield: number;
+  risk_free_rate: number;
+}
+
+export interface EquityRiskPremiumData {
+  current: number;
+  earnings_yield: number;
+  risk_free_rate: number;
+  forward_pe: number;
+  pe_source: string;
+  source: string;
+  maturity: string;
+  history: EquityRiskPremiumPoint[];
+}
+
 export interface HeatmapStock {
   symbol: string;
   name: string;
@@ -596,6 +614,12 @@ export const dataApi = {
     fetchJSON<FrothData>("/data/macro/froth"),
   getValuation: () =>
     fetchJSON<ValuationData>("/data/macro/valuation"),
+  getEquityRiskPremium: (maturity?: "10y" | "30y") => {
+    const url = maturity
+      ? `/data/macro/equity-risk-premium?maturity=${maturity}`
+      : "/data/macro/equity-risk-premium";
+    return fetchJSON<EquityRiskPremiumData>(url);
+  },
   getUpcomingEarnings: (minMarketCap?: number, universe?: string, limit?: number) => {
     const capParam = minMarketCap === undefined ? 100_000_000_000 : minMarketCap;
     return fetchJSON<UpcomingEarningsEntry[]>(`/data/macro/upcoming-earnings?min_market_cap=${capParam}&universe=${encodeURIComponent(universe || "sp500")}&limit=${limit || 50}`);

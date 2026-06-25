@@ -210,7 +210,15 @@ panels:
     type: valuation
     title: Valuation
     group: row-risk
-    layout: { x: 0, y: 0, w: 6, h: 8 }
+    layout: { x: 0, y: 0, w: 4, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: equity-risk-premium
+    type: equity-risk-premium
+    title: Equity Risk Premium
+    group: row-risk
+    layout: { x: 4, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 
@@ -218,7 +226,7 @@ panels:
     type: market-froth
     title: Market Froth
     group: row-risk
-    layout: { x: 6, y: 0, w: 6, h: 8 }
+    layout: { x: 8, y: 0, w: 4, h: 8 }
     inputs: {}
     refresh_interval: 300
 

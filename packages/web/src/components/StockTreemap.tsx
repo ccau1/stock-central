@@ -246,25 +246,27 @@ export default function StockTreemap({ data }: Props) {
           {leaves.map((leaf) => {
             const w = leaf.x1 - leaf.x0;
             const h = leaf.y1 - leaf.y0;
-            if (w < 16 || h < 16) return null;
+            if (w <= 0 || h <= 0) return null;
 
             const bg = colorForChange(leaf.change);
             const fg = textColorForChange(leaf.change);
             const showName = w > 40 && h > 32;
             const showChange = w > 32 && h > 20;
+            const isTiny = w < 6 || h < 6;
 
             return (
               <Link
                 key={leaf.symbol}
                 to={`/ticker/${leaf.symbol}`}
-                className="absolute flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:brightness-110 transition-all"
+                title={`${leaf.symbol} — ${leaf.change >= 0 ? "+" : ""}${leaf.change.toFixed(2)}%`}
+                className={`absolute cursor-pointer hover:brightness-110 transition-all ${isTiny ? "" : "flex flex-col items-center justify-center overflow-hidden"}`}
                 style={{
                   left: leaf.x0,
                   top: leaf.y0,
                   width: w,
                   height: h,
                   backgroundColor: bg,
-                  borderRadius: 2,
+                  borderRadius: isTiny ? 1 : 2,
                   zIndex: 10,
                 }}
                 onMouseEnter={() => {

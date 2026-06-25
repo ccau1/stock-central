@@ -174,6 +174,24 @@ type IndexPerformance struct {
 	Ytd       float64 `json:"ytd"`
 }
 
+type EquityRiskPremiumPoint struct {
+	Date          string  `json:"date"`
+	Premium       float64 `json:"premium"`
+	EarningsYield float64 `json:"earnings_yield"`
+	RiskFreeRate  float64 `json:"risk_free_rate"`
+}
+
+type EquityRiskPremiumData struct {
+	Current       float64                  `json:"current"`
+	EarningsYield float64                  `json:"earnings_yield"`
+	RiskFreeRate  float64                  `json:"risk_free_rate"`
+	ForwardPE     float64                  `json:"forward_pe"`
+	PeSource      string                   `json:"pe_source"`
+	Source        string                   `json:"source"`
+	Maturity      string                   `json:"maturity"`
+	History       []EquityRiskPremiumPoint `json:"history"`
+}
+
 type BreadthPoint struct {
 	Date    string  `json:"date"`
 	Price   float64 `json:"price"`
@@ -379,6 +397,7 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/macro/recession-risk", a.getRecessionRisk)
 	r.Get("/macro/froth", a.getFroth)
 	r.Get("/macro/valuation", a.getValuation)
+	r.Get("/macro/equity-risk-premium", a.getEquityRiskPremium)
 	r.Get("/macro/upcoming-earnings", a.getUpcomingEarnings)
 	r.Get("/sector-rotation", a.getSectorRotation)
 	r.Get("/heatmap", a.getHeatmap)
@@ -2233,6 +2252,124 @@ func (a *API) getValuation(w http.ResponseWriter, r *http.Request) {
 		Premium:   math.Round(premium*100) / 100,
 		History:   history,
 		ForwardPE: forwardPE,
+	})
+}
+
+func (a *API) getEquityRiskPremium(w http.ResponseWriter, r *http.Request) {
+	// Allow the user to toggle between 10-year and 30-year Treasury yields.
+	maturity := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("maturity")))
+	if maturity != "30y" {
+		maturity = "10y"
+	}
+	var rfSeries, rfSymbol, maturityLabel string
+	if maturity == "30y" {
+		rfSeries = "DGS30"
+		rfSymbol = "^TYX"
+		maturityLabel = "30-year"
+	} else {
+		rfSeries = "DGS10"
+		rfSymbol = "^TNX"
+		maturityLabel = "10-year"
+	}
+
+	// Prefer the S&P 500 index consensus forward 12-month P/E from
+	// History of Market (Bloomberg BEst consensus). Fall back to Yahoo's
+	// SPY quote summary if unavailable.
+	forwardPE := 0.0
+	peSource := "History of Market"
+	if v, err := client.GetSP500ForwardPE(); err == nil {
+		forwardPE = v
+	} else {
+		peSource = "Yahoo Finance"
+		if m, err := client.GetQuoteSummary("SPY"); err == nil {
+			forwardPE = m.PeForward
+			if forwardPE == 0 {
+				forwardPE = m.PeTrailing
+			}
+		}
+	}
+	if forwardPE == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("S&P 500 forward P/E unavailable"))
+		return
+	}
+	forwardPE = math.Round(forwardPE*10) / 10
+
+	earningsYield := (1.0 / forwardPE) * 100
+
+	// Latest Treasury yield: prefer FRED, fall back to Yahoo.
+	riskFreeRate := 0.0
+	rfSource := ""
+	if client.FredEnabled() {
+		if v, err := client.GetFredLatest(rfSeries); err == nil {
+			riskFreeRate = v
+			rfSource = "FRED"
+		}
+	}
+	if riskFreeRate == 0 {
+		if points, err := client.GetChart(rfSymbol, "5d", "1d"); err == nil && len(points) > 0 {
+			riskFreeRate = points[len(points)-1].Price
+			rfSource = "Yahoo Finance"
+		}
+	}
+	if riskFreeRate == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("%s Treasury yield unavailable", maturityLabel))
+		return
+	}
+
+	currentPremium := earningsYield - riskFreeRate
+
+	// Build a history by holding the current earnings yield constant and varying
+	// the selected Treasury yield. This shows how the spread has moved as rates
+	// changed, which is the main driver of recent ERP compression/expansion.
+	history := make([]EquityRiskPremiumPoint, 0)
+	if client.FredEnabled() {
+		if obs, err := client.GetFredSeries(rfSeries, 260); err == nil {
+			for i := len(obs) - 1; i >= 0; i-- {
+				o := obs[i]
+				v, err := strconv.ParseFloat(o.Value, 64)
+				if err != nil {
+					continue
+				}
+				premium := earningsYield - v
+				history = append([]EquityRiskPremiumPoint{{
+					Date:          o.Date,
+					Premium:       math.Round(premium*100) / 100,
+					EarningsYield: math.Round(earningsYield*100) / 100,
+					RiskFreeRate:  math.Round(v*100) / 100,
+				}}, history...)
+			}
+		}
+	}
+	if len(history) == 0 {
+		if points, err := client.GetChart(rfSymbol, "1y", "1d"); err == nil {
+			for _, p := range points {
+				premium := earningsYield - p.Price
+				history = append(history, EquityRiskPremiumPoint{
+					Date:          p.Date,
+					Premium:       math.Round(premium*100) / 100,
+					EarningsYield: math.Round(earningsYield*100) / 100,
+					RiskFreeRate:  math.Round(p.Price*100) / 100,
+				})
+			}
+		}
+		if len(history) > 0 {
+			rfSource = "Yahoo Finance"
+		}
+	}
+
+	if rfSource == "" {
+		rfSource = "FRED"
+	}
+
+	respondJSON(w, http.StatusOK, EquityRiskPremiumData{
+		Current:       math.Round(currentPremium*100) / 100,
+		EarningsYield: math.Round(earningsYield*100) / 100,
+		RiskFreeRate:  math.Round(riskFreeRate*100) / 100,
+		ForwardPE:     forwardPE,
+		PeSource:      peSource,
+		Source:        rfSource,
+		Maturity:      maturity,
+		History:       history,
 	})
 }
 
