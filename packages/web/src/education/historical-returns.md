@@ -6,13 +6,13 @@ Long-term investing works because markets have historically rewarded patient cap
 
 The S&P 500 tracks 500 of the largest publicly traded U.S. companies and is widely used as a proxy for the overall stock market.
 
-### Key Numbers
+### S&P 500 Key Numbers
 
 | Period | Average Annual Return | Source |
 |--------|----------------------|--------|
-| 1957–2024 | ~10.5% | Investopedia, S&P 500 historical performance |
-| 1964–2024 | ~10.5% CAGR (compound), ~11.9% arithmetic average | Computed from annual total-return data |
-| 1928–2024 | ~10.1% | NYU Stern / Aswath Damodaran historical returns data |
+| 1957–2024 | ~10.5% | [Investopedia — S&P 500 historical performance](https://www.investopedia.com/ask/answers/042415/what-average-annual-return-sp-500.asp) |
+| 1964–2024 | ~10.5% CAGR (compound), ~11.9% arithmetic average | [Slickcharts — annual total-return data](https://www.slickcharts.com/sp500/returns) |
+| 1928–2024 | ~10.1% | [NYU Stern / Aswath Damodaran historical returns data](https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html) |
 
 ### What This Means in Practice
 
@@ -37,13 +37,13 @@ Despite these crises, the index has historically recovered and reached new highs
 
 Residential real estate has historically grown more slowly than stocks, but it has also been less volatile. Returns come from two sources: price appreciation and rental income (or implied rental value for owner-occupied homes).
 
-### Key Numbers
+### Real Estate Key Numbers
 
 | Period | Average Annual Return / Appreciation | Source |
 |--------|--------------------------------------|--------|
-| 1992–2024 | ~5.5% (price appreciation, Case-Shiller) | Investopedia analysis of Case-Shiller data |
-| 1928–2023 | ~4.2% (housing returns) | A Wealth of Common Sense, using Shiller/Case-Shiller data |
-| 1890–2006 | ~11.3% gross total return (3.8% capital gain + 7.5% rental return) | Philadelphia Fed working paper |
+| 1992–2024 | ~5.5% (price appreciation, Case-Shiller) | [Investopedia — Case-Shiller analysis](https://www.investopedia.com/ask/answers/052015/which-has-performed-better-historically-stock-market-or-real-estate.asp) |
+| 1928–2023 | ~4.2% (housing returns) | [A Wealth of Common Sense — historical housing returns](https://awealthofcommonsense.com/2024/01/what-is-the-historical-rate-of-return-on-housing/) |
+| 1890–2006 | ~11.3% gross total return (3.8% capital gain + 7.5% rental return) | [Philadelphia Fed working paper](https://www.philadelphiafed.org/-/media/frbp/assets/working-papers/2024/wp24-12.pdf) |
 
 ### Important Distinctions
 

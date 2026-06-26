@@ -1,7 +1,5 @@
 # Fixed Regular Income: The Foundation
 
-## Your Day Job Is the Engine
-
 Before thinking about stocks, real estate, or side hustles, the most reliable wealth-building tool most people have is a **steady paycheck**. A fixed regular income from a day job provides:
 
 - **Predictability** — you know when money arrives.
@@ -13,21 +11,9 @@ A good job is not a limitation. It is the launchpad that makes investing possibl
 
 ## The Income Funnel
 
-Think of your paycheck as water flowing into a bucket. The bucket has three outlets:
+Think of your paycheck as water flowing into a bucket. The bucket has three outlets: expenses, savings, and investments.
 
-```
-        Paycheck
-           │
-           ▼
-    ┌─────────────┐
-    │  After-Tax  │
-    │   Income    │
-    └──────┬──────┘
-           │
-    ┌──────┼──────┬──────────────┐
-    ▼      ▼      ▼              ▼
- Expenses Savings  Investments   Buffer
-```
+<!-- INCOME_FUNNEL_DIAGRAM -->
 
 A healthy flow covers essentials first, builds a small emergency buffer, and then routes the rest toward investments.
 
@@ -49,6 +35,7 @@ If these categories add up to more than about 80% of your income, it becomes har
 
 After expenses and a small emergency fund, the remaining money is what builds wealth. A simple starting allocation might look like:
 
+- **Bonds** — loans to governments or corporations that pay regular interest and add stability to a portfolio.
 - **Real estate (RE)** — only if you already own property or want direct exposure; otherwise skip and use REITs inside stock accounts.
 - **Stocks** — the primary long-term growth engine for most people.
 - **Commodities** — a smaller diversifier, often through broad funds or a small allocation to gold, oil, or agricultural products.
@@ -57,42 +44,13 @@ A beginner-friendly example for someone with $1,000/month to invest:
 
 | Asset Class | Allocation | Monthly Amount |
 |-------------|------------|----------------|
-| Stocks | 70% | $700 |
-| Real estate / REITs | 20% | $200 |
-| Commodities | 10% | $100 |
+| Stocks | 60% | $600 |
+| Bonds | 20% | $200 |
+| Real estate / REITs | 15% | $150 |
+| Commodities | 5% | $50 |
 
 Adjust these percentages based on your age, risk tolerance, and goals. Younger investors can lean more heavily into stocks. Older investors may want more stability.
 
-## Stock Allocation: Beginner / Conservative Template
+## Next Steps
 
-For the portion of your portfolio invested in stocks, a balanced starting point is:
-
-| Category | Allocation | What It Means |
-|----------|------------|---------------|
-| ETFs (broad index) | 40% | Diversified funds like S&P 500 or total-market ETFs |
-| Blue-chip stocks | 30% | Large, established companies with stable earnings and dividends |
-| Growth stocks | 20% | Companies expected to grow faster than the market |
-| Risky equities | 10% | Small caps, speculative names, or individual high-risk bets |
-
-This mix gives you broad market exposure, stability from blue chips, upside from growth, and a small sandbox for learning through riskier picks.
-
-## Stock Allocation: More Ambitious Investors
-
-As you gain experience and can tolerate more volatility, you can shift the balance toward growth:
-
-- **Increase growth stocks** — move from 20% toward 30–40%.
-- **Keep risky equities capped** — do not exceed **15%** of your stock allocation in speculative positions.
-- **Reduce ETFs or blue chips** to make room, but keep a core foundation.
-
-### Margin: Use With Extreme Caution
-
-Some advanced investors use **margin** — borrowed money from a broker — to amplify returns. Margin also amplifies losses.
-
-**Guidelines if you ever use margin:**
-
-- Only use margin after you have years of investing experience.
-- Never use more than **half** of your available margin unless you are highly experienced and can survive a large drawdown.
-- Remember that losses can exceed your initial investment.
-- Margin calls can force you to sell at the worst possible time.
-
-For most people, the safest path is to avoid margin entirely and let compound growth do the work over time.
+Once you know how much is going into stocks, the next question is how to divide that stock portion. See the [Stock Allocation](/education/stock-allocation) page for a beginner-friendly breakdown and a more aggressive template.

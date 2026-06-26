@@ -1,0 +1,146 @@
+{
+  "title": "Education Center",
+  "description": "Learn the principles behind personal finance, income allocation, and long-term investing.",
+  "items": [
+    {
+      "type": "link",
+      "slug": "overview",
+      "label": "Overview",
+      "icon": "GraduationCap",
+      "file": "overview.md"
+    },
+    {
+      "type": "group",
+      "label": "Foundations",
+      "icon": "Landmark",
+      "children": [
+        {
+          "type": "link",
+          "slug": "why-invest",
+          "label": "Why Invest?",
+          "icon": "Lightbulb",
+          "file": "why-invest.md"
+        },
+        {
+          "type": "link",
+          "slug": "fixed-income",
+          "label": "Fixed Regular Income",
+          "icon": "Banknote",
+          "file": "fixed-income.md"
+        },
+        {
+          "type": "link",
+          "slug": "compound-interest",
+          "label": "Compound Interest",
+          "icon": "Calculator",
+          "file": "compound-interest.md"
+        },
+        {
+          "type": "link",
+          "slug": "budgeting",
+          "label": "Budgeting & Expenses",
+          "icon": "Wallet",
+          "file": "budgeting.md"
+        },
+        {
+          "type": "link",
+          "slug": "emergency-fund",
+          "label": "Emergency Fund",
+          "icon": "Shield",
+          "file": "emergency-fund.md"
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "label": "Investing",
+      "icon": "TrendingUp",
+      "children": [
+        {
+          "type": "link",
+          "slug": "bonds",
+          "label": "Bonds & Cycles",
+          "icon": "Scale",
+          "file": "bonds.md"
+        },
+        {
+          "type": "link",
+          "slug": "asset-allocation",
+          "label": "Asset Allocation",
+          "icon": "PieChart",
+          "file": "asset-allocation.md"
+        },
+        {
+          "type": "link",
+          "slug": "discover-stocks",
+          "label": "Discover the Next Stock",
+          "icon": "Search",
+          "file": "discover-stocks.md"
+        },
+        {
+          "type": "group",
+          "label": "Stocks",
+          "icon": "LineChart",
+          "children": [
+            {
+              "type": "link",
+              "slug": "stock-allocation",
+              "label": "Stock Allocation",
+              "icon": "Percent",
+              "file": "stock-allocation.md"
+            },
+            {
+              "type": "link",
+              "slug": "reading-charts",
+              "label": "Reading Charts & Candlesticks",
+              "icon": "CandlestickChart",
+              "file": "reading-charts.md"
+            },
+            {
+              "type": "link",
+              "slug": "technical-patterns",
+              "label": "Technical Patterns",
+              "icon": "Waypoints",
+              "file": "technical-patterns.md"
+            },
+            {
+              "type": "link",
+              "slug": "historical-returns",
+              "label": "Historical Returns",
+              "icon": "Clock",
+              "file": "historical-returns.md"
+            }
+          ]
+        },
+        {
+          "type": "link",
+          "slug": "real-estate",
+          "label": "Real Estate",
+          "icon": "Home",
+          "file": "real-estate.md"
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "label": "Advanced",
+      "icon": "Zap",
+      "children": [
+        {
+          "type": "link",
+          "slug": "risk-management",
+          "label": "Risk Management",
+          "icon": "AlertTriangle",
+          "file": "risk-management.md"
+        },
+        {
+          "type": "link",
+          "slug": "custom-formulas",
+          "label": "Custom Formulas",
+          "icon": "Calculator",
+          "file": "custom-formulas.md"
+        }
+      ]
+    }
+  ]
+}

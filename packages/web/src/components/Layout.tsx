@@ -143,8 +143,10 @@ function NestedGroup({
       </button>
 
       {open && (
-        <div className="absolute left-full top-0 ml-1 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
-          <Menu items={item.children} onNavigate={onNavigate} />
+        <div className="absolute left-full top-0 pl-1">
+          <div className="w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+            <Menu items={item.children} onNavigate={onNavigate} />
+          </div>
         </div>
       )}
     </div>
