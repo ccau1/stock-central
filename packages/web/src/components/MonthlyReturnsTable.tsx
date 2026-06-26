@@ -129,23 +129,27 @@ export function MonthlyReturnsTable({ symbol }: { symbol: string }) {
                 {yearlyStats ? formatPct(yearlyStats.average) : "—"}
               </td>
             </tr>
-            {displayReturns.map((row) => (
-              <tr key={row.year}>
-                <td className={yearCellClass}>{row.year}</td>
-                {row.months.map((v, i) => (
-                  <td key={i} className={`${cellClass} ${v !== null ? colorForChangePct(v) : ""}`}>
-                    {formatPct(v)}
+            {displayReturns.map((row) => {
+              const inProgress = row.year === new Date().getFullYear() && row.months[11] === null;
+              return (
+                <tr key={row.year}>
+                  <td className={yearCellClass}>{row.year}</td>
+                  {row.months.map((v, i) => (
+                    <td key={i} className={`${cellClass} ${v !== null ? colorForChangePct(v) : ""}`}>
+                      {formatPct(v)}
+                    </td>
+                  ))}
+                  <td
+                    className={`${cellClass} ${
+                      row.yearlyReturn !== null ? colorForChangePct(row.yearlyReturn) : ""
+                    } ${inProgress ? "opacity-60" : ""}`}
+                    title={inProgress ? "Year in progress (YTD)" : undefined}
+                  >
+                    {formatPct(row.yearlyReturn)}
                   </td>
-                ))}
-                <td
-                  className={`${cellClass} ${
-                    row.yearlyReturn !== null ? colorForChangePct(row.yearlyReturn) : ""
-                  }`}
-                >
-                  {formatPct(row.yearlyReturn)}
-                </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

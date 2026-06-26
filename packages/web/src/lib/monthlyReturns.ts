@@ -82,14 +82,15 @@ export function computeMonthlyReturns(points: PricePoint[]): YearReturns[] {
   if (yearMonths.size === 0) return [];
 
   // Yearly return = (last price of current year / last price of previous year - 1).
-  // Use the end-of-December price from monthEndPrices when available.
+  // For completed years use the end-of-December price; for the in-progress year use
+  // the latest available end-of-month price (i.e. YTD).
   const years = Array.from(yearMonths.keys()).sort((a, b) => b - a);
   return years.map((year) => {
-    const currDec = monthEndPrices.get(`${year}-11`);
+    const currYearEnd = monthEndPrices.get(`${year}-11`) ?? getLatestPriceInYear(monthEndPrices, year);
     const prevDec = monthEndPrices.get(`${year - 1}-11`);
     const yearlyReturn =
-      currDec && prevDec && prevDec.price !== 0
-        ? ((currDec.price - prevDec.price) / prevDec.price) * 100
+      currYearEnd && prevDec && prevDec.price !== 0
+        ? ((currYearEnd.price - prevDec.price) / prevDec.price) * 100
         : null;
 
     return {
@@ -98,6 +99,17 @@ export function computeMonthlyReturns(points: PricePoint[]): YearReturns[] {
       yearlyReturn,
     };
   });
+}
+
+function getLatestPriceInYear(
+  monthEndPrices: Map<string, PricePoint>,
+  year: number
+): PricePoint | undefined {
+  for (let month = 11; month >= 0; month--) {
+    const p = monthEndPrices.get(`${year}-${month}`);
+    if (p) return p;
+  }
+  return undefined;
 }
 
 function median(values: number[]): number {
