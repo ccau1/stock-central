@@ -26,7 +26,7 @@ export function MonthlyReturnsPanel({
     : enabledSymbols[0] ?? "";
 
   const { data, loading, error } = usePanelData(
-    () => dataApi.getPriceHistory([effectiveSymbol], "max"),
+    () => dataApi.getPriceHistory([effectiveSymbol], "10y"),
     [effectiveSymbol, refreshKey]
   );
 

@@ -429,10 +429,11 @@ func (a *API) getPriceHistory(w http.ResponseWriter, r *http.Request) {
 	if rangeVal == "" {
 		rangeVal = "1y"
 	}
+	interval := r.URL.Query().Get("interval")
 
 	result := make(map[string][]PricePoint)
 	for _, sym := range symbols {
-		points, err := client.GetChart(sym, rangeVal, "")
+		points, err := client.GetChart(sym, rangeVal, interval)
 		if err != nil {
 			// Skip symbols that fail to fetch rather than failing the whole batch
 			continue

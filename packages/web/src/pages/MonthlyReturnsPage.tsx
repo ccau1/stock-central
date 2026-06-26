@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, RefreshCw } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { dataApi } from "../lib/api";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import { computeMonthlyReturns, computeMonthlyStats, formatPct } from "../lib/monthlyReturns";
@@ -51,7 +52,18 @@ function SummaryRow({
 }
 
 export default function MonthlyReturnsPage() {
-  const [symbol, setSymbol] = useState("SPY");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSymbol = (searchParams.get("symbol") || "SPY").toUpperCase();
+  const [symbol, setSymbol] = useState(initialSymbol);
+
+  // Sync URL query when symbol changes.
+  useEffect(() => {
+    if (symbol && symbol !== "SPY") {
+      setSearchParams({ symbol });
+    } else {
+      setSearchParams({});
+    }
+  }, [symbol, setSearchParams]);
 
   const {
     searchQuery,
@@ -70,7 +82,7 @@ export default function MonthlyReturnsPage() {
   });
 
   const { data, loading, error } = usePanelData(
-    () => dataApi.getPriceHistory([symbol], "max"),
+    () => dataApi.getPriceHistory([symbol], "10y"),
     [symbol]
   );
 
@@ -200,7 +212,7 @@ export default function MonthlyReturnsPage() {
             </div>
 
             {/* Summary */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-auto shadow-sm">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
               <div className="px-4 py-3 border-b border-gray-200">
                 <h2 className="text-sm font-bold text-gray-900">Summary</h2>
               </div>
@@ -220,7 +232,8 @@ export default function MonthlyReturnsPage() {
                   </div>
                 </div>
               )}
-              <table className="w-full border-collapse">
+              <div className="overflow-auto">
+                <table className="w-full border-collapse">
                 <thead>
                   <tr>
                     <th className={`${headerClass} sticky left-0 z-10 text-left`}></th>
@@ -244,6 +257,7 @@ export default function MonthlyReturnsPage() {
                   <SummaryRow label="Abs Worst" values={stats.absWorst} yearlyValue={yearlyStats?.absWorst ?? null} colorize={false} colorizeYearly={false} />
                 </tbody>
               </table>
+            </div>
             </div>
           </>
         )}

@@ -531,8 +531,10 @@ export function createNewsStream(onNews: (items: NewsStreamItem[]) => void, onEr
 }
 
 export const dataApi = {
-  getPriceHistory: (symbols: string[], range: string) =>
-    fetchJSON<Record<string, PricePoint[]>>(`/data/price?symbols=${symbols.join(",")}&range=${range}`),
+  getPriceHistory: (symbols: string[], range: string, interval?: string) => {
+    const intervalParam = interval ? `&interval=${interval}` : "";
+    return fetchJSON<Record<string, PricePoint[]>>(`/data/price?symbols=${symbols.join(",")}&range=${range}${intervalParam}`);
+  },
   getMetric: (symbols: string[], metric: string) =>
     fetchJSON<MetricData[]>(`/data/metric?symbols=${symbols.join(",")}&metric=${metric}`),
   getNews: (symbols: string[], limit: number) =>
