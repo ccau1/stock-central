@@ -51,8 +51,13 @@ export function computeMonthlyReturns(points: PricePoint[]): YearReturns[] {
     }
   }
 
-  // Sort year-month keys chronologically.
-  const sortedKeys = Array.from(monthEndPrices.keys()).sort();
+  // Sort year-month keys chronologically (numeric, not lexicographic).
+  const sortedKeys = Array.from(monthEndPrices.keys()).sort((a, b) => {
+    const [aYear, aMonth] = a.split("-").map(Number);
+    const [bYear, bMonth] = b.split("-").map(Number);
+    if (aYear !== bYear) return aYear - bYear;
+    return aMonth - bMonth;
+  });
 
   // Compute month-to-month returns from consecutive end-of-month prices.
   const yearMonths = new Map<number, (number | null)[]>();

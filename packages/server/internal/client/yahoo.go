@@ -89,7 +89,11 @@ func SearchTickers(query string) ([]TickerResult, error) {
 
 	var results []TickerResult
 	for _, q := range resp.Quotes {
-		if q.QuoteType == "EQUITY" && q.Symbol != "" {
+		if q.Symbol == "" {
+			continue
+		}
+		switch q.QuoteType {
+		case "EQUITY", "ETF", "MUTUALFUND", "INDEX":
 			results = append(results, q)
 		}
 	}
