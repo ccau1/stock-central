@@ -1,24 +1,114 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { Globe, GitCompare, BarChart3, LayoutGrid, LayoutDashboard, Search, RefreshCw, Filter, Layers, CalendarDays, Star, Briefcase, Home, Table } from "lucide-react";
+import { Globe, GitCompare, BarChart3, LayoutGrid, LayoutDashboard, Search, RefreshCw, Filter, Layers, CalendarDays, Star, Briefcase, Home, Table, Calculator, ChevronDown } from "lucide-react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import BottomRightDock from "./BottomRightDock";
 import RealTimeNewsBox from "./RealTimeNewsBox";
 
-const navItems = [
-  { path: "/", label: "Overview", icon: Globe },
-  { path: "/heatmap", label: "Heatmap", icon: LayoutGrid },
-  { path: "/rrg", label: "RRG", icon: BarChart3 },
-  { path: "/comparisons", label: "Comparisons", icon: GitCompare },
-  { path: "/screener", label: "Screener", icon: Filter },
-  { path: "/sector-rotation", label: "Sectors", icon: Layers },
-  { path: "/earnings", label: "Earnings", icon: CalendarDays },
-  { path: "/watchlist", label: "Watchlist", icon: Star },
-  { path: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
-  { path: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { path: "/real-estate-us", label: "Real Estate", icon: Home },
-  { path: "/monthly-returns", label: "Monthly Returns", icon: Table },
+interface NavLink {
+  type: "link";
+  path: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+interface NavGroup {
+  type: "group";
+  label: string;
+  icon: React.ElementType;
+  children: { path: string; label: string }[];
+}
+
+type NavItem = NavLink | NavGroup;
+
+const navItems: NavItem[] = [
+  { type: "link", path: "/", label: "Overview", icon: Globe },
+  { type: "link", path: "/heatmap", label: "Heatmap", icon: LayoutGrid },
+  { type: "link", path: "/rrg", label: "RRG", icon: BarChart3 },
+  { type: "link", path: "/comparisons", label: "Comparisons", icon: GitCompare },
+  { type: "link", path: "/screener", label: "Screener", icon: Filter },
+  { type: "link", path: "/sector-rotation", label: "Sectors", icon: Layers },
+  { type: "link", path: "/earnings", label: "Earnings", icon: CalendarDays },
+  { type: "link", path: "/watchlist", label: "Watchlist", icon: Star },
+  { type: "link", path: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
+  { type: "link", path: "/portfolio", label: "Portfolio", icon: Briefcase },
+  { type: "link", path: "/real-estate-us", label: "Real Estate", icon: Home },
+  { type: "link", path: "/monthly-returns", label: "Monthly Returns", icon: Table },
+  {
+    type: "group",
+    label: "Calculators",
+    icon: Calculator,
+    children: [
+      { path: "/calculators/compound-calculator", label: "Compound Calculator" },
+      { path: "/calculators/mortgage-calculator", label: "Mortgage Calculator" },
+    ],
+  },
 ];
+
+function NavDropdown({ item, active }: { item: NavGroup; active: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        ref={buttonRef}
+        onClick={() => setOpen((prev) => !prev)}
+        className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+          active
+            ? "bg-blue-50 text-blue-700"
+            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        }`}
+      >
+        <item.icon size={14} />
+        <span className="hidden sm:inline">{item.label}</span>
+        <ChevronDown
+          size={12}
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="fixed w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          {item.children.map((child) => (
+            <Link
+              key={child.path}
+              to={child.path}
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              {child.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function HeaderSearch() {
   const navigate = useNavigate();
@@ -118,6 +208,13 @@ export default function Layout() {
           </Link>
           <div className="flex items-center gap-1 overflow-x-auto thin-scrollbar">
             {navItems.map((item) => {
+              if (item.type === "group") {
+                const active = item.children.some((child) =>
+                  location.pathname === child.path
+                );
+                return <NavDropdown key={item.label} item={item} active={active} />;
+              }
+
               const active =
                 item.path === "/dashboards"
                   ? location.pathname.startsWith("/dashboard")
