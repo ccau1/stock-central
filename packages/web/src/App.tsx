@@ -15,6 +15,7 @@ import EarningsCalendarPage from "./pages/EarningsCalendarPage";
 import WatchlistPage from "./pages/WatchlistPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import RealEstateUsPage from "./pages/RealEstateUsPage";
+import MonthlyReturnsPage from "./pages/MonthlyReturnsPage";
 
 const router = createBrowserRouter([
   {
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
       { path: "/watchlist", element: <WatchlistPage /> },
       { path: "/portfolio", element: <PortfolioPage /> },
       { path: "/real-estate-us", element: <RealEstateUsPage /> },
+      { path: "/monthly-returns", element: <MonthlyReturnsPage /> },
       { path: "/dashboards", element: <DashboardListPage /> },
       { path: "/dashboard/:id", element: <DashboardPage /> },
     ],
