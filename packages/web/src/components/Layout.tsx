@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { Globe, GitCompare, BarChart3, LayoutGrid, LayoutDashboard, Search, RefreshCw, Filter, Layers, CalendarDays, Star, Briefcase, Home, Table, Calculator, ChevronDown } from "lucide-react";
+import { Globe, BarChart3, Search, RefreshCw, Briefcase, Calculator, ChevronDown, ChevronRight, GraduationCap } from "lucide-react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import BottomRightDock from "./BottomRightDock";
 import RealTimeNewsBox from "./RealTimeNewsBox";
@@ -9,41 +9,147 @@ interface NavLink {
   type: "link";
   path: string;
   label: string;
-  icon: React.ElementType;
+  icon?: React.ElementType;
 }
 
 interface NavGroup {
   type: "group";
   label: string;
-  icon: React.ElementType;
-  children: { path: string; label: string }[];
+  icon?: React.ElementType;
+  children: NavItem[];
 }
 
 type NavItem = NavLink | NavGroup;
 
 const navItems: NavItem[] = [
-  { type: "link", path: "/", label: "Overview", icon: Globe },
-  { type: "link", path: "/heatmap", label: "Heatmap", icon: LayoutGrid },
-  { type: "link", path: "/rrg", label: "RRG", icon: BarChart3 },
-  { type: "link", path: "/comparisons", label: "Comparisons", icon: GitCompare },
-  { type: "link", path: "/screener", label: "Screener", icon: Filter },
-  { type: "link", path: "/sector-rotation", label: "Sectors", icon: Layers },
-  { type: "link", path: "/earnings", label: "Earnings", icon: CalendarDays },
-  { type: "link", path: "/watchlist", label: "Watchlist", icon: Star },
-  { type: "link", path: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
-  { type: "link", path: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { type: "link", path: "/real-estate-us", label: "Real Estate", icon: Home },
-  { type: "link", path: "/monthly-returns", label: "Monthly Returns", icon: Table },
   {
     type: "group",
-    label: "Calculators",
+    label: "Markets",
+    icon: Globe,
+    children: [
+      { type: "link", path: "/", label: "Overview" },
+      { type: "link", path: "/heatmap", label: "Heatmap" },
+      { type: "link", path: "/rrg", label: "RRG" },
+      { type: "link", path: "/earnings", label: "Earnings" },
+      { type: "link", path: "/real-estate-us", label: "Real Estate" },
+      { type: "link", path: "/monthly-returns", label: "Monthly Returns" },
+    ],
+  },
+  {
+    type: "group",
+    label: "Research",
     icon: Calculator,
     children: [
-      { path: "/calculators/compound-calculator", label: "Compound Calculator" },
-      { path: "/calculators/mortgage-calculator", label: "Mortgage Calculator" },
+      { type: "link", path: "/sector-rotation", label: "Sectors" },
+      { type: "link", path: "/screener", label: "Screener" },
+      { type: "link", path: "/comparisons", label: "Comparisons" },
+      {
+        type: "group",
+        label: "Calculators",
+        children: [
+          { type: "link", path: "/calculators/compound-calculator", label: "Compound Calculator" },
+          { type: "link", path: "/calculators/mortgage-calculator", label: "Mortgage Calculator" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "group",
+    label: "My Workspace",
+    icon: Briefcase,
+    children: [
+      { type: "link", path: "/watchlist", label: "Watchlist" },
+      { type: "link", path: "/portfolio", label: "Portfolio" },
+      { type: "link", path: "/dashboards", label: "Dashboards" },
     ],
   },
 ];
+
+function isItemActive(pathname: string, item: NavItem): boolean {
+  if (item.type === "link") {
+    return item.path === "/dashboards"
+      ? pathname.startsWith("/dashboard")
+      : pathname === item.path;
+  }
+  return item.children.some((child) => isItemActive(pathname, child));
+}
+
+function Menu({
+  items,
+  onNavigate,
+}: {
+  items: NavItem[];
+  onNavigate: () => void;
+}) {
+  return (
+    <>
+      {items.map((item) => (
+        <MenuItem key={item.type === "link" ? item.path : item.label} item={item} onNavigate={onNavigate} />
+      ))}
+    </>
+  );
+}
+
+function MenuItem({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
+  const location = useLocation();
+  const active = isItemActive(location.pathname, item);
+
+  if (item.type === "link") {
+    return (
+      <Link
+        to={item.path}
+        onClick={onNavigate}
+        className={`block px-3 py-2 text-xs transition-colors ${
+          active
+            ? "bg-blue-50 text-blue-700 font-medium"
+            : "text-gray-700 hover:bg-gray-50"
+        }`}
+      >
+        {item.label}
+      </Link>
+    );
+  }
+
+  return <NestedGroup item={item} onNavigate={onNavigate} active={active} />;
+}
+
+function NestedGroup({
+  item,
+  onNavigate,
+  active,
+}: {
+  item: NavGroup;
+  onNavigate: () => void;
+  active: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors ${
+          active
+            ? "bg-blue-50 text-blue-700 font-medium"
+            : "text-gray-700 hover:bg-gray-50"
+        }`}
+      >
+        <span>{item.label}</span>
+        <ChevronRight size={12} />
+      </button>
+
+      {open && (
+        <div className="absolute left-full top-0 ml-1 w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+          <Menu items={item.children} onNavigate={onNavigate} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function NavDropdown({ item, active }: { item: NavGroup; active: boolean }) {
   const [open, setOpen] = useState(false);
@@ -81,7 +187,7 @@ function NavDropdown({ item, active }: { item: NavGroup; active: boolean }) {
             : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
         }`}
       >
-        <item.icon size={14} />
+        {item.icon && <item.icon size={14} />}
         <span className="hidden sm:inline">{item.label}</span>
         <ChevronDown
           size={12}
@@ -94,16 +200,7 @@ function NavDropdown({ item, active }: { item: NavGroup; active: boolean }) {
           className="fixed w-52 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1"
           style={{ top: pos.top, left: pos.left }}
         >
-          {item.children.map((child) => (
-            <Link
-              key={child.path}
-              to={child.path}
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              {child.label}
-            </Link>
-          ))}
+          <Menu items={item.children} onNavigate={() => setOpen(false)} />
         </div>
       )}
     </div>
@@ -208,35 +305,38 @@ export default function Layout() {
           </Link>
           <div className="flex items-center gap-1 overflow-x-auto thin-scrollbar">
             {navItems.map((item) => {
-              if (item.type === "group") {
-                const active = item.children.some((child) =>
-                  location.pathname === child.path
+              const active = isItemActive(location.pathname, item);
+
+              if (item.type === "link") {
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+                      active
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    }`}
+                  >
+                    {item.icon && <item.icon size={14} />}
+                    <span className="hidden sm:inline">{item.label}</span>
+                  </Link>
                 );
-                return <NavDropdown key={item.label} item={item} active={active} />;
               }
 
-              const active =
-                item.path === "/dashboards"
-                  ? location.pathname.startsWith("/dashboard")
-                  : location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 ${
-                    active
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  }`}
-                >
-                  <item.icon size={14} />
-                  <span className="hidden sm:inline">{item.label}</span>
-                </Link>
-              );
+              return <NavDropdown key={item.label} item={item} active={active} />;
             })}
           </div>
 
           <div className="flex-1 min-w-2" />
+          <Link
+            to="/education"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors shrink-0"
+            aria-label="Education"
+            title="Education"
+          >
+            <GraduationCap size={18} />
+          </Link>
           <HeaderSearch />
         </div>
       </nav>

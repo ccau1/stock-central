@@ -18,6 +18,7 @@ import RealEstateUsPage from "./pages/RealEstateUsPage";
 import MonthlyReturnsPage from "./pages/MonthlyReturnsPage";
 import CompoundCalculatorPage from "./pages/CompoundCalculatorPage";
 import MortgageCalculatorPage from "./pages/MortgageCalculatorPage";
+import EducationPage from "./pages/EducationPage";
 
 const router = createBrowserRouter([
   {
@@ -37,6 +38,8 @@ const router = createBrowserRouter([
       { path: "/monthly-returns", element: <MonthlyReturnsPage /> },
       { path: "/calculators/compound-calculator", element: <CompoundCalculatorPage /> },
       { path: "/calculators/mortgage-calculator", element: <MortgageCalculatorPage /> },
+      { path: "/education", element: <EducationPage /> },
+      { path: "/education/:slug", element: <EducationPage /> },
       { path: "/dashboards", element: <DashboardListPage /> },
       { path: "/dashboard/:id", element: <DashboardPage /> },
     ],

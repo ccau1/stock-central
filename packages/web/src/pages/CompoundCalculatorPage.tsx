@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Calculator, TrendingUp, Target, PiggyBank } from "lucide-react";
 
 type Frequency = "monthly" | "annual";
@@ -44,15 +44,47 @@ function niceTicks(max: number, count: number): number[] {
   return ticks;
 }
 
+const SETTINGS_KEY = "compound-calculator-settings";
+
+function loadStringSetting(key: string, defaultValue: string): string {
+  if (typeof window === "undefined") return defaultValue;
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return defaultValue;
+    const parsed = JSON.parse(raw);
+    const value = parsed[key];
+    return typeof value === "string" ? value : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+function loadFreqSetting(key: string, defaultValue: Frequency): Frequency {
+  if (typeof window === "undefined") return defaultValue;
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return defaultValue;
+    const parsed = JSON.parse(raw);
+    const value = parsed[key];
+    return value === "monthly" || value === "annual" ? value : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
 function ProjectionChart({
   rows,
   fiNumber,
+  hoveredAge,
+  onHoverAge,
 }: {
   rows: YearRow[];
   fiNumber: number;
+  hoveredAge?: number | null;
+  onHoverAge?: (age: number | null) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [hover, setHover] = useState<{ age: number; year: number; value: number } | null>(null);
+  const [localHoverAge, setLocalHoverAge] = useState<number | null>(null);
 
   const margin = { top: 10, right: 20, bottom: 50, left: 70 };
   const viewBoxWidth = 900;
@@ -85,8 +117,17 @@ function ProjectionChart({
     const closest = rows.reduce((prev, curr) =>
       Math.abs(curr.age - age) < Math.abs(prev.age - age) ? curr : prev
     );
-    setHover({ age: closest.age, year: closest.year, value: closest.endBalance });
+    setLocalHoverAge(closest.age);
+    onHoverAge?.(closest.age);
   };
+
+  const handleLeave = () => {
+    setLocalHoverAge(null);
+    onHoverAge?.(null);
+  };
+
+  const hoverAge = localHoverAge ?? hoveredAge ?? null;
+  const hoverRow = rows.find((row) => row.age === hoverAge) ?? null;
 
   const fiY = yScale(fiNumber);
 
@@ -97,7 +138,7 @@ function ProjectionChart({
         viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
         className="w-full h-full"
         onMouseMove={handleMove}
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={handleLeave}
       >
         {/* Grid lines */}
         {yTicks.map((tick) => (
@@ -201,12 +242,12 @@ function ProjectionChart({
         </text>
 
         {/* Hover highlight */}
-        {hover && (
+        {hoverRow && (
           <>
             <line
-              x1={xScale(hover.age)}
+              x1={xScale(hoverRow.age)}
               y1={margin.top}
-              x2={xScale(hover.age)}
+              x2={xScale(hoverRow.age)}
               y2={margin.top + plotHeight}
               stroke="#3b82f6"
               strokeWidth={1}
@@ -214,8 +255,8 @@ function ProjectionChart({
               opacity={0.6}
             />
             <circle
-              cx={xScale(hover.age)}
-              cy={yScale(hover.value)}
+              cx={xScale(hoverRow.age)}
+              cy={yScale(hoverRow.endBalance)}
               r={4}
               fill="#3b82f6"
               stroke="#ffffff"
@@ -226,10 +267,10 @@ function ProjectionChart({
       </svg>
 
       {/* Tooltip */}
-      {hover && (
+      {hoverRow && (
         <div className="absolute top-2 left-2 bg-gray-900 text-white text-[10px] rounded px-2 py-1.5 shadow-lg pointer-events-none">
-          <div className="font-semibold">Age {hover.age} ({hover.year})</div>
-          <div className="text-gray-300">{formatMoney(hover.value)}</div>
+          <div className="font-semibold">Age {hoverRow.age} ({hoverRow.year})</div>
+          <div className="text-gray-300">{formatMoney(hoverRow.endBalance)}</div>
         </div>
       )}
     </div>
@@ -238,16 +279,61 @@ function ProjectionChart({
 
 export default function CompoundCalculatorPage() {
   const currentYear = new Date().getFullYear();
+  const [hoveredAge, setHoveredAge] = useState<number | null>(null);
 
-  const [principal, setPrincipal] = useState<string>("10000");
-  const [contribution, setContribution] = useState<string>("1000");
-  const [contributionFreq, setContributionFreq] = useState<Frequency>("monthly");
-  const [returnRate, setReturnRate] = useState<string>("8");
-  const [returnFreq, setReturnFreq] = useState<Frequency>("annual");
-  const [currentAge, setCurrentAge] = useState<string>("30");
-  const [targetAge, setTargetAge] = useState<string>("65");
-  const [annualSpend, setAnnualSpend] = useState<string>("50000");
-  const [withdrawalRate, setWithdrawalRate] = useState<string>("4");
+  const [principal, setPrincipal] = useState<string>(() =>
+    loadStringSetting("principal", "10000")
+  );
+  const [contribution, setContribution] = useState<string>(() =>
+    loadStringSetting("contribution", "1000")
+  );
+  const [contributionFreq, setContributionFreq] = useState<Frequency>(() =>
+    loadFreqSetting("contributionFreq", "monthly")
+  );
+  const [returnRate, setReturnRate] = useState<string>(() =>
+    loadStringSetting("returnRate", "8")
+  );
+  const [returnFreq, setReturnFreq] = useState<Frequency>(() =>
+    loadFreqSetting("returnFreq", "annual")
+  );
+  const [currentAge, setCurrentAge] = useState<string>(() =>
+    loadStringSetting("currentAge", "30")
+  );
+  const [targetAge, setTargetAge] = useState<string>(() =>
+    loadStringSetting("targetAge", "65")
+  );
+  const [annualSpend, setAnnualSpend] = useState<string>(() =>
+    loadStringSetting("annualSpend", "50000")
+  );
+  const [withdrawalRate, setWithdrawalRate] = useState<string>(() =>
+    loadStringSetting("withdrawalRate", "4")
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const settings = {
+      principal,
+      contribution,
+      contributionFreq,
+      returnRate,
+      returnFreq,
+      currentAge,
+      targetAge,
+      annualSpend,
+      withdrawalRate,
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }, [
+    principal,
+    contribution,
+    contributionFreq,
+    returnRate,
+    returnFreq,
+    currentAge,
+    targetAge,
+    annualSpend,
+    withdrawalRate,
+  ]);
 
   const principalNum = parseNum(principal);
   const contributionNum = parseNum(contribution);
@@ -305,6 +391,24 @@ export default function CompoundCalculatorPage() {
   const crossover = useMemo(() => {
     return rows.find((row) => row.endBalance >= fiNumber) || null;
   }, [rows, fiNumber]);
+
+  const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({});
+  const theadRef = useRef<HTMLTableSectionElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useEffect(() => {
+    const update = () => setHeaderHeight(theadRef.current?.offsetHeight ?? 0);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    if (hoveredAge == null) return;
+    const row = rowRefs.current[hoveredAge];
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [hoveredAge]);
 
   const inputBase =
     "w-full text-xs px-2.5 py-1.5 rounded border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors";
@@ -522,14 +626,21 @@ export default function CompoundCalculatorPage() {
                 <TrendingUp size={14} className="text-blue-600" />
                 <h2 className="text-sm font-bold text-gray-900">Net Worth Projection</h2>
               </div>
-              <ProjectionChart rows={rows} fiNumber={fiNumber} />
+              <div className="h-[360px]">
+                <ProjectionChart
+                  rows={rows}
+                  fiNumber={fiNumber}
+                  hoveredAge={hoveredAge}
+                  onHoverAge={setHoveredAge}
+                />
+              </div>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="text-sm font-bold text-gray-900 mb-3">Year-by-Year Breakdown</h2>
               <div className="overflow-auto max-h-[420px] rounded border border-gray-200">
                 <table className="w-full text-[11px]">
-                  <thead className="bg-gray-50 sticky top-0 z-10">
+                  <thead ref={theadRef} className="bg-gray-50 sticky top-0 z-10">
                     <tr>
                       <th className="text-left font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">Age</th>
                       <th className="text-left font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">Year #</th>
@@ -544,11 +655,20 @@ export default function CompoundCalculatorPage() {
                   <tbody>
                     {rows.map((row) => {
                       const isCrossover = crossover && row.age === crossover.age;
+                      const isHovered = hoveredAge === row.age;
                       const pctToFi = fiNumber > 0 ? (row.endBalance / fiNumber) * 100 : 0;
                       return (
                         <tr
                           key={row.age}
-                          className={`${isCrossover ? "bg-green-50" : "hover:bg-gray-50"} transition-colors`}
+                          ref={(el) => {
+                            rowRefs.current[row.age] = el;
+                          }}
+                          onMouseEnter={() => setHoveredAge(row.age)}
+                          onMouseLeave={() => setHoveredAge(null)}
+                          style={{ scrollMarginTop: headerHeight }}
+                          className={`transition-colors ${
+                            isHovered ? "bg-blue-50" : isCrossover ? "bg-green-50" : "hover:bg-gray-50"
+                          }`}
                         >
                           <td className="px-3 py-2 border-b border-gray-100 font-medium text-gray-900">
                             {row.age}
