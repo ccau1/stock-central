@@ -6,6 +6,7 @@ import type { TickerDetail, OptionsData } from "../lib/api";
 import CandlestickChart from "../components/CandlestickChart";
 import ArticleModal from "../components/ArticleModal";
 import TechnicalSummary from "../components/TechnicalSummary";
+import { MonthlyReturnsTable } from "../components/MonthlyReturnsTable";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -279,6 +280,12 @@ export default function TickerDetailPage() {
 
       {/* Candlestick Chart */}
       <CandlestickChart symbol={ticker} />
+
+      {/* Monthly Returns */}
+      <div className="mb-6">
+        <h2 className="text-sm font-bold text-gray-900 mb-3">Monthly Returns</h2>
+        <MonthlyReturnsTable symbol={ticker} />
+      </div>
 
       {/* Guidance */}
       {fp && (fp.eps_growth != null || fp.revenue_growth != null || fp.eps_revision_30d != null || fp.num_analysts != null) && (

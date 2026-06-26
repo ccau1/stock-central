@@ -81,25 +81,15 @@ export function computeMonthlyReturns(points: PricePoint[]): YearReturns[] {
 
   if (yearMonths.size === 0) return [];
 
-  // Yearly return = (last price in year - first price in year) / first price in year.
-  const yearBounds = new Map<number, { first: PricePoint; last: PricePoint }>();
-  for (const p of points) {
-    const { year } = parseYearMonth(p.date);
-    const existing = yearBounds.get(year);
-    if (!existing) {
-      yearBounds.set(year, { first: p, last: p });
-    } else {
-      if (p.date < existing.first.date) existing.first = p;
-      if (p.date > existing.last.date) existing.last = p;
-    }
-  }
-
+  // Yearly return = (last price of current year / last price of previous year - 1).
+  // Use the end-of-December price from monthEndPrices when available.
   const years = Array.from(yearMonths.keys()).sort((a, b) => b - a);
   return years.map((year) => {
-    const bounds = yearBounds.get(year);
+    const currDec = monthEndPrices.get(`${year}-11`);
+    const prevDec = monthEndPrices.get(`${year - 1}-11`);
     const yearlyReturn =
-      bounds && bounds.first.price !== 0
-        ? ((bounds.last.price - bounds.first.price) / bounds.first.price) * 100
+      currDec && prevDec && prevDec.price !== 0
+        ? ((currDec.price - prevDec.price) / prevDec.price) * 100
         : null;
 
     return {
