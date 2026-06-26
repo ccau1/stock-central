@@ -58,41 +58,34 @@ resource "hcloud_server" "app" {
   EOF
 }
 
-# ── Cloudflare DNS Records ─────────────────────────────────────
-
-resource "cloudflare_record" "stocks" {
-  count = var.cloudflare_zone_id != "" ? 1 : 0
-
-  zone_id = var.cloudflare_zone_id
-  name    = "stocks"
-  type    = "A"
-  content = hcloud_server.app.ipv4_address
-  ttl     = 1
-  proxied = var.cloudflare_proxied
+locals {
+  hostnames = [for r in var.cloudflare_records : r.name == "@" ? r.domain : "${r.name}.${r.domain}"]
 }
 
-resource "cloudflare_record" "stock_central" {
-  count = var.cloudflare_zone_id != "" ? 1 : 0
+# ── Cloudflare DNS Records ─────────────────────────────────────
 
-  zone_id = var.cloudflare_zone_id
-  name    = "stock-central"
+resource "cloudflare_record" "all" {
+  for_each = var.cloudflare_records
+
+  zone_id = each.value.zone_id
+  name    = each.value.name
   type    = "A"
   content = hcloud_server.app.ipv4_address
   ttl     = 1
-  proxied = var.cloudflare_proxied
+  proxied = each.value.proxied != null ? each.value.proxied : var.cloudflare_proxied
 }
 
 # ── Cloudflare Origin CA Certificate ───────────────────────────
 
 resource "tls_private_key" "stockcentral" {
-  count = var.cloudflare_zone_id != "" ? 1 : 0
+  count = length(var.cloudflare_records) > 0 ? 1 : 0
 
   algorithm = "RSA"
   rsa_bits  = 2048
 }
 
 resource "tls_cert_request" "stockcentral" {
-  count = var.cloudflare_zone_id != "" ? 1 : 0
+  count = length(var.cloudflare_records) > 0 ? 1 : 0
 
   private_key_pem = tls_private_key.stockcentral[0].private_key_pem
 
@@ -102,17 +95,17 @@ resource "tls_cert_request" "stockcentral" {
 }
 
 resource "cloudflare_origin_ca_certificate" "stockcentral" {
-  count = var.cloudflare_zone_id != "" ? 1 : 0
+  count = length(var.cloudflare_records) > 0 ? 1 : 0
 
   csr                = tls_cert_request.stockcentral[0].cert_request_pem
-  hostnames          = ["stocks.tribalorigin.com", "stock-central.tribalorigin.com"]
+  hostnames          = local.hostnames
   request_type       = "origin-rsa"
-  requested_validity = 5475  # 15 years
+  requested_validity = 5475 # 15 years
 }
 
 # Write certificate files locally after creation
 resource "local_file" "stockcentral_cert" {
-  count = var.cloudflare_zone_id != "" ? 1 : 0
+  count = length(var.cloudflare_records) > 0 ? 1 : 0
 
   content         = cloudflare_origin_ca_certificate.stockcentral[0].certificate
   filename        = "${path.module}/ssl/cloudflare-origin.pem"
@@ -120,7 +113,7 @@ resource "local_file" "stockcentral_cert" {
 }
 
 resource "local_file" "stockcentral_key" {
-  count = var.cloudflare_zone_id != "" ? 1 : 0
+  count = length(var.cloudflare_records) > 0 ? 1 : 0
 
   content         = tls_private_key.stockcentral[0].private_key_pem
   filename        = "${path.module}/ssl/cloudflare-origin.key"

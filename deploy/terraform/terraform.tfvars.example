@@ -14,5 +14,18 @@ hcloud_token = "YOUR_HETZNER_CLOUD_API_TOKEN"
 #     Use the "Edit zone DNS" template, select your domain
 #
 # cloudflare_api_token = "YOUR_CLOUDFLARE_API_TOKEN"
-# cloudflare_zone_id   = "YOUR_CLOUDFLARE_ZONE_ID"
 # cloudflare_proxied   = true
+#
+# cloudflare_records = {
+#   stocks = {
+#     name    = "stocks"
+#     domain  = "tribalorigin.com"
+#     zone_id = "YOUR_TRIBALORIGIN_ZONE_ID"
+#     # proxied = true  # optional, defaults to cloudflare_proxied
+#   }
+#   finanao_apex = {
+#     name    = "@"
+#     domain  = "finanao.com"
+#     zone_id = "YOUR_FINANAO_ZONE_ID"
+#   }
+# }

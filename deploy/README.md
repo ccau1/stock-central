@@ -41,14 +41,14 @@ You only need to do **one thing** in the Hetzner UI:
 
 ## Optional: Cloudflare DNS Setup
 
-If you want custom domains (e.g., `stocks.tribalorigin.com`), grab these from your Cloudflare dashboard:
+If you want custom domains, grab these from your Cloudflare dashboard:
 
 | Value | Where to find it |
 |-------|-----------------|
-| **Zone ID** | Cloudflare → `tribalorigin.com` → Overview → right sidebar |
+| **Zone ID** | Cloudflare → your domain → Overview → right sidebar |
 | **API Token** | Cloudflare → My Profile → API Tokens → Create Token → Use "Edit zone DNS" template |
 
-The Terraform config will automatically create both DNS records and point them to your Hetzner server. If you set `cloudflare_proxied = true` (default), you get **free HTTPS + CDN** without setting up certs on the server.
+The Terraform config creates whatever records you define in the `cloudflare_records` map and points them to your Hetzner server. `cloudflare_proxied` defaults to `true` (free HTTPS + CDN), and you can override it per record with the optional `proxied` field.
 
 > **No `cloudflare_account_id` needed** — the provider only needs `api_token` + `zone_id` to manage DNS records.
 
@@ -79,7 +79,7 @@ When complete, Terraform outputs your server's public IP and domains:
 server_ip = "116.203.x.x"
 domains   = [
   "stocks.tribalorigin.com",
-  "stock-central.tribalorigin.com",
+  "finanao.com",
 ]
 ```
 
@@ -104,7 +104,7 @@ terraform destroy
 
 Since we're using Cloudflare proxy, we use a **Cloudflare Origin CA certificate** — free, trusted by Cloudflare, and valid for 15 years.
 
-Terraform creates this automatically, scoped to only your two subdomains.
+Terraform creates this automatically, scoped to your configured subdomains/domains.
 
 ### 3a. Extract the Certificate and Key
 
@@ -171,10 +171,10 @@ Go to **Settings → Secrets and variables → Actions** in your GitHub repo and
 POSTGRES_USER=stockcentral
 POSTGRES_PASSWORD=change_me_to_a_very_strong_password
 POSTGRES_DB=stockcentral
-CORS_ORIGIN=https://stocks.tribalorigin.com
+CORS_ORIGIN=https://stocks.tribalorigin.com,https://finanao.com
 ```
 
-If you're not using a domain yet, replace with `http://YOUR_SERVER_IP`.
+Use a comma-separated list to allow multiple domains. If you're not using a domain yet, replace with `http://YOUR_SERVER_IP`.
 
 ### Creating the GH_TOKEN (Classic PAT)
 

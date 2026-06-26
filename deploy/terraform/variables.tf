@@ -37,10 +37,15 @@ variable "cloudflare_api_token" {
   default     = ""
 }
 
-variable "cloudflare_zone_id" {
-  description = "Cloudflare Zone ID for your domain (found on the domain overview page)"
-  type        = string
-  default     = ""
+variable "cloudflare_records" {
+  description = "Map of DNS A records to create. Key is a unique identifier. 'name' is the record name ('@' for apex), 'domain' is the zone's root domain, 'zone_id' is the Cloudflare zone ID, 'proxied' optionally overrides cloudflare_proxied for this record."
+  type = map(object({
+    name    = string
+    domain  = string
+    zone_id = string
+    proxied = optional(bool)
+  }))
+  default = {}
 }
 
 variable "cloudflare_proxied" {

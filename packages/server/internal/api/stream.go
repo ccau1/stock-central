@@ -157,12 +157,23 @@ func computeImpactLabel(score int) string {
 	return "Low"
 }
 
+func (a *API) isAllowedOrigin(origin string) bool {
+	for _, allowed := range a.corsOrigins {
+		if allowed == origin {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *API) newsStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
-	w.Header().Set("Access-Control-Allow-Origin", a.corsOrigin)
+	if origin := r.Header.Get("Origin"); a.isAllowedOrigin(origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,6 +32,10 @@ func main() {
 	if corsOrigin == "" {
 		corsOrigin = "http://localhost:5173"
 	}
+	corsOrigins := strings.Split(corsOrigin, ",")
+	for i := range corsOrigins {
+		corsOrigins[i] = strings.TrimSpace(corsOrigins[i])
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -47,7 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := api.New(db, corsOrigin)
+	handler := api.New(db, corsOrigins)
 
 	srv := &http.Server{
 		Addr:         ":" + port,

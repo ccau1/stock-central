@@ -10,27 +10,24 @@ output "server_id" {
 
 output "domains" {
   description = "DNS records created in Cloudflare"
-  value = var.cloudflare_zone_id != "" ? [
-    "stocks.tribalorigin.com",
-    "stock-central.tribalorigin.com",
-  ] : []
+  value       = local.hostnames
 }
 
 output "stockcentral_origin_certificate" {
   description = "Cloudflare Origin CA certificate (PEM). Save to deploy/ssl/cloudflare-origin.pem"
-  value       = var.cloudflare_zone_id != "" ? cloudflare_origin_ca_certificate.stockcentral[0].certificate : ""
+  value       = length(var.cloudflare_records) > 0 ? cloudflare_origin_ca_certificate.stockcentral[0].certificate : ""
   sensitive   = false
 }
 
 output "stockcentral_origin_private_key" {
   description = "Private key for the Origin CA certificate (PEM). Save to deploy/ssl/cloudflare-origin.key"
-  value       = var.cloudflare_zone_id != "" ? tls_private_key.stockcentral[0].private_key_pem : ""
+  value       = length(var.cloudflare_records) > 0 ? tls_private_key.stockcentral[0].private_key_pem : ""
   sensitive   = true
 }
 
 output "next_steps" {
   description = "Post-apply instructions"
-  value = <<-EOT
+  value       = <<-EOT
 
   ✅ Terraform applied successfully!
 
@@ -50,6 +47,8 @@ output "next_steps" {
 
      Go to: https://dash.cloudflare.com → tribalorigin.com → SSL/TLS → Overview
      Set to: "Full (strict)"
+
+     If using finanao.com, repeat for: https://dash.cloudflare.com → finanao.com → SSL/TLS → Overview
 
   ── 4. Add GitHub Secrets ────────────────────────────────────
 

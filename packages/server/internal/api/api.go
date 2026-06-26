@@ -20,18 +20,18 @@ import (
 )
 
 type API struct {
-	store      *store.Store
-	corsOrigin string
+	store       *store.Store
+	corsOrigins []string
 }
 
-func New(s *store.Store, corsOrigin string) http.Handler {
-	a := &API{store: s, corsOrigin: corsOrigin}
+func New(s *store.Store, corsOrigins []string) http.Handler {
+	a := &API{store: s, corsOrigins: corsOrigins}
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{corsOrigin},
+		AllowedOrigins:   corsOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Requested-With"},
 		AllowCredentials: true,
