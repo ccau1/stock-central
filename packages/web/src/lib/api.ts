@@ -54,6 +54,12 @@ export interface FearGreedData {
   timestamp: string;
 }
 
+export interface FearGreedHistoryPoint {
+  value: number;
+  label: string;
+  date: string;
+}
+
 export interface RrgPoint {
   date: string;
   rs: number;
@@ -307,6 +313,15 @@ export interface UpcomingEarningsEntry {
   earnings_time: string;
 }
 
+export interface MacroEvent {
+  date: string;
+  time: string;
+  name: string;
+  country: string;
+  impact: "high" | "medium" | "low";
+  category: string;
+}
+
 export interface SectorRotationItem {
   symbol: string;
   name: string;
@@ -448,6 +463,7 @@ export interface PanelConfig {
   inputs: Record<string, any>;
   refreshInterval?: number;
   groupId?: string | null;
+  description?: string;
 }
 
 export interface GroupConfig {
@@ -543,6 +559,8 @@ export const dataApi = {
     fetchJSON<ArticleData>(`/data/article?url=${encodeURIComponent(url)}`),
   getFearGreed: () =>
     fetchJSON<FearGreedData>("/data/fear-greed"),
+  getFearGreedHistory: (range = "1y") =>
+    fetchJSON<FearGreedHistoryPoint[]>(`/data/fear-greed/history?range=${range}`),
   getRrg: (symbols: string[], benchmark: string, lookback: string, trail: number) =>
     fetchJSON<RrgTrail[]>(`/data/rrg?symbols=${symbols.join(",")}&benchmark=${benchmark}&lookback=${lookback}&trail=${trail}`),
   getRrgCached: (() => {
@@ -626,6 +644,8 @@ export const dataApi = {
     const capParam = minMarketCap === undefined ? 100_000_000_000 : minMarketCap;
     return fetchJSON<UpcomingEarningsEntry[]>(`/data/macro/upcoming-earnings?min_market_cap=${capParam}&universe=${encodeURIComponent(universe || "sp500")}&limit=${limit || 50}`);
   },
+  getUpcomingMacroEvents: (windowDays?: number) =>
+    fetchJSON<MacroEvent[]>(`/data/macro/upcoming-events?window=${windowDays || 45}`),
   getOptions: (symbols: string[]) =>
     fetchJSON<OptionsData[]>(`/data/options?symbols=${symbols.join(",")}`),
   getCandles: (symbol: string, range: string, interval: string) =>

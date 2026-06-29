@@ -3,18 +3,33 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
 
+const METRIC_OPTIONS = [
+  { value: "price", label: "Price" },
+  { value: "pe", label: "P/E Ratio" },
+  { value: "volume", label: "Volume" },
+  { value: "market_cap", label: "Market Cap" },
+  { value: "dividend_yield", label: "Dividend Yield" },
+  { value: "short_ratio", label: "Short Ratio" },
+  { value: "short_percent_float", label: "Short % Float" },
+];
+
+function getMetricLabel(metric: string): string {
+  return METRIC_OPTIONS.find((o) => o.value === metric)?.label || metric;
+}
+
 export function MetricCardPanel({ title, tickers, inputs, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const metric = inputs.metric || "price";
   const symbols = tickers ?? [];
+  const displayTitle = title || getMetricLabel(metric);
   const { data, loading, error } = usePanelData(
     () => dataApi.getMetric(symbols.slice(0, 4), metric),
     [symbols, metric, refreshKey]
   );
 
-  if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
+  if (loading && !data) return <PanelContainer title={displayTitle} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
   return (
-    <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
+    <PanelContainer title={displayTitle} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
       {data && (
         <div className="grid grid-cols-2 gap-2">
@@ -39,4 +54,12 @@ export const metricCardPanel: PanelDefinition = {
   categories: ["generic"],
   component: MetricCardPanel,
   filterConfig: { tickerMode: "enabled" },
+  settings: [
+    {
+      type: "select",
+      key: "metric",
+      label: "Metric",
+      options: METRIC_OPTIONS,
+    },
+  ],
 };

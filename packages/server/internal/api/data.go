@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
@@ -54,6 +55,12 @@ type FearGreedData struct {
 	PreviousValue int    `json:"previous_value"`
 	Label         string `json:"label"`
 	Timestamp     string `json:"timestamp"`
+}
+
+type FearGreedHistoryPoint struct {
+	Value int    `json:"value"`
+	Label string `json:"label"`
+	Date  string `json:"date"`
 }
 
 type RrgPoint struct {
@@ -123,6 +130,15 @@ type MacroIndicator struct {
 	Value     float64 `json:"value"`
 	Change    float64 `json:"change"`
 	ChangePct float64 `json:"change_pct"`
+}
+
+type MacroEvent struct {
+	Date     string `json:"date"`
+	Time     string `json:"time"`
+	Name     string `json:"name"`
+	Country  string `json:"country"`
+	Impact   string `json:"impact"`
+	Category string `json:"category"`
 }
 
 type YieldCurveData struct {
@@ -380,6 +396,7 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/news", a.getNews)
 	r.Get("/article", a.getArticle)
 	r.Get("/fear-greed", a.getFearGreed)
+	r.Get("/fear-greed/history", a.getFearGreedHistory)
 	r.Get("/rrg", a.getRrg)
 	r.Get("/forward-pe", a.getForwardPe)
 	r.Get("/rsi", a.getRsi)
@@ -399,6 +416,7 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/macro/valuation", a.getValuation)
 	r.Get("/macro/equity-risk-premium", a.getEquityRiskPremium)
 	r.Get("/macro/upcoming-earnings", a.getUpcomingEarnings)
+	r.Get("/macro/upcoming-events", a.getUpcomingMacroEvents)
 	r.Get("/sector-rotation", a.getSectorRotation)
 	r.Get("/heatmap", a.getHeatmap)
 	r.Get("/heatmap/universes", a.getHeatmapUniverses)
@@ -918,6 +936,50 @@ func (a *API) getFearGreed(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *API) getFearGreedHistory(w http.ResponseWriter, r *http.Request) {
+	data, err := client.GetFearGreed()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	rangeVal := r.URL.Query().Get("range")
+	if rangeVal == "" {
+		rangeVal = "1y"
+	}
+
+	cutoff := time.Now().UTC().AddDate(-1, 0, 0)
+	switch rangeVal {
+	case "1mo":
+		cutoff = time.Now().UTC().AddDate(0, -1, 0)
+	case "3mo":
+		cutoff = time.Now().UTC().AddDate(0, -3, 0)
+	case "6mo":
+		cutoff = time.Now().UTC().AddDate(0, -6, 0)
+	case "1y", "yoy":
+		cutoff = time.Now().UTC().AddDate(-1, 0, 0)
+	case "5y":
+		cutoff = time.Now().UTC().AddDate(-5, 0, 0)
+	}
+
+	filtered := make([]FearGreedHistoryPoint, 0, len(data.History))
+	for _, p := range data.History {
+		t, err := time.Parse("2006-01-02", p.Date)
+		if err != nil || t.Before(cutoff) {
+			continue
+		}
+		filtered = append(filtered, FearGreedHistoryPoint{
+			Value: p.Value,
+			Label: p.Label,
+			Date:  p.Date,
+		})
+	}
+
+	slog.Info("fear-greed history response", "range", rangeVal, "cutoff", cutoff.Format("2006-01-02"), "total", len(data.History), "filtered", len(filtered))
+
+	respondJSON(w, http.StatusOK, filtered)
+}
+
 func (a *API) getRrg(w http.ResponseWriter, r *http.Request) {
 	symbols := parseSymbols(r.URL.Query().Get("symbols"))
 	if len(symbols) == 0 {
@@ -1070,6 +1132,36 @@ func (a *API) getYtd(w http.ResponseWriter, r *http.Request) {
 		}
 		ytd := ((endPrice - startPrice) / startPrice) * 100
 		result = append(result, YtdData{Symbol: sym, Ytd: math.Round(ytd*100)/100})
+	}
+	respondJSON(w, http.StatusOK, result)
+}
+
+func (a *API) getUpcomingMacroEvents(w http.ResponseWriter, r *http.Request) {
+	windowStr := r.URL.Query().Get("window")
+	window, _ := strconv.Atoi(windowStr)
+	if window <= 0 {
+		window = 45
+	}
+	if window > 180 {
+		window = 180
+	}
+
+	events, err := client.GetUpcomingMacroEvents(window)
+	if err != nil {
+		respondJSON(w, http.StatusOK, []MacroEvent{})
+		return
+	}
+
+	var result []MacroEvent
+	for _, e := range events {
+		result = append(result, MacroEvent{
+			Date:     e.Date,
+			Time:     e.Time,
+			Name:     e.Name,
+			Country:  e.Country,
+			Impact:   e.Impact,
+			Category: e.Category,
+		})
 	}
 	respondJSON(w, http.StatusOK, result)
 }

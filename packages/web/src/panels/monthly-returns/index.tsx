@@ -3,6 +3,7 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { computeMonthlyReturns, formatPct } from "../../lib/monthlyReturns";
 import { PanelContainer, PanelError, PanelLoading, usePanelData, colorForChangePct } from "../_core";
+import MonthlyCandlesModal from "../../components/MonthlyCandlesModal";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -29,6 +30,8 @@ export function MonthlyReturnsPanel({
     () => dataApi.getPriceHistory([effectiveSymbol], "10y"),
     [effectiveSymbol, refreshKey]
   );
+
+  const [modalMonth, setModalMonth] = useState<{ year: number; month: number } | null>(null);
 
   const returns = useMemo(() => {
     if (!data || !data[effectiveSymbol]) return [];
@@ -101,7 +104,14 @@ export function MonthlyReturnsPanel({
                 <tr key={row.year}>
                   <td className={yearCellClass}>{row.year}</td>
                   {row.months.map((v, i) => (
-                    <td key={i} className={`${cellClass} ${v !== null ? colorForChangePct(v) : ""}`}>
+                    <td
+                      key={i}
+                      onClick={v !== null ? () => setModalMonth({ year: row.year, month: i }) : undefined}
+                      className={`${cellClass} ${v !== null ? colorForChangePct(v) : ""} ${
+                        v !== null ? "cursor-pointer hover:brightness-95" : ""
+                      }`}
+                      title={v !== null ? "Click to view daily candles" : undefined}
+                    >
                       {formatPct(v)}
                     </td>
                   ))}
@@ -117,6 +127,17 @@ export function MonthlyReturnsPanel({
 
       {!loading && returns.length === 0 && !error && (
         <div className="text-xs text-gray-400">No price data available</div>
+      )}
+
+      {modalMonth && (
+        <MonthlyCandlesModal
+          key={`${effectiveSymbol}-${modalMonth.year}-${modalMonth.month}`}
+          symbol={effectiveSymbol}
+          year={modalMonth.year}
+          month={modalMonth.month}
+          open={true}
+          onClose={() => setModalMonth(null)}
+        />
       )}
     </PanelContainer>
   );

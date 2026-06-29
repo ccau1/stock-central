@@ -147,7 +147,7 @@ chmod 644 /opt/stock-central/ssl/cloudflare-origin.pem
 
 ### 3c. Set Cloudflare SSL/TLS Mode
 
-Go to **SSL/TLS** → **Overview** and set the mode to **"Full (strict)"**.
+Go to **SSL/TLS** → **Overview** and set the mode to **"Full (strict)"**. Repeat for each domain you configured (e.g., `tribalorigin.com` and `finanao.com`).
 
 This tells Cloudflare to connect to your origin via HTTPS and validate the Origin CA certificate.
 

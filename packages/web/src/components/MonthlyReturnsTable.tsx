@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { dataApi } from "../lib/api";
 import { computeMonthlyReturns, computeMonthlyStats, formatPct } from "../lib/monthlyReturns";
 import { colorForChangePct } from "../panels/_core/utils";
 import { usePanelData } from "../panels/_core";
+import MonthlyCandlesModal from "./MonthlyCandlesModal";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DISPLAY_YEARS = 10;
@@ -55,6 +56,8 @@ export function MonthlyReturnsTable({ symbol }: { symbol: string }) {
     () => dataApi.getPriceHistory([symbol], "10y"),
     [symbol]
   );
+
+  const [modalMonth, setModalMonth] = useState<{ year: number; month: number } | null>(null);
 
   const allReturns = useMemo(() => computeMonthlyReturns(data?.[symbol] ?? []), [data, symbol]);
   const displayReturns = useMemo(() => allReturns.slice(0, DISPLAY_YEARS), [allReturns]);
@@ -135,7 +138,14 @@ export function MonthlyReturnsTable({ symbol }: { symbol: string }) {
                 <tr key={row.year}>
                   <td className={yearCellClass}>{row.year}</td>
                   {row.months.map((v, i) => (
-                    <td key={i} className={`${cellClass} ${v !== null ? colorForChangePct(v) : ""}`}>
+                    <td
+                      key={i}
+                      onClick={v !== null ? () => setModalMonth({ year: row.year, month: i }) : undefined}
+                      className={`${cellClass} ${v !== null ? colorForChangePct(v) : ""} ${
+                        v !== null ? "cursor-pointer hover:brightness-95" : ""
+                      }`}
+                      title={v !== null ? "Click to view daily candles" : undefined}
+                    >
                       {formatPct(v)}
                     </td>
                   ))}
@@ -153,6 +163,17 @@ export function MonthlyReturnsTable({ symbol }: { symbol: string }) {
           </tbody>
         </table>
       </div>
+
+      {modalMonth && (
+        <MonthlyCandlesModal
+          key={`${symbol}-${modalMonth.year}-${modalMonth.month}`}
+          symbol={symbol}
+          year={modalMonth.year}
+          month={modalMonth.month}
+          open={true}
+          onClose={() => setModalMonth(null)}
+        />
+      )}
 
       {/* Summary */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">

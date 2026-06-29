@@ -11,11 +11,19 @@ panels:
   # ============================================================
   # Row 0: Market Overview
   # ============================================================
+  - id: upcoming-macro-events
+    type: upcoming-macro-events
+    title: Upcoming Macro Events
+    group: row-overview
+    layout: { x: 0, y: 0, w: 12, h: 3 }
+    inputs: {}
+    refresh_interval: 300
+
   - id: fear-greed
     type: fear-greed
     title: Fear & Greed
     group: row-overview
-    layout: { x: 0, y: 0, w: 2, h: 6 }
+    layout: { x: 0, y: 3, w: 2, h: 6 }
     inputs: {}
     refresh_interval: 300
 
@@ -23,7 +31,8 @@ panels:
     type: macro-card
     title: VIX
     group: row-overview
-    layout: { x: 2, y: 0, w: 2, h: 6 }
+    layout: { x: 2, y: 3, w: 2, h: 6 }
+    description: "Rising VIX signals fear and a falling market. Spikes above ~30 often mark panic tops, after which markets tend to recover. Sustained readings below ~15 suggest complacency and can precede sharp corrections/crashes."
     inputs:
       source: macro
       symbol: "^VIX"
@@ -34,7 +43,7 @@ panels:
     type: macro-card
     title: S&P 500
     group: row-overview
-    layout: { x: 4, y: 0, w: 2, h: 6 }
+    layout: { x: 4, y: 3, w: 2, h: 6 }
     inputs:
       source: indexes
       symbol: "^GSPC"
@@ -44,7 +53,7 @@ panels:
     type: macro-card
     title: 10Y Treasury
     group: row-overview
-    layout: { x: 6, y: 0, w: 2, h: 6 }
+    layout: { x: 6, y: 3, w: 2, h: 6 }
     inputs:
       source: macro
       symbol: "^TNX"
@@ -54,7 +63,7 @@ panels:
     type: ipo-calendar
     title: Upcoming IPOs
     group: row-overview
-    layout: { x: 8, y: 0, w: 2, h: 6 }
+    layout: { x: 8, y: 3, w: 2, h: 6 }
     inputs: {}
     refresh_interval: 300
 
@@ -62,7 +71,7 @@ panels:
     type: upcoming-earnings
     title: Upcoming Earnings
     group: row-overview
-    layout: { x: 10, y: 0, w: 2, h: 6 }
+    layout: { x: 10, y: 3, w: 2, h: 6 }
     inputs: {}
     refresh_interval: 300
 
@@ -187,7 +196,7 @@ panels:
 
   - id: metric-card
     type: metric-card
-    title: Key Metrics
+    title: P/E Ratio
     group: row-analysis
     layout: { x: 6, y: 0, w: 3, h: 9 }
     inputs:
@@ -236,7 +245,7 @@ panels:
   - id: important-people-trades
     type: important-people-trades
     title: Important People Trades
-    layout: { x: 0, y: 84, w: 12, h: 10 }
+    layout: { x: 0, y: 90, w: 12, h: 10 }
     inputs: {}
     refresh_interval: 300
 
@@ -244,47 +253,47 @@ groups:
   - id: row-overview
     type: __row__
     title: Market Overview
-    layout: { x: 0, y: 0, w: 12, h: 7 }
+    layout: { x: 0, y: 0, w: 12, h: 10 }
     collapsed: false
 
   - id: row-heatmap
     type: __row__
     title: Market Map
-    layout: { x: 0, y: 7, w: 12, h: 15 }
+    layout: { x: 0, y: 10, w: 12, h: 15 }
     collapsed: false
 
   - id: row-recession
     type: __row__
     title: Recession Watch
-    layout: { x: 0, y: 22, w: 12, h: 18 }
+    layout: { x: 0, y: 25, w: 12, h: 18 }
     collapsed: false
 
   - id: row-bond-yields
     type: __row__
     title: Bond Yields
-    layout: { x: 0, y: 39, w: 12, h: 11 }
+    layout: { x: 0, y: 43, w: 12, h: 11 }
     collapsed: false
 
   - id: row-debt
     type: __row__
     title: Fiscal Indicators
-    layout: { x: 0, y: 48, w: 12, h: 8 }
+    layout: { x: 0, y: 54, w: 12, h: 8 }
     collapsed: false
 
   - id: row-sectors
     type: __row__
     title: Sectors & Assets
-    layout: { x: 0, y: 56, w: 12, h: 9 }
+    layout: { x: 0, y: 62, w: 12, h: 9 }
     collapsed: false
 
   - id: row-analysis
     type: __row__
     title: Analysis
-    layout: { x: 0, y: 65, w: 12, h: 10 }
+    layout: { x: 0, y: 71, w: 12, h: 10 }
     collapsed: false
 
   - id: row-risk
     type: __row__
     title: Risk & Valuation
-    layout: { x: 0, y: 75, w: 12, h: 9 }
+    layout: { x: 0, y: 81, w: 12, h: 9 }
     collapsed: false

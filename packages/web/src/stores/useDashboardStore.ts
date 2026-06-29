@@ -52,6 +52,7 @@ export function parseDashboardYaml(raw: string): DashboardYAML {
       inputs: mapKeysToCamelCase(p.inputs || {}),
       refreshInterval: p.refresh_interval || 0,
       groupId: p.group ?? null,
+      description: p.description,
     })),
   };
 }
@@ -145,6 +146,7 @@ interface DashboardState {
   clearTickers: (dashboardId: string) => void;
   updatePanelLayouts: (dashboardId: string, layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
   addPanel: (dashboardId: string, panel: PanelConfig) => void;
+  updatePanel: (dashboardId: string, panelId: string, updater: (panel: PanelConfig) => PanelConfig) => void;
   removePanel: (dashboardId: string, panelId: string) => void;
   toggleGroupCollapse: (dashboardId: string, groupId: string) => void;
   movePanelToGroup: (dashboardId: string, panelId: string, groupId: string | null) => void;
@@ -321,6 +323,24 @@ export const useDashboardStore = create<DashboardState>()(
         };
       }),
 
+    updatePanel: (dashboardId, panelId, updater) =>
+      set((state) => {
+        const instance = state.dashboards[dashboardId];
+        if (!instance) return state;
+        const nextPanels = instance.dashboard.panels.map((p) =>
+          p.id === panelId ? updater(p) : p
+        );
+        return {
+          dashboards: {
+            ...state.dashboards,
+            [dashboardId]: {
+              ...instance,
+              dashboard: { ...instance.dashboard, panels: nextPanels },
+            },
+          },
+        };
+      }),
+
     removePanel: (dashboardId, panelId) =>
       set((state) => {
         const instance = state.dashboards[dashboardId];
@@ -439,6 +459,8 @@ export function useDashboard(dashboardId: string) {
       updatePanelLayouts: (layouts: Array<{ i: string; x: number; y: number; w: number; h: number }>) =>
         useDashboardStore.getState().updatePanelLayouts(dashboardId, layouts),
       addPanel: (panel: PanelConfig) => useDashboardStore.getState().addPanel(dashboardId, panel),
+      updatePanel: (panelId: string, updater: (panel: PanelConfig) => PanelConfig) =>
+        useDashboardStore.getState().updatePanel(dashboardId, panelId, updater),
       removePanel: (panelId: string) => useDashboardStore.getState().removePanel(dashboardId, panelId),
       toggleGroupCollapse: (groupId: string) => useDashboardStore.getState().toggleGroupCollapse(dashboardId, groupId),
       movePanelToGroup: (panelId: string, groupId: string | null) => useDashboardStore.getState().movePanelToGroup(dashboardId, panelId, groupId),
@@ -470,6 +492,7 @@ export function serializeDashboardYaml(dashboard: DashboardYAML): string {
       group: p.groupId,
       inputs: mapKeysToSnakeCase(p.inputs || {}),
       refresh_interval: p.refreshInterval || 0,
+      description: p.description,
     })),
   };
   return yaml.dump(doc);

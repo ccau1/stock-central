@@ -269,7 +269,7 @@ func mapRangeToInterval(rangeVal string) string {
 		return "30m"
 	case "1w":
 		return "1h"
-	case "1m", "3m", "6m", "1y", "ytd":
+	case "1m", "1mo", "3m", "3mo", "6m", "6mo", "1y", "ytd":
 		return "1d"
 	case "yoy":
 		return "1wk"
@@ -287,11 +287,11 @@ func ToYahooRange(rangeVal string) string {
 		return "1d"
 	case "1w":
 		return "5d"
-	case "1m":
+	case "1m", "1mo":
 		return "1mo"
-	case "3m":
+	case "3m", "3mo":
 		return "3mo"
-	case "6m":
+	case "6m", "6mo":
 		return "6mo"
 	case "1y":
 		return "1y"

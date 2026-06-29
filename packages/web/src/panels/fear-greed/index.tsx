@@ -1,12 +1,16 @@
+import { useState } from "react";
 import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
+import FearGreedChartModal from "../../components/FearGreedChartModal";
 
 export function FearGreedPanel({ title, refreshKey, onRefresh, onExpand, description }: PanelProps) {
   const { data, loading, error } = usePanelData(
     () => dataApi.getFearGreed(),
     [refreshKey]
   );
+
+  const [chartOpen, setChartOpen] = useState(false);
 
   if (loading && !data) return <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={true} description={description}><PanelLoading /></PanelContainer>;
 
@@ -29,8 +33,12 @@ export function FearGreedPanel({ title, refreshKey, onRefresh, onExpand, descrip
   return (
     <PanelContainer title={title} onRefresh={onRefresh} onExpand={onExpand} loading={loading} description={description}>
       {error && <PanelError message={error} />}
-      <div className="flex flex-col items-center justify-center h-full">
-        <div className="relative w-full max-w-[180px] aspect-[2/1]">
+      <div
+        className="flex flex-col items-center justify-center h-full cursor-pointer group relative"
+        onClick={() => setChartOpen(true)}
+        title="Click to view 12-month history"
+      >
+        <div className="relative w-full max-w-[140px] aspect-[2/1]">
           <svg viewBox="0 0 200 110" className="w-full h-full">
             <path d="M 35 100 A 65 65 0 0 1 52.6 55.5" fill="none" stroke="#ef4444" strokeWidth="20" strokeLinecap="butt" />
             <path d="M 52.6 55.5 A 65 65 0 0 1 87.8 36.2" fill="none" stroke="#f97316" strokeWidth="20" strokeLinecap="butt" />
@@ -51,6 +59,14 @@ export function FearGreedPanel({ title, refreshKey, onRefresh, onExpand, descrip
         )}
         {data && <div className="text-[10px] text-gray-300 mt-1">{new Date(data.timestamp).toLocaleTimeString()}</div>}
       </div>
+      {chartOpen && (
+        <FearGreedChartModal
+          open={true}
+          onClose={() => setChartOpen(false)}
+          currentValue={data?.value}
+          currentLabel={data?.label}
+        />
+      )}
     </PanelContainer>
   );
 }
@@ -58,7 +74,7 @@ export function FearGreedPanel({ title, refreshKey, onRefresh, onExpand, descrip
 export const fearGreedPanel: PanelDefinition = {
   id: "fear-greed",
   name: "Fear & Greed",
-  description: "CNN-style Fear & Greed index gauge.",
+  description: "CNN-style Fear & Greed index gauge. Click for history.",
   categories: ["generic"],
   component: FearGreedPanel,
   filterConfig: { tickerMode: "none" },

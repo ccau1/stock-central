@@ -20,6 +20,27 @@ export interface PanelFilterConfig {
   injectCountry?: boolean;
 }
 
+export interface PanelSelectOption {
+  value: string;
+  label: string;
+}
+
+export interface PanelSelectSetting {
+  type: "select";
+  key: string;
+  label: string;
+  options: PanelSelectOption[];
+}
+
+export interface PanelTextSetting {
+  type: "text";
+  key: string;
+  label: string;
+  placeholder?: string;
+}
+
+export type PanelSettingField = PanelSelectSetting | PanelTextSetting;
+
 export interface PanelPreview {
   /** Optional longer description shown in the preview modal */
   description?: string;
@@ -35,6 +56,8 @@ export interface PanelDefinition {
   categories?: string[];
   component: ComponentType<PanelProps>;
   filterConfig?: PanelFilterConfig;
+  /** Declarative settings for panel inputs, shown in edit mode */
+  settings?: PanelSettingField[];
   /** Lazy-load preview assets on demand */
   preview?: () => Promise<PanelPreview>;
 }

@@ -47,6 +47,7 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
     clearTickers,
     updatePanelLayouts,
     addPanel,
+    updatePanel,
     removePanel,
     toggleGroupCollapse,
     movePanelToGroup,
@@ -223,6 +224,15 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
     saveDashboard(nextPanels, dashboard.groups || []);
   };
 
+  const handleUpdatePanel = (panelId: string, updates: Partial<PanelConfig>) => {
+    if (!dashboard) return;
+    updatePanel(panelId, (p) => ({ ...p, ...updates }));
+    const nextPanels = dashboard.panels.map((p) =>
+      p.id === panelId ? { ...p, ...updates } : p
+    );
+    saveDashboard(nextPanels, dashboard.groups || []);
+  };
+
   const saveDashboard = async (panels: PanelConfig[], groups: GroupConfig[]) => {
     if (!dashboard || !params.id) return;
     const updated: typeof dashboard = { ...dashboard, panels, groups };
@@ -313,6 +323,7 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
         onLayoutChange={updatePanelLayouts}
         isEditMode={isEditMode}
         onRemovePanel={handleRemovePanel}
+        onUpdatePanel={handleUpdatePanel}
         onToggleGroupCollapse={toggleGroupCollapse}
         onMovePanelToGroup={handleMovePanelToGroup}
         onRemoveGroup={handleRemoveGroup}

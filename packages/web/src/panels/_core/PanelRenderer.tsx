@@ -79,7 +79,7 @@ export function PanelRenderer({ panel, filters, refreshKey, onRefresh, onExpand 
       refreshKey={refreshKey}
       onRefresh={onRefresh}
       onExpand={onExpand}
-      description={typeDef.description}
+      description={panel.description || typeDef.description}
     />
   );
 }

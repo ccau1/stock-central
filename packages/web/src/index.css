@@ -129,6 +129,17 @@ body {
   border-radius: 2px;
 }
 
+/* Panel drag handle cursor: pointer by default, grab only in edit mode */
+.panel-drag-handle {
+  cursor: pointer;
+}
+[data-edit-mode="true"] .panel-drag-handle {
+  cursor: grab;
+}
+[data-edit-mode="true"] .panel-drag-handle:active {
+  cursor: grabbing;
+}
+
 /* Panel group grid: responsive collapse to single column on small screens */
 .panel-group-grid {
   grid-template-columns: repeat(12, 1fr);

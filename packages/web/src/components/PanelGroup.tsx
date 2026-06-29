@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronDown, ChevronRight, Folder, X, GripVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, X, GripVertical, Settings } from "lucide-react";
 import type { PanelConfig, GroupConfig } from "../lib/api";
 import type { DashboardFilters } from "../panels/_core/types";
 import { PanelRenderer } from "../panels/_core";
@@ -19,6 +19,7 @@ interface PanelGroupProps {
   onRemovePanel?: (panelId: string) => void;
   onRemoveGroup?: (groupId: string) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
+  onOpenPanelSettings?: (panel: PanelConfig) => void;
   onExpandPanel?: (panel: PanelConfig) => void;
   level?: number;
 }
@@ -118,6 +119,7 @@ export default function PanelGroup({
   onRemovePanel,
   onRemoveGroup,
   onUpdatePanelLayout: _onUpdatePanelLayout,
+  onOpenPanelSettings,
   onExpandPanel,
   level = 0,
 }: PanelGroupProps) {
@@ -381,6 +383,7 @@ export default function PanelGroup({
               isEditMode={isEditMode}
               onRemovePanel={onRemovePanel}
               onUpdatePanelLayout={_onUpdatePanelLayout}
+              onOpenPanelSettings={onOpenPanelSettings}
               onExpandPanel={onExpandPanel}
               isDragging={draggingPanelId === panel.id}
               isDropTarget={dropPreview?.type === "swap" && dropPreview.targetId === panel.id}
@@ -429,6 +432,7 @@ export default function PanelGroup({
                 onRemovePanel={onRemovePanel}
                 onRemoveGroup={onRemoveGroup}
                 onUpdatePanelLayout={_onUpdatePanelLayout}
+                onOpenPanelSettings={onOpenPanelSettings}
                 onExpandPanel={onExpandPanel}
                 level={level + 1}
               />
@@ -449,6 +453,7 @@ function PanelGroupItem({
   isEditMode,
   onRemovePanel,
   onUpdatePanelLayout,
+  onOpenPanelSettings,
   onExpandPanel,
   isDragging,
   isDropTarget,
@@ -463,6 +468,7 @@ function PanelGroupItem({
   isEditMode: boolean;
   onRemovePanel?: (panelId: string) => void;
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
+  onOpenPanelSettings?: (panel: PanelConfig) => void;
   onExpandPanel?: (panel: PanelConfig) => void;
   isDragging?: boolean;
   isDropTarget?: boolean;
@@ -562,6 +568,15 @@ function PanelGroupItem({
         zIndex: previewLayout ? 20 : undefined,
       }}
     >
+      {isEditMode && onOpenPanelSettings && (
+        <button
+          onClick={() => onOpenPanelSettings(panel)}
+          className="absolute top-1 right-7 z-10 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Panel settings"
+        >
+          <Settings size={12} />
+        </button>
+      )}
       {isEditMode && onRemovePanel && (
         <button
           onClick={() => onRemovePanel(panel.id)}

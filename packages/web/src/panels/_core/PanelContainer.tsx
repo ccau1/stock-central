@@ -20,7 +20,7 @@ export function PanelContainer({
   return (
     <div className="flex flex-col h-full">
       <div
-        className="panel-drag-handle cursor-grab active:cursor-grabbing flex items-center justify-between px-3 pt-3 pb-2"
+        className="panel-drag-handle cursor-pointer flex items-center justify-between px-3 pt-3 pb-2"
         onDoubleClick={onExpand}
       >
         <h3 className="font-semibold text-sm truncate select-none">{title}</h3>
