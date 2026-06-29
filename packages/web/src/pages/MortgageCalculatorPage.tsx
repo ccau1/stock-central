@@ -16,6 +16,7 @@ import {
   X,
   Edit2,
   Building2,
+  Wallet,
 } from "lucide-react";
 
 type PaymentFrequency = "monthly" | "biweekly" | "weekly";
@@ -38,6 +39,7 @@ interface Property {
   startYear: number;
   startMonth: number;
   sessions: MortgageSession[];
+  extraPayments: ExtraPayment[];
 }
 
 interface SavedScenario {
@@ -49,7 +51,15 @@ interface SavedScenario {
   startYear: number;
   startMonth: number;
   sessions: MortgageSession[];
+  extraPayments: ExtraPayment[];
   createdAt: number;
+}
+
+interface ExtraPayment {
+  id: string;
+  label: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
 }
 
 interface PaymentRow {
@@ -64,6 +74,8 @@ interface PaymentRow {
   interest: number;
   principal: number;
   balance: number;
+  extraPayment?: number;
+  extraPaymentIds?: string[];
 }
 
 interface YearlySummary {
@@ -75,6 +87,7 @@ interface YearlySummary {
   payments: number;
   principal: number;
   interest: number;
+  extraPayments: number;
   endingBalance: number;
 }
 
@@ -92,6 +105,65 @@ function formatMoney(n: number): string {
   return moneyFmt.format(n);
 }
 
+function formatIntegerWithCommas(n: number): string {
+  return Math.floor(Math.max(0, n)).toLocaleString("en-US");
+}
+
+interface NumericInputProps
+  extends Omit<
+    React.InputHTMLAttributes<HTMLInputElement>,
+    "value" | "onChange" | "type" | "inputMode"
+  > {
+  value: number;
+  onChange: (value: number) => void;
+}
+
+function NumericInput({ value, onChange, ...props }: NumericInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const raw = input.value;
+    const selectionStart = input.selectionStart ?? raw.length;
+
+    const digitCountBefore = (raw.slice(0, selectionStart).match(/\d/g) || []).length;
+    const digits = raw.replace(/\D/g, "");
+    const num = digits ? parseInt(digits, 10) : 0;
+    const nextDisplay = formatIntegerWithCommas(num);
+
+    let nextCursor = nextDisplay.length;
+    let digitsSeen = 0;
+    for (let i = 0; i < nextDisplay.length; i++) {
+      if (/\d/.test(nextDisplay[i])) {
+        digitsSeen++;
+        if (digitsSeen === digitCountBefore) {
+          nextCursor = i + 1;
+          break;
+        }
+      }
+    }
+
+    onChange(num);
+
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.setSelectionRange(nextCursor, nextCursor);
+      }
+    });
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      inputMode="numeric"
+      value={formatIntegerWithCommas(value)}
+      onChange={handleChange}
+      {...props}
+    />
+  );
+}
+
 function parseNum(value: string): number {
   const parsed = Number(value.replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
@@ -99,6 +171,34 @@ function parseNum(value: string): number {
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function formatDateInput(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateInput(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  if (result.getDate() !== date.getDate()) {
+    result.setDate(0);
+  }
+  return result;
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
 }
 
 function computePrincipal(purchasePrice: number, downPaymentPercent: number): number {
@@ -163,6 +263,7 @@ function createDefaultProperty(name = "Property 1"): Property {
     startYear: now.getFullYear(),
     startMonth: now.getMonth() + 1,
     sessions: createDefaultSessions(amortizationYears),
+    extraPayments: [],
   };
 }
 
@@ -196,6 +297,7 @@ function migrateProperty(value: unknown): Property {
     startYear: raw.startYear ?? now.getFullYear(),
     startMonth: Math.max(1, Math.min(12, raw.startMonth ?? now.getMonth() + 1)),
     sessions: migrateSessions(raw.sessions, amortizationYears),
+    extraPayments: migrateExtraPayments(raw.extraPayments),
   };
 }
 
@@ -225,6 +327,23 @@ function migrateSessions(
       frequency: (s.frequency as PaymentFrequency) || "monthly",
     };
   });
+}
+
+function migrateExtraPayments(value: unknown): ExtraPayment[] {
+  if (!Array.isArray(value)) return [];
+  const today = formatDateInput(new Date());
+  return value
+    .filter((e) => e && typeof e === "object")
+    .map((e) => {
+      const raw = e as Partial<ExtraPayment>;
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(raw.date || "") ? raw.date! : today;
+      return {
+        id: raw.id || generateId(),
+        label: raw.label || "Extra payment",
+        date,
+        amount: Math.max(0, raw.amount ?? 0),
+      };
+    });
 }
 
 function loadProperties(): Property[] {
@@ -295,6 +414,7 @@ function migrateScenario(value: unknown): SavedScenario {
     startYear: raw.startYear ?? new Date().getFullYear(),
     startMonth: Math.max(1, Math.min(12, raw.startMonth ?? 1)),
     sessions: migrateSessions(raw.sessions, amortizationYears),
+    extraPayments: migrateExtraPayments(raw.extraPayments),
     createdAt: raw.createdAt ?? Date.now(),
   };
 }
@@ -323,17 +443,23 @@ function generateAmortizationSchedule(
   principal: number,
   startYear: number,
   startMonth: number,
-  sessions: MortgageSession[]
+  sessions: MortgageSession[],
+  extraPayments: ExtraPayment[] = []
 ): { rows: PaymentRow[]; yearly: YearlySummary[]; payoffDate: { year: number; month: number } | null } {
   if (principal <= 0 || sessions.length === 0) {
     return { rows: [], yearly: [], payoffDate: null };
   }
 
+  const sortedExtras = [...extraPayments]
+    .filter((e) => e.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(e.date))
+    .map((e) => ({ ...e, dateObj: parseDateInput(e.date)! }))
+    .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
   const rows: PaymentRow[] = [];
   let balance = principal;
   let period = 0;
-  let currentYear = startYear;
-  let currentMonth = startMonth;
+  let currentDate = new Date(startYear, startMonth - 1, 1);
+  let extraIndex = 0;
 
   for (let sessionIndex = 0; sessionIndex < sessions.length; sessionIndex++) {
     if (balance <= 0.0001) break;
@@ -363,6 +489,27 @@ function generateAmortizationSchedule(
     for (let i = 0; i < sessionPayments; i++) {
       if (balance <= 0.0001) break;
 
+      if (session.frequency === "monthly") {
+        currentDate = addMonths(currentDate, 1);
+      } else if (session.frequency === "biweekly") {
+        currentDate = addDays(currentDate, 14);
+      } else {
+        currentDate = addDays(currentDate, 7);
+      }
+
+      let extraPrincipal = 0;
+      const appliedIds: string[] = [];
+      while (
+        extraIndex < sortedExtras.length &&
+        sortedExtras[extraIndex].dateObj.getTime() <= currentDate.getTime()
+      ) {
+        extraPrincipal += sortedExtras[extraIndex].amount;
+        appliedIds.push(sortedExtras[extraIndex].id);
+        extraIndex++;
+      }
+      extraPrincipal = Math.min(extraPrincipal, balance);
+      balance -= extraPrincipal;
+
       const interest = balance * periodicRate;
       let principalPaid = payment - interest;
       if (principalPaid >= balance) {
@@ -376,8 +523,8 @@ function generateAmortizationSchedule(
       period += 1;
       rows.push({
         period,
-        year: currentYear,
-        month: currentMonth,
+        year: currentDate.getFullYear(),
+        month: currentDate.getMonth() + 1,
         sessionIndex,
         sessionLabel: session.label,
         rate: session.rate,
@@ -386,20 +533,11 @@ function generateAmortizationSchedule(
         interest,
         principal: principalPaid,
         balance: Math.max(0, balance),
+        extraPayment: extraPrincipal > 0 ? extraPrincipal : undefined,
+        extraPaymentIds: appliedIds.length > 0 ? appliedIds : undefined,
       });
 
-      if (session.frequency === "monthly") {
-        currentMonth += 1;
-      } else if (session.frequency === "biweekly") {
-        currentMonth += 14 / 30;
-      } else {
-        currentMonth += 7 / 30;
-      }
-
-      while (currentMonth > 12) {
-        currentMonth -= 12;
-        currentYear += 1;
-      }
+      if (balance <= 0.0001) break;
     }
 
   }
@@ -411,6 +549,7 @@ function generateAmortizationSchedule(
       existing.payments += row.payment;
       existing.principal += row.principal;
       existing.interest += row.interest;
+      existing.extraPayments += row.extraPayment ?? 0;
       existing.endingBalance = row.balance;
     } else {
       yearlyMap.set(row.year, {
@@ -422,6 +561,7 @@ function generateAmortizationSchedule(
         payments: row.payment,
         principal: row.principal,
         interest: row.interest,
+        extraPayments: row.extraPayment ?? 0,
         endingBalance: row.balance,
       });
     }
@@ -511,6 +651,11 @@ function BalanceChart({ rows }: { rows: PaymentRow[] }) {
 
   const yTicks = niceTicks(maxValue, 5);
 
+  const extraPoints = useMemo(
+    () => rows.filter((r) => r.extraPayment && r.extraPayment > 0),
+    [rows]
+  );
+
   const handleMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect || sampled.length === 0) return;
@@ -588,6 +733,29 @@ function BalanceChart({ rows }: { rows: PaymentRow[] }) {
           <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth={2.5} />
         )}
 
+        {extraPoints.map((row) => (
+          <g key={`extra-${row.period}`}>
+            <line
+              x1={xScale(row.period)}
+              y1={margin.top}
+              x2={xScale(row.period)}
+              y2={margin.top + plotHeight}
+              stroke="#a855f7"
+              strokeWidth={1}
+              strokeDasharray="2 2"
+              opacity={0.4}
+            />
+            <circle
+              cx={xScale(row.period)}
+              cy={yScale(row.balance)}
+              r={3.5}
+              fill="#a855f7"
+              stroke="#ffffff"
+              strokeWidth={1.5}
+            />
+          </g>
+        ))}
+
         <line
           x1={margin.left}
           y1={margin.top + plotHeight}
@@ -661,6 +829,9 @@ function BalanceChart({ rows }: { rows: PaymentRow[] }) {
           <div>
             Principal: {formatMoney(hover.principal)} · Interest: {formatMoney(hover.interest)}
           </div>
+          {hover.extraPayment ? (
+            <div className="text-purple-300">Extra principal: {formatMoney(hover.extraPayment)}</div>
+          ) : null}
         </div>
       )}
     </div>
@@ -697,6 +868,9 @@ export default function MortgageCalculatorPage() {
   const [scenarioName, setScenarioName] = useState<string>("");
   const [compareScenarioId, setCompareScenarioId] = useState<string | null>(null);
 
+  const [extraPaymentDate, setExtraPaymentDate] = useState<string>(formatDateInput(new Date()));
+  const [extraPaymentAmount, setExtraPaymentAmount] = useState<number>(1000);
+
   useEffect(() => {
     saveProperties(properties);
   }, [properties]);
@@ -713,7 +887,8 @@ export default function MortgageCalculatorPage() {
         principal,
         activeProperty.startYear,
         activeProperty.startMonth,
-        activeProperty.sessions
+        activeProperty.sessions,
+        activeProperty.extraPayments
       ),
     [principal, activeProperty]
   );
@@ -729,7 +904,8 @@ export default function MortgageCalculatorPage() {
       computePrincipal(compareScenario.purchasePrice, compareScenario.downPaymentPercent),
       compareScenario.startYear,
       compareScenario.startMonth,
-      compareScenario.sessions
+      compareScenario.sessions,
+      compareScenario.extraPayments
     );
   }, [compareScenario]);
 
@@ -737,11 +913,19 @@ export default function MortgageCalculatorPage() {
   const totalInterest = rows.reduce((sum, r) => sum + r.interest, 0);
   const totalCost = totalPrincipal + totalInterest;
 
+  const totalExtraPayments = rows.reduce((sum, r) => sum + (r.extraPayment ?? 0), 0);
+
   const sessionSummaries = useMemo(() => {
     return activeProperty.sessions.map((session, index) => {
       const sessionRows = rows.filter((r) => r.sessionIndex === index);
       const interest = sessionRows.reduce((sum, r) => sum + r.interest, 0);
       const principalPaid = sessionRows.reduce((sum, r) => sum + r.principal, 0);
+      const extraPayments = sessionRows.reduce((sum, r) => sum + (r.extraPayment ?? 0), 0);
+      const extraIds = new Set<string>();
+      sessionRows.forEach((r) => r.extraPaymentIds?.forEach((id) => extraIds.add(id)));
+      const extraPaymentDetails = activeProperty.extraPayments
+        .filter((e) => extraIds.has(e.id))
+        .sort((a, b) => a.date.localeCompare(b.date));
       const firstRow = sessionRows[0];
       const startBalance = firstRow ? firstRow.balance + firstRow.principal : 0;
       const endBalance = sessionRows[sessionRows.length - 1]?.balance ?? startBalance;
@@ -752,11 +936,13 @@ export default function MortgageCalculatorPage() {
         payment,
         interest,
         principalPaid,
+        extraPayments,
+        extraPaymentDetails,
         startBalance,
         endBalance,
       };
     });
-  }, [activeProperty.sessions, rows]);
+  }, [activeProperty, rows]);
 
   const inputBase =
     "w-full text-xs px-2.5 py-1.5 rounded border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors";
@@ -831,6 +1017,49 @@ export default function MortgageCalculatorPage() {
     );
   }
 
+  function addExtraPayment() {
+    const amount = extraPaymentAmount;
+    const date = extraPaymentDate;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || amount <= 0) return;
+    updateActiveProperty({
+      extraPayments: [
+        ...activeProperty.extraPayments,
+        {
+          id: generateId(),
+          label: "Extra payment",
+          date,
+          amount,
+        },
+      ],
+    });
+    setExtraPaymentAmount(1000);
+  }
+
+  function updateExtraPayment(id: string, patch: Partial<ExtraPayment>) {
+    setProperties((prev) =>
+      prev.map((p) =>
+        p.id === activePropertyId
+          ? {
+              ...p,
+              extraPayments: p.extraPayments.map((e) =>
+                e.id === id ? { ...e, ...patch } : e
+              ),
+            }
+          : p
+      )
+    );
+  }
+
+  function removeExtraPayment(id: string) {
+    setProperties((prev) =>
+      prev.map((p) =>
+        p.id === activePropertyId
+          ? { ...p, extraPayments: p.extraPayments.filter((e) => e.id !== id) }
+          : p
+      )
+    );
+  }
+
   function addProperty() {
     const newProperty = createDefaultProperty(`Property ${properties.length + 1}`);
     setProperties((prev) => [...prev, newProperty]);
@@ -876,6 +1105,7 @@ export default function MortgageCalculatorPage() {
       startYear: activeProperty.startYear,
       startMonth: activeProperty.startMonth,
       sessions: activeProperty.sessions.map((s) => ({ ...s })),
+      extraPayments: activeProperty.extraPayments.map((e) => ({ ...e })),
       createdAt: Date.now(),
     };
     const next = [...scenarios, newScenario];
@@ -896,6 +1126,7 @@ export default function MortgageCalculatorPage() {
               startYear: scenario.startYear,
               startMonth: scenario.startMonth,
               sessions: scenario.sessions.map((s) => ({ ...s })),
+              extraPayments: scenario.extraPayments.map((e) => ({ ...e })),
             }
           : p
       )
@@ -922,6 +1153,7 @@ export default function MortgageCalculatorPage() {
               startYear: now.getFullYear(),
               startMonth: now.getMonth() + 1,
               sessions: createDefaultSessions(25),
+              extraPayments: [],
             }
           : p
       )
@@ -1042,16 +1274,9 @@ export default function MortgageCalculatorPage() {
                       size={12}
                       className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
                     />
-                    <input
-                      type="number"
-                      min={0}
-                      step="1000"
+                    <NumericInput
                       value={activeProperty.purchasePrice}
-                      onChange={(e) =>
-                        updateActiveProperty({
-                          purchasePrice: Math.max(0, parseNum(e.target.value)),
-                        })
-                      }
+                      onChange={(v) => updateActiveProperty({ purchasePrice: v })}
                       className={`${inputBase} pl-7`}
                     />
                   </div>
@@ -1273,6 +1498,37 @@ export default function MortgageCalculatorPage() {
                         </select>
                       </div>
                     </div>
+
+                    {(() => {
+                      const ids = new Set<string>();
+                      rows.forEach((r) => {
+                        if (r.sessionIndex === index && r.extraPaymentIds) {
+                          r.extraPaymentIds.forEach((id) => ids.add(id));
+                        }
+                      });
+                      const extras = activeProperty.extraPayments
+                        .filter((e) => ids.has(e.id))
+                        .sort((a, b) => a.date.localeCompare(b.date));
+                      if (extras.length === 0) return null;
+                      return (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-[9px] font-medium text-gray-500 mb-1">
+                            Extra payments in this term
+                          </p>
+                          <div className="space-y-1">
+                            {extras.map((e) => (
+                              <div
+                                key={e.id}
+                                className="flex items-center justify-between text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded"
+                              >
+                                <span>{e.date}</span>
+                                <span className="font-semibold">{formatMoney(e.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -1289,6 +1545,105 @@ export default function MortgageCalculatorPage() {
                   remaining amortization using that term&apos;s rate and frequency.
                 </p>
               </div>
+            </div>
+
+            {/* Extra Payments */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Wallet size={14} className="text-blue-600" />
+                <h2 className="text-sm font-bold text-gray-900">Extra Payments</h2>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 mb-3">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">
+                    Date paid
+                  </label>
+                  <input
+                    type="date"
+                    value={extraPaymentDate}
+                    onChange={(e) => setExtraPaymentDate(e.target.value)}
+                    className={inputBase}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">
+                    Amount
+                  </label>
+                  <div className="relative">
+                    <DollarSign
+                      size={12}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <NumericInput
+                      value={extraPaymentAmount}
+                      onChange={setExtraPaymentAmount}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") addExtraPayment();
+                      }}
+                      className={`${inputBase} pl-7`}
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={addExtraPayment}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <Plus size={12} />
+                  Add
+                </button>
+              </div>
+
+              {activeProperty.extraPayments.length === 0 ? (
+                <p className="text-[11px] text-gray-400">No extra payments added.</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-auto">
+                  {[...activeProperty.extraPayments]
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map((extra) => (
+                      <div
+                        key={extra.id}
+                        className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 rounded-lg border border-gray-100 bg-gray-50"
+                      >
+                        <input
+                          type="date"
+                          value={extra.date}
+                          onChange={(e) => updateExtraPayment(extra.id, { date: e.target.value })}
+                          className={`${inputBase} flex-1 min-w-0`}
+                        />
+                        <div className="relative flex-1 min-w-0">
+                          <DollarSign
+                            size={12}
+                            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
+                          <NumericInput
+                            value={extra.amount}
+                            onChange={(v) =>
+                              updateExtraPayment(extra.id, { amount: Math.max(0, v) })
+                            }
+                            className={`${inputBase} pl-7`}
+                          />
+                        </div>
+                        <button
+                          onClick={() => removeExtraPayment(extra.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {totalExtraPayments > 0 && (
+                <div className="mt-3 p-2.5 bg-green-50 rounded-lg border border-green-100">
+                  <p className="text-[10px] text-green-800">
+                    Total extra principal:{" "}
+                    <span className="font-semibold">{formatMoney(totalExtraPayments)}</span>
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Scenarios */}
@@ -1375,7 +1730,7 @@ export default function MortgageCalculatorPage() {
           {/* Results */}
           <div className="lg:col-span-8 space-y-6">
             {/* Summary cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <DollarSign size={14} className="text-blue-600" />
@@ -1410,6 +1765,20 @@ export default function MortgageCalculatorPage() {
                   {rows.length > 0 ? `${rows.length} payments` : "No schedule"}
                 </p>
               </div>
+
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wallet size={14} className="text-purple-600" />
+                  <h3 className="text-xs font-semibold text-gray-700">Extra Principal</h3>
+                </div>
+                <div className="text-xl font-bold text-gray-900">
+                  {formatMoney(totalExtraPayments)}
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  {activeProperty.extraPayments.length} payoff
+                  {activeProperty.extraPayments.length === 1 ? "" : "s"}
+                </p>
+              </div>
             </div>
 
             {/* Session payments */}
@@ -1427,6 +1796,9 @@ export default function MortgageCalculatorPage() {
                       </th>
                       <th className="text-right font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">
                         Principal Paid
+                      </th>
+                      <th className="text-right font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">
+                        Extra Principal
                       </th>
                       <th className="text-right font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">
                         Interest Paid
@@ -1455,6 +1827,9 @@ export default function MortgageCalculatorPage() {
                         <td className="px-3 py-2 border-b border-gray-100 text-right text-gray-700">
                           {formatMoney(summary.principalPaid)}
                         </td>
+                        <td className="px-3 py-2 border-b border-gray-100 text-right text-purple-600">
+                          {summary.extraPayments > 0 ? formatMoney(summary.extraPayments) : "—"}
+                        </td>
                         <td className="px-3 py-2 border-b border-gray-100 text-right text-red-600">
                           {formatMoney(summary.interest)}
                         </td>
@@ -1470,9 +1845,17 @@ export default function MortgageCalculatorPage() {
 
             {/* Chart */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingDown size={14} className="text-blue-600" />
-                <h2 className="text-sm font-bold text-gray-900">Balance Over Time</h2>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <TrendingDown size={14} className="text-blue-600" />
+                  <h2 className="text-sm font-bold text-gray-900">Balance Over Time</h2>
+                </div>
+                {totalExtraPayments > 0 && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-purple-700">
+                    <span className="w-2 h-2 rounded-full bg-purple-500" />
+                    Extra payments
+                  </div>
+                )}
               </div>
               <BalanceChart rows={rows} />
             </div>
@@ -1547,6 +1930,9 @@ export default function MortgageCalculatorPage() {
                         Principal
                       </th>
                       <th className="text-right font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">
+                        Extra
+                      </th>
+                      <th className="text-right font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">
                         Interest
                       </th>
                       <th className="text-right font-semibold text-gray-700 px-3 py-2 border-b border-gray-200">
@@ -1569,6 +1955,9 @@ export default function MortgageCalculatorPage() {
                         </td>
                         <td className="px-3 py-2 border-b border-gray-100 text-right text-green-600">
                           {formatMoney(row.principal)}
+                        </td>
+                        <td className="px-3 py-2 border-b border-gray-100 text-right text-purple-600">
+                          {row.extraPayments > 0 ? formatMoney(row.extraPayments) : "—"}
                         </td>
                         <td className="px-3 py-2 border-b border-gray-100 text-right text-red-600">
                           {formatMoney(row.interest)}
