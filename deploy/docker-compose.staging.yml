@@ -38,6 +38,7 @@ services:
       - "traefik.http.routers.stockcentral-staging.rule=Host(`${DOMAIN_STAGING}`)"
       - "traefik.http.routers.stockcentral-staging.entrypoints=websecure"
       - "traefik.http.routers.stockcentral-staging.tls=true"
+      - "traefik.http.routers.stockcentral-staging.tls.certresolver=letsencrypt"
       - "traefik.http.services.stockcentral-staging.loadbalancer.server.port=80"
     networks:
       - default

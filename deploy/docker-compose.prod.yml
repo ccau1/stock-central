@@ -38,6 +38,7 @@ services:
       - "traefik.http.routers.stockcentral-prod.rule=Host(`${DOMAIN_PROD}`)"
       - "traefik.http.routers.stockcentral-prod.entrypoints=websecure"
       - "traefik.http.routers.stockcentral-prod.tls=true"
+      - "traefik.http.routers.stockcentral-prod.tls.certresolver=letsencrypt"
       - "traefik.http.services.stockcentral-prod.loadbalancer.server.port=80"
     networks:
       - default
