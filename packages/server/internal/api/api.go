@@ -16,16 +16,20 @@ import (
 	"github.com/jackc/pgx/v5"
 	"gopkg.in/yaml.v3"
 
+	"stockcentral/internal/query"
 	"stockcentral/internal/store"
 )
 
 type API struct {
 	store       *store.Store
 	corsOrigins []string
+	engine      *query.Engine
 }
 
 func New(s *store.Store, corsOrigins []string) http.Handler {
-	a := &API{store: s, corsOrigins: corsOrigins}
+	engine := query.NewEngine()
+	registerQueryProviders(engine)
+	a := &API{store: s, corsOrigins: corsOrigins, engine: engine}
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -54,6 +58,10 @@ func New(s *store.Store, corsOrigins []string) http.Handler {
 
 	r.Route("/api/v1/data", func(r chi.Router) {
 		a.dataRoutes(r)
+	})
+
+	r.Route("/api/v1/panels/query", func(r chi.Router) {
+		a.queryRoutes(r)
 	})
 
 	r.Route("/api/v1/tickers", func(r chi.Router) {

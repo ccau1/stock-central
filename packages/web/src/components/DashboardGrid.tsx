@@ -156,6 +156,7 @@ interface DashboardGridProps {
   onUpdatePanelLayout?: (layout: { i: string; x: number; y: number; w: number; h: number }) => void;
   onUpdatePanel?: (panelId: string, updates: Partial<PanelConfig>) => void;
   onExpandPanel?: (panel: PanelConfig) => void;
+  dashboardVariables?: import("../lib/api").DashboardVariable[];
 }
 
 export default function DashboardGrid({
@@ -174,6 +175,7 @@ export default function DashboardGrid({
   onUpdatePanelLayout,
   onUpdatePanel,
   onExpandPanel,
+  dashboardVariables,
   panelWrapperClassName = "bg-white rounded-lg shadow border border-gray-200 overflow-hidden",
 }: DashboardGridProps) {
   const { width, containerRef } = useContainerWidth();
@@ -330,6 +332,7 @@ export default function DashboardGrid({
                   refreshKey={(panelRefreshKeys[child.panel.id] || 0) + globalRefreshKey}
                   onRefresh={() => onRefreshPanel(child.panel.id)}
                   onExpand={() => onExpandPanel?.(child.panel)}
+                  dashboardVariables={dashboardVariables}
                 />
               </div>
             </div>
@@ -352,6 +355,7 @@ export default function DashboardGrid({
                 onUpdatePanelLayout={onUpdatePanelLayout}
                 onOpenPanelSettings={handleOpenSettings}
                 onExpandPanel={onExpandPanel}
+                dashboardVariables={dashboardVariables}
               />
             </div>
           )
@@ -362,6 +366,7 @@ export default function DashboardGrid({
         <PanelSettingsModal
           panel={editingPanel}
           panelDefinition={editingPanelDef}
+          dashboardVariables={dashboardVariables}
           onSave={onUpdatePanel || (() => {})}
           onClose={() => {
             setEditingPanel(null);

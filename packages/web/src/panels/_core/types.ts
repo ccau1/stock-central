@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { DashboardVariable } from "../../lib/api";
 
 export interface PanelProps {
   title: string;
@@ -9,6 +10,7 @@ export interface PanelProps {
   onRefresh: () => void;
   onExpand?: () => void;
   description?: string;
+  dashboardVariables?: DashboardVariable[];
 }
 
 export interface PanelFilterConfig {
@@ -39,7 +41,55 @@ export interface PanelTextSetting {
   placeholder?: string;
 }
 
-export type PanelSettingField = PanelSelectSetting | PanelTextSetting;
+export interface PanelNumberSetting {
+  type: "number";
+  key: string;
+  label: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface PanelBooleanSetting {
+  type: "boolean";
+  key: string;
+  label: string;
+}
+
+export interface PanelColorSetting {
+  type: "color";
+  key: string;
+  label: string;
+}
+
+export interface PanelQueryEditorSetting {
+  type: "query-editor";
+  key: string;
+  label: string;
+}
+
+export interface PanelChartEditorSetting {
+  type: "chart-editor";
+  key: string;
+  label: string;
+}
+
+export interface PanelCodeSetting {
+  type: "code";
+  key: string;
+  label: string;
+  language?: "yaml" | "json";
+}
+
+export type PanelSettingField =
+  | PanelSelectSetting
+  | PanelTextSetting
+  | PanelNumberSetting
+  | PanelBooleanSetting
+  | PanelColorSetting
+  | PanelQueryEditorSetting
+  | PanelChartEditorSetting
+  | PanelCodeSetting;
 
 export interface PanelPreview {
   /** Optional longer description shown in the preview modal */

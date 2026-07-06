@@ -181,6 +181,42 @@ type DebtToGdpData struct {
 	Source      string           `json:"source"`
 }
 
+type MoneySupplyPoint struct {
+	Date  string  `json:"date"`
+	Value float64 `json:"value"`
+}
+
+type MoneySupplySeries struct {
+	ID        string             `json:"id"`
+	Name      string             `json:"name"`
+	Unit      string             `json:"unit"`
+	Frequency string             `json:"frequency"`
+	Current   float64            `json:"current"`
+	ChangeMoM float64            `json:"change_mom"`
+	ChangeYoY float64            `json:"change_yoy"`
+	History   []MoneySupplyPoint `json:"history"`
+	Error     string             `json:"error,omitempty"`
+}
+
+type MoneySupplyData struct {
+	Series []MoneySupplySeries `json:"series"`
+	Source string              `json:"source"`
+}
+
+type BuffettIndicatorPoint struct {
+	Date  string  `json:"date"`
+	Value float64 `json:"value"`
+}
+
+type BuffettIndicatorData struct {
+	Current     float64               `json:"current"`
+	CurrentDate string                `json:"current_date"`
+	Unit        string                `json:"unit"`
+	History     []BuffettIndicatorPoint `json:"history"`
+	Source      string                `json:"source"`
+	Description string                `json:"description"`
+}
+
 type IndexPerformance struct {
 	Symbol    string  `json:"symbol"`
 	Name      string  `json:"name"`
@@ -405,6 +441,8 @@ func (a *API) dataRoutes(r chi.Router) {
 	r.Get("/macro/yield-curve", a.getYieldCurve)
 	r.Get("/macro/bond-yields", a.getBondYields)
 	r.Get("/macro/debt-to-gdp", a.getDebtToGdp)
+	r.Get("/macro/money-supply", a.getMoneySupply)
+	r.Get("/macro/buffett-indicator", a.getBuffettIndicator)
 	r.Get("/macro/indexes", a.getIndexPerformance)
 	r.Get("/macro/breadth", a.getBreadth)
 	r.Get("/macro/asset-classes", a.getAssetClasses)
@@ -1589,6 +1627,163 @@ func (a *API) getDebtToGdp(w http.ResponseWriter, r *http.Request) {
 		Unit:        "% of GDP",
 		History:     history,
 		Source:      "FRED / IMF WEO",
+	})
+}
+
+func fetchMoneySupplySeries(id, name, unit, frequency string, limit int) *MoneySupplySeries {
+	observations, err := client.GetFredSeries(id, limit)
+	if err != nil {
+		return &MoneySupplySeries{
+			ID:   id,
+			Name: name,
+			Unit: unit,
+			Error: fmt.Sprintf("unavailable: %v", err),
+		}
+	}
+
+	points := make([]MoneySupplyPoint, 0, len(observations))
+	for _, obs := range observations {
+		v, err := strconv.ParseFloat(obs.Value, 64)
+		if err != nil {
+			continue
+		}
+		points = append(points, MoneySupplyPoint{
+			Date:  obs.Date,
+			Value: math.Round(v*100) / 100,
+		})
+	}
+	if len(points) == 0 {
+		return &MoneySupplySeries{
+			ID:   id,
+			Name: name,
+			Unit: unit,
+			Error: "no valid observations",
+		}
+	}
+
+	series := &MoneySupplySeries{
+		ID:        id,
+		Name:      name,
+		Unit:      unit,
+		Frequency: frequency,
+		Current:   points[0].Value,
+		History:   make([]MoneySupplyPoint, len(points)),
+	}
+
+	// Reverse to chronological order for charting.
+	for i := range points {
+		series.History[i] = points[len(points)-1-i]
+	}
+
+	if len(points) > 1 {
+		series.ChangeMoM = computePctChange(points[0].Value, points[1].Value)
+	}
+
+	yoyOffset := 12
+	switch frequency {
+	case "weekly":
+		yoyOffset = 52
+	case "quarterly":
+		yoyOffset = 4
+	}
+	if len(points) > yoyOffset {
+		series.ChangeYoY = computePctChange(points[0].Value, points[yoyOffset].Value)
+	}
+
+	return series
+}
+
+func (a *API) getMoneySupply(w http.ResponseWriter, r *http.Request) {
+	if !client.FredEnabled() {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("FRED_API_KEY not configured"))
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = 120
+	}
+
+	series := []MoneySupplySeries{
+		*fetchMoneySupplySeries("M1SL", "M1 Money Stock", "Bil. of $", "monthly", limit),
+		*fetchMoneySupplySeries("M2SL", "M2 Money Stock", "Bil. of $", "monthly", limit),
+		*fetchMoneySupplySeries("MABMM301USM189S", "M3 Money Stock", "Bil. of $", "monthly", limit),
+		{
+			ID:   "M4",
+			Name: "M4 Money Stock",
+			Unit: "Bil. of $",
+			Error: "M4 is not published by the Federal Reserve or available on FRED; use M3 as the broadest US money supply measure",
+		},
+	}
+
+	available := 0
+	for _, s := range series {
+		if s.Error == "" {
+			available++
+		}
+	}
+	if available == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("money supply data unavailable; ensure FRED_API_KEY is configured"))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, MoneySupplyData{
+		Series: series,
+		Source: "FRED / Federal Reserve",
+	})
+}
+
+func (a *API) getBuffettIndicator(w http.ResponseWriter, r *http.Request) {
+	if !client.FredEnabled() {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("FRED_API_KEY not configured"))
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = 40
+	}
+
+	// Stock Market Capitalization to GDP for United States (World Bank).
+	observations, err := client.GetFredSeries("DDDM01USA156NWDB", limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	history := make([]BuffettIndicatorPoint, 0, len(observations))
+	for _, obs := range observations {
+		v, err := strconv.ParseFloat(obs.Value, 64)
+		if err != nil {
+			continue
+		}
+		history = append(history, BuffettIndicatorPoint{
+			Date:  obs.Date,
+			Value: math.Round(v*100) / 100,
+		})
+	}
+
+	if len(history) == 0 {
+		respondError(w, http.StatusInternalServerError, fmt.Errorf("no buffett indicator data available"))
+		return
+	}
+
+	// History is returned descending; reverse to chronological order.
+	for i, j := 0, len(history)-1; i < j; i, j = i+1, j-1 {
+		history[i], history[j] = history[j], history[i]
+	}
+
+	current := history[len(history)-1]
+
+	respondJSON(w, http.StatusOK, BuffettIndicatorData{
+		Current:     current.Value,
+		CurrentDate: current.Date,
+		Unit:        "% of GDP",
+		History:     history,
+		Source:      "FRED / World Bank",
+		Description: "Total US stock market capitalization divided by GDP. Often called the Buffett Indicator.",
 	})
 }
 

@@ -329,6 +329,7 @@ export default function DashboardPage({ staticYaml, overrideId, defaultTimeRange
         onRemoveGroup={handleRemoveGroup}
         onUpdatePanelLayout={(layout) => updatePanelLayouts([layout])}
         onExpandPanel={setExpandedPanel}
+        dashboardVariables={dashboard.variables}
       />
 
       {showAddModal && (

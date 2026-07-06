@@ -161,6 +161,42 @@ export interface DebtToGdpData {
   source: string;
 }
 
+export interface MoneySupplyPoint {
+  date: string;
+  value: number;
+}
+
+export interface MoneySupplySeries {
+  id: string;
+  name: string;
+  unit: string;
+  frequency: string;
+  current: number;
+  change_mom: number;
+  change_yoy: number;
+  history: MoneySupplyPoint[];
+  error?: string;
+}
+
+export interface MoneySupplyData {
+  series: MoneySupplySeries[];
+  source: string;
+}
+
+export interface BuffettIndicatorPoint {
+  date: string;
+  value: number;
+}
+
+export interface BuffettIndicatorData {
+  current: number;
+  current_date: string;
+  unit: string;
+  history: BuffettIndicatorPoint[];
+  source: string;
+  description: string;
+}
+
 export interface IndexPerformance {
   symbol: string;
   name: string;
@@ -429,6 +465,10 @@ export interface FormulaResponse {
   points: IndicatorPoint[];
 }
 
+import type { QuerySpec as QuerySpecType } from "./query/types";
+
+export type { Column as QueryColumn, ColumnType, DataFrame, QuerySpec, QueryResponse, QuerySourcesResponse } from "./query/types";
+
 export interface TickerDetail {
   symbol: string;
   price: MetricData | null;
@@ -475,12 +515,23 @@ export interface GroupConfig {
   groupId?: string | null;
 }
 
+export interface DashboardVariable {
+  name: string;
+  type: "custom" | "interval" | "query";
+  options?: string[];
+  default?: string;
+  query?: QuerySpecType;
+  label?: string;
+  multi?: boolean;
+}
+
 export interface DashboardYAML {
   id: string;
   name: string;
   filters: {
     tickers: string[];
   };
+  variables?: DashboardVariable[];
   panels: PanelConfig[];
   groups?: GroupConfig[];
 }
@@ -606,6 +657,10 @@ export const dataApi = {
     fetchJSON<BondYieldsData>("/data/macro/bond-yields"),
   getDebtToGdp: (country?: string) =>
     fetchJSON<DebtToGdpData>(`/data/macro/debt-to-gdp?country=${country || "USA"}`),
+  getMoneySupply: (limit = 120) =>
+    fetchJSON<MoneySupplyData>(`/data/macro/money-supply?limit=${limit}`),
+  getBuffettIndicator: (limit = 40) =>
+    fetchJSON<BuffettIndicatorData>(`/data/macro/buffett-indicator?limit=${limit}`),
   getIndexPerformance: () =>
     fetchJSON<IndexPerformance[]>("/data/macro/indexes"),
   getBreadth: () =>
@@ -663,6 +718,13 @@ export const dataApi = {
   },
   postFormula: (req: FormulaRequest) =>
     fetchJSON<FormulaResponse>("/data/formula", { method: "POST", body: JSON.stringify(req) }),
+
+  // Generic panel query API
+  query: (spec: import("./query/types").QuerySpec) =>
+    fetchJSON<import("./query/types").QueryResponse>("/panels/query", { method: "POST", body: JSON.stringify(spec) }),
+  validateQuery: (spec: import("./query/types").QuerySpec) =>
+    fetchJSON<import("./query/types").QueryResponse>("/panels/query/validate", { method: "POST", body: JSON.stringify(spec) }),
+  getQuerySources: () => fetchJSON<import("./query/types").QuerySourcesResponse>("/panels/query/sources"),
 
   searchTickers: (query: string) =>
     fetchJSON<TickerSearchResult[]>(`/tickers/search?q=${encodeURIComponent(query)}`),

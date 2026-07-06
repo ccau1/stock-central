@@ -10,9 +10,10 @@ interface PanelRendererProps {
   refreshKey: number;
   onRefresh: () => void;
   onExpand?: () => void;
+  dashboardVariables?: import("../../lib/api").DashboardVariable[];
 }
 
-export function PanelRenderer({ panel, filters, refreshKey, onRefresh, onExpand }: PanelRendererProps) {
+export function PanelRenderer({ panel, filters, refreshKey, onRefresh, onExpand, dashboardVariables }: PanelRendererProps) {
   const [typeDef, setTypeDef] = useState<PanelDefinition | undefined>(undefined);
   const [loading, setLoading] = useState(!isRegistryLoaded());
 
@@ -80,6 +81,7 @@ export function PanelRenderer({ panel, filters, refreshKey, onRefresh, onExpand 
       onRefresh={onRefresh}
       onExpand={onExpand}
       description={panel.description || typeDef.description}
+      dashboardVariables={dashboardVariables}
     />
   );
 }

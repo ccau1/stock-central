@@ -22,6 +22,7 @@ interface PanelGroupProps {
   onOpenPanelSettings?: (panel: PanelConfig) => void;
   onExpandPanel?: (panel: PanelConfig) => void;
   level?: number;
+  dashboardVariables?: import("../lib/api").DashboardVariable[];
 }
 
 function rectsOverlap(
@@ -122,6 +123,7 @@ export default function PanelGroup({
   onOpenPanelSettings,
   onExpandPanel,
   level = 0,
+  dashboardVariables,
 }: PanelGroupProps) {
   const [dragOver, setDragOver] = useState(false);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
@@ -395,6 +397,7 @@ export default function PanelGroup({
                 setDraggingPanelId(null);
                 dragOffsetRef.current = { x: 0, y: 0 };
               }}
+              dashboardVariables={dashboardVariables}
             />
           ))}
           {dropPreview?.type === "grid" && (
@@ -435,6 +438,7 @@ export default function PanelGroup({
                 onOpenPanelSettings={onOpenPanelSettings}
                 onExpandPanel={onExpandPanel}
                 level={level + 1}
+                dashboardVariables={dashboardVariables}
               />
             </div>
           ))}
@@ -459,6 +463,7 @@ function PanelGroupItem({
   isDropTarget,
   onDragStartPanel,
   onDragEndPanel,
+  dashboardVariables,
 }: {
   panel: PanelConfig;
   filters: DashboardFilters;
@@ -474,6 +479,7 @@ function PanelGroupItem({
   isDropTarget?: boolean;
   onDragStartPanel?: (panelId: string, offsetX: number, offsetY: number) => void;
   onDragEndPanel?: () => void;
+  dashboardVariables?: import("../lib/api").DashboardVariable[];
 }) {
   const [isResizing, setIsResizing] = useState(false);
   const [previewLayout, setPreviewLayout] = useState<{ w: number; h: number } | null>(null);
@@ -611,6 +617,7 @@ function PanelGroupItem({
         refreshKey={(panelRefreshKeys[panel.id] || 0) + globalRefreshKey}
         onRefresh={() => onRefreshPanel(panel.id)}
         onExpand={() => onExpandPanel?.(panel)}
+        dashboardVariables={dashboardVariables}
       />
     </div>
   );

@@ -153,7 +153,18 @@ panels:
     refresh_interval: 300
 
   # ============================================================
-  # Row 56: Sectors & Assets
+  # Row 56: Money Supply
+  # ============================================================
+  - id: money-supply
+    type: money-supply
+    title: Money Supply (M1/M2/M3/M4)
+    group: row-money-supply
+    layout: { x: 0, y: 0, w: 12, h: 10 }
+    inputs: {}
+    refresh_interval: 300
+
+  # ============================================================
+  # Row 66: Sectors & Assets
   # ============================================================
   - id: sector-heatmap
     type: sector-heatmap
@@ -213,13 +224,13 @@ panels:
     refresh_interval: 180
 
   # ============================================================
-  # Row 75: Risk & Valuation
+  # Row 85: Risk & Valuation
   # ============================================================
   - id: valuation
     type: valuation
     title: Valuation
     group: row-risk
-    layout: { x: 0, y: 0, w: 4, h: 8 }
+    layout: { x: 0, y: 0, w: 3, h: 8 }
     inputs: {}
     refresh_interval: 300
 
@@ -227,7 +238,7 @@ panels:
     type: equity-risk-premium
     title: Equity Risk Premium
     group: row-risk
-    layout: { x: 4, y: 0, w: 4, h: 8 }
+    layout: { x: 3, y: 0, w: 3, h: 8 }
     inputs: {}
     refresh_interval: 300
 
@@ -235,7 +246,15 @@ panels:
     type: market-froth
     title: Market Froth
     group: row-risk
-    layout: { x: 8, y: 0, w: 4, h: 8 }
+    layout: { x: 6, y: 0, w: 3, h: 8 }
+    inputs: {}
+    refresh_interval: 300
+
+  - id: market-cap-to-gdp
+    type: market-cap-to-gdp
+    title: Buffett Indicator (Market Cap / GDP)
+    group: row-risk
+    layout: { x: 9, y: 0, w: 3, h: 8 }
     inputs: {}
     refresh_interval: 300
 
@@ -280,20 +299,26 @@ groups:
     layout: { x: 0, y: 54, w: 12, h: 8 }
     collapsed: false
 
+  - id: row-money-supply
+    type: __row__
+    title: Money Supply
+    layout: { x: 0, y: 62, w: 12, h: 10 }
+    collapsed: false
+
   - id: row-sectors
     type: __row__
     title: Sectors & Assets
-    layout: { x: 0, y: 62, w: 12, h: 9 }
+    layout: { x: 0, y: 72, w: 12, h: 9 }
     collapsed: false
 
   - id: row-analysis
     type: __row__
     title: Analysis
-    layout: { x: 0, y: 71, w: 12, h: 10 }
+    layout: { x: 0, y: 81, w: 12, h: 10 }
     collapsed: false
 
   - id: row-risk
     type: __row__
     title: Risk & Valuation
-    layout: { x: 0, y: 81, w: 12, h: 9 }
+    layout: { x: 0, y: 91, w: 12, h: 9 }
     collapsed: false

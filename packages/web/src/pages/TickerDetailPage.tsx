@@ -29,6 +29,95 @@ function timeAgo(dateStr: string): string {
   return `${months}mo ago`;
 }
 
+function computePeg(pe: number, growthDecimal: number): number | null {
+  if (pe > 0 && growthDecimal > 0) {
+    return pe / (growthDecimal * 100);
+  }
+  return null;
+}
+
+function annualToQuarterlyGrowth(annualPct: number): number {
+  return (Math.pow(1 + annualPct / 100, 1 / 4) - 1) * 100;
+}
+
+function parseQuarterYear(dateStr: string): [number, number] | null {
+  const normalized = dateStr.trim().toUpperCase();
+  // e.g. "Q2 2025" or "Q2-2025"
+  const m1 = normalized.match(/Q(\d)[-\s]*(\d{4})/);
+  if (m1) return [parseInt(m1[1], 10), parseInt(m1[2], 10)];
+  // e.g. "2Q2025" or "2Q 2025"
+  const m2 = normalized.match(/(\d)Q[-\s]*(\d{4})/);
+  if (m2) return [parseInt(m2[1], 10), parseInt(m2[2], 10)];
+  // e.g. "2025 Q2" or "2025-Q2"
+  const m3 = normalized.match(/(\d{4})[-\s]*Q(\d)/);
+  if (m3) return [parseInt(m3[2], 10), parseInt(m3[1], 10)];
+  // e.g. "2Q25"
+  const m4 = normalized.match(/(\d)Q(\d{2})/);
+  if (m4) {
+    let year = parseInt(m4[2], 10);
+    year += year >= 50 ? 1900 : 2000;
+    return [parseInt(m4[1], 10), year];
+  }
+  return null;
+}
+
+interface LastReportGrowth {
+  value: number;
+  label: string;
+  latestActual: number;
+  priorActual: number;
+}
+
+function computeLastReportGrowth(
+  history: { date: string; actual: number }[]
+): LastReportGrowth | null {
+  if (!history || history.length < 2) return null;
+  const latest = history[history.length - 1];
+  if (!latest || latest.actual == null) return null;
+
+  // Try year-over-year first
+  const parsed = parseQuarterYear(latest.date);
+  if (parsed) {
+    const [quarter, year] = parsed;
+    const prior = history.find((h) => {
+      const p = parseQuarterYear(h.date);
+      return p && p[0] === quarter && p[1] === year - 1;
+    });
+    if (prior && prior.actual !== 0) {
+      return {
+        value: ((latest.actual - prior.actual) / Math.abs(prior.actual)) * 100,
+        label: "Last Report Growth (YoY)",
+        latestActual: latest.actual,
+        priorActual: prior.actual,
+      };
+    }
+  }
+
+  // Fallback: assume chronological quarterly data, compare to the quarter ~1 year ago
+  const priorYear = history[history.length - 5];
+  if (priorYear && priorYear.actual !== 0) {
+    return {
+      value:
+        ((latest.actual - priorYear.actual) / Math.abs(priorYear.actual)) * 100,
+      label: "Last Report Growth (YoY)",
+      latestActual: latest.actual,
+      priorActual: priorYear.actual,
+    };
+  }
+
+  // Final fallback: quarter-over-quarter
+  const prev = history[history.length - 2];
+  if (prev && prev.actual !== 0) {
+    return {
+      value: ((latest.actual - prev.actual) / Math.abs(prev.actual)) * 100,
+      label: "Last Quarter Growth (QoQ)",
+      latestActual: latest.actual,
+      priorActual: prev.actual,
+    };
+  }
+  return null;
+}
+
 export default function TickerDetailPage() {
   const { symbol } = useParams<{ symbol: string }>();
   const ticker = symbol?.toUpperCase() || "";
@@ -320,6 +409,136 @@ export default function TickerDetailPage() {
               <div className="text-sm font-bold text-gray-900">{fp.num_analysts}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* PEG Growth Targets */}
+      {fp && (fp.forward_pe > 0 || fp.trailing_pe > 0) && (
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-gray-900 mb-3">PEG Growth Targets</h2>
+          {(() => {
+            const pe = fp.forward_pe > 0 ? fp.forward_pe : fp.trailing_pe;
+            const peg = computePeg(pe, fp.eps_growth);
+            const requiredAnnual = pe > 0 ? pe : null;
+            const requiredNextReport =
+              requiredAnnual != null ? annualToQuarterlyGrowth(requiredAnnual) : null;
+            const currentAnnualGrowth =
+              fp.eps_growth != null && fp.eps_growth > 0 ? fp.eps_growth * 100 : null;
+            const lastReportGrowth = computeLastReportGrowth(fp.earnings_history);
+            const lastReportValue = lastReportGrowth?.value ?? null;
+            return (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
+                  {peg != null && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase mb-1">PEG Ratio</div>
+                      <div
+                        className={`text-sm font-bold ${
+                          peg < 1
+                            ? "text-green-600"
+                            : peg > 2
+                            ? "text-red-600"
+                            : "text-gray-900"
+                        }`}
+                      >
+                        {peg.toFixed(2)}
+                      </div>
+                      {fp.eps_growth != null && fp.eps_growth > 0 && (
+                        <div className="text-[9px] text-gray-400 mt-1">
+                          {pe.toFixed(1)} ÷ {(fp.eps_growth * 100).toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {lastReportGrowth != null && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase mb-1">
+                        {lastReportGrowth.label}
+                      </div>
+                      <div
+                        className={`text-sm font-bold ${
+                          lastReportGrowth.value >= 0 ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
+                        {lastReportGrowth.value >= 0 ? "+" : ""}
+                        {lastReportGrowth.value.toFixed(1)}%
+                      </div>
+                      <div className="text-[9px] text-gray-400 mt-1">
+                        {`$${lastReportGrowth.latestActual.toFixed(2)} vs $${lastReportGrowth.priorActual.toFixed(2)}`}
+                      </div>
+                    </div>
+                  )}
+                  {requiredNextReport != null && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase mb-1">
+                        Growth Needed (Next Report)
+                      </div>
+                      <div
+                        className={`text-sm font-bold ${
+                          lastReportValue != null && requiredNextReport > lastReportValue
+                            ? "text-red-600"
+                            : currentAnnualGrowth != null &&
+                              requiredNextReport > currentAnnualGrowth / 4
+                            ? "text-red-600"
+                            : "text-green-600"
+                        }`}
+                      >
+                        {requiredNextReport >= 0 ? "+" : ""}
+                        {requiredNextReport.toFixed(1)}%
+                      </div>
+                      <div className="text-[9px] text-gray-400 mt-1">
+                        {(() => {
+                          const parts: string[] = [];
+                          if (lastReportValue != null) {
+                            parts.push(
+                              `vs last report ${lastReportValue >= 0 ? "+" : ""}${lastReportValue.toFixed(1)}%`
+                            );
+                          }
+                          if (currentAnnualGrowth != null) {
+                            const qEst = currentAnnualGrowth / 4;
+                            parts.push(
+                              `vs est. ${qEst >= 0 ? "+" : ""}${qEst.toFixed(1)}% / qtr`
+                            );
+                          }
+                          return parts.join(" · ");
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                  {requiredAnnual != null && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase mb-1">
+                        Growth Needed (Next 12M)
+                      </div>
+                      <div
+                        className={`text-sm font-bold ${
+                          currentAnnualGrowth != null && requiredAnnual > currentAnnualGrowth
+                            ? "text-red-600"
+                            : "text-green-600"
+                        }`}
+                      >
+                        {requiredAnnual >= 0 ? "+" : ""}
+                        {requiredAnnual.toFixed(1)}%
+                      </div>
+                      {currentAnnualGrowth != null && (
+                        <div className="text-[9px] text-gray-400 mt-1">
+                          vs est. {currentAnnualGrowth >= 0 ? "+" : ""}
+                          {currentAnnualGrowth.toFixed(1)}% / yr
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-500">
+                  PEG = P/E ÷ estimated EPS growth. Growth needed assumes a fair PEG ratio of 1.0
+                  (i.e., the EPS growth % required to justify the current valuation). Next report
+                  growth is the implied compounded quarterly rate; last report growth is the
+                  year-over-year EPS growth of the most recent reported quarter (QoQ fallback when
+                  YoY data is unavailable).
+                </p>
+              </>
+            );
+          })()}
         </div>
       )}
 

@@ -36,6 +36,15 @@ export function parseDashboardYaml(raw: string): DashboardYAML {
     filters: {
       tickers: doc.filters?.tickers || [],
     },
+    variables: (doc.variables || []).map((v: any) => ({
+      name: v.name,
+      type: v.type || "custom",
+      options: v.options || [],
+      default: v.default,
+      query: v.query,
+      label: v.label,
+      multi: v.multi ?? false,
+    })),
     groups: (doc.groups || []).map((g: any) => ({
       id: g.id,
       type: g.type || '__group__',
@@ -476,6 +485,15 @@ export function serializeDashboardYaml(dashboard: DashboardYAML): string {
     id: dashboard.id,
     name: dashboard.name,
     filters: dashboard.filters,
+    variables: (dashboard.variables || []).map((v) => ({
+      name: v.name,
+      type: v.type,
+      options: v.options,
+      default: v.default,
+      query: v.query,
+      label: v.label,
+      multi: v.multi,
+    })),
     groups: (dashboard.groups || []).map((g) => ({
       id: g.id,
       type: g.type || '__group__',

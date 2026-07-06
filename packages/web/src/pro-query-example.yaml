@@ -1,0 +1,308 @@
+id: pro-query-example
+name: Pro Query Example
+filters:
+  tickers:
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - TSLA
+
+# Dashboard-level variables can be referenced with $name in any panel query.
+variables:
+  - name: lookback
+    type: interval
+    label: Lookback
+    options: ["1mo", "3mo", "6mo", "1y", "2y"]
+    default: "6mo"
+  - name: benchmark
+    type: custom
+    label: Benchmark
+    options: ["SPY", "QQQ", "IWM"]
+    default: "SPY"
+
+groups:
+  - id: row-examples
+    type: __row__
+    title: Query Panel Examples
+    layout: { x: 0, y: 0, w: 12, h: 1 }
+panels:
+  # Normalized price comparison driven by a query.
+  #
+  # Standard query forms (all panels in this dashboard use one of these):
+  #   1. Compact string for any source:
+  #        query: "price_history{symbol: $enabledTickers, range: $lookback, close_only: true}"
+  #        query: "metric{symbol: $enabledTickers, metric: pe_forward}"
+  #        query: "formula{symbol: AAPL, range: $lookback, expression: \"...\"}"
+  #   2. Expression shorthand for multi-query arithmetic:
+  #        query:
+  #          expr: "price - sma20"
+  #          queries:
+  #            price: "price_history{symbol: AAPL, range: $lookback, close_only: true}"
+  #            sma20: "formula{symbol: AAPL, expression: \"...\", range: $lookback}"
+  #
+  # Omitting `y` lets the chart auto-render every numeric column (one line per
+  # enabled ticker). You can hardcode `y` if you want specific labels/colors.
+  - id: query-price-comparison
+    type: query-chart
+    title: Query Price Comparison
+    group: row-examples
+    layout: { x: 0, y: 0, w: 6, h: 10 }
+    description: >
+      A generic query-chart panel. The query fetches price history for the
+      dashboard's enabled tickers and the chart config renders them as
+      normalized lines. Omit `y` to auto-map every numeric column, or provide
+      `y` with hardcoded fields, labels and colors when you want full control.
+    inputs:
+      query: "price_history{symbol: $enabledTickers, range: $lookback, close_only: true}"
+      chart:
+        type: line
+        x: date
+        options:
+          normalized: true
+          showLegend: true
+          showGrid: true
+          yAxisLabel: "Change %"
+    refresh_interval: 300
+
+  # A stat card driven by a metric query.
+  - id: query-metric-stat
+    type: query-chart
+    title: Forward P/E (Query)
+    group: row-examples
+    layout: { x: 6, y: 0, w: 3, h: 5 }
+    inputs:
+      query: "metric{symbol: $enabledTickers, metric: pe_forward}"
+      chart:
+        type: stat
+        x: symbol
+        y:
+          - field: value
+            label: Forward P/E
+            color: "#f59e0b"
+    refresh_interval: 300
+
+  # A table view of the same metric query.
+  - id: query-metric-table
+    type: query-chart
+    title: Metrics Table
+    group: row-examples
+    layout: { x: 9, y: 0, w: 3, h: 10 }
+    inputs:
+      query: "metric{symbol: $enabledTickers, metric: market_cap}"
+      chart:
+        type: table
+    refresh_interval: 300
+
+  # A formula query: golden-cross style ratio.
+  - id: query-formula
+    type: query-chart
+    title: SMA 20 / 50 Ratio (AAPL)
+    group: row-examples
+    layout: { x: 6, y: 5, w: 3, h: 5 }
+    inputs:
+      query: 'formula{symbol: AAPL, range: $lookback, expression: "sma(20, close()) / sma(50, close())"}'
+      chart:
+        type: line
+        x: date
+        y:
+          - field: value
+            label: SMA 20/50
+            color: "#8b5cf6"
+        options:
+          showGrid: true
+        thresholds:
+          - value: 1.0
+            color: "#10b981"
+            mode: above
+            label: Bullish
+          - value: 1.0
+            color: "#ef4444"
+            mode: below
+            label: Bearish
+    refresh_interval: 300
+
+  # An expression query combining multiple sub-queries.
+  # Uses the standard expression shorthand: { expr, queries }.
+  # Each named query can be a compact string or a full object.
+  - id: query-expression
+    type: query-chart
+    title: AAPL Price vs SMA 20 Deviation
+    group: row-examples
+    layout: { x: 0, y: 10, w: 6, h: 10 }
+    description: >
+      Combines multiple queries with arithmetic. The expression source executes
+      each named query, aligns results by date, and evaluates the expression
+      row by row. This panel uses the standard { expr, queries } shorthand.
+    inputs:
+      query:
+        expr: "price - sma20"
+        queries:
+          price: "price_history{symbol: AAPL, range: $lookback, close_only: true}"
+          sma20: "formula{symbol: AAPL, expression: \"sma(20, close())\", range: $lookback}"
+      chart:
+        type: line
+        x: date
+        y:
+          - field: value
+            label: "Price - SMA 20"
+            color: "#06b6d4"
+        options:
+          showGrid: true
+          yAxisLabel: "Deviation"
+    refresh_interval: 300
+
+  # An expression query using inline compact queries directly in the expression.
+  # The engine extracts each compact query into an auto-generated variable.
+  # Uses the standard expression shorthand with no named queries.
+  - id: query-expression-inline
+    type: query-chart
+    title: AAPL Price vs SMA 20 (Inline)
+    group: row-examples
+    layout: { x: 6, y: 10, w: 6, h: 10 }
+    description: >
+      Same calculation as above, but the compact queries are written inline in
+      the expression string instead of as named queries.
+    inputs:
+      query:
+        expr: 'price_history{symbol: AAPL, range: $lookback, close_only: true} - formula{symbol: AAPL, expression: "sma(20, close())", range: $lookback}'
+      chart:
+        type: line
+        x: date
+        y:
+          - field: value
+            label: "Price - SMA 20"
+            color: "#ec4899"
+        options:
+          showGrid: true
+          yAxisLabel: "Deviation"
+    refresh_interval: 300
+
+  # Uses a dashboard-level variable ($benchmark) so users can switch the benchmark.
+  - id: query-benchmark
+    type: query-chart
+    title: Benchmark Price
+    group: row-examples
+    layout: { x: 0, y: 20, w: 6, h: 10 }
+    description: >
+      Demonstrates a dashboard-level variable. The benchmark symbol is defined
+      in the dashboard's `variables` section and referenced with $benchmark.
+    inputs:
+      query: "price_history{symbol: $benchmark, range: $lookback, close_only: true}"
+      chart:
+        type: line
+        x: date
+        options:
+          showLegend: true
+          showGrid: true
+    refresh_interval: 300
+
+  # Merge two independent price queries into one chart.
+  # Each query is fetched in parallel and merged by the shared `date` column.
+  # Named queries prefix their value columns to avoid collisions.
+  - id: query-multi-merge
+    type: query-chart
+    title: AAPL vs SPY (Multi-Query)
+    group: row-examples
+    layout: { x: 6, y: 20, w: 6, h: 10 }
+    description: >
+      Demonstrates merging multiple queries into a single DataFrame.
+      Each named query's columns are prefixed with its name.
+    inputs:
+      query:
+        - name: aapl
+          query: "price_history{symbol: AAPL, range: $lookback, close_only: true}"
+        - name: spy
+          query: "price_history{symbol: SPY, range: $lookback, close_only: true}"
+      chart:
+        type: line
+        x: date
+        y:
+          - field: aapl_close
+            label: AAPL
+            color: "#3b82f6"
+          - field: spy_close
+            label: SPY
+            color: "#ef4444"
+        options:
+          normalized: true
+          showLegend: true
+          showGrid: true
+    refresh_interval: 300
+
+  # Client-side transforms: rename, compute a spread, and sort.
+  - id: query-transforms
+    type: query-chart
+    title: AAPL / SPY Ratio (Transforms)
+    group: row-examples
+    layout: { x: 0, y: 30, w: 6, h: 10 }
+    description: >
+      Demonstrates client-side transforms on a merged query result:
+      rename columns, compute a ratio, and sort by date.
+    inputs:
+      query:
+        - name: aapl
+          query: "price_history{symbol: AAPL, range: $lookback, close_only: true}"
+        - name: spy
+          query: "price_history{symbol: SPY, range: $lookback, close_only: true}"
+      transform:
+        - type: rename
+          mapping: { aapl_close: aapl, spy_close: spy }
+        - type: drop
+          columns: [aapl_date, spy_date, aapl_symbol, spy_symbol]
+        - type: compute
+          column: ratio
+          expression: "aapl / spy"
+        - type: sort
+          column: date
+          direction: asc
+      chart:
+        type: line
+        x: date
+        y:
+          - field: ratio
+            label: "AAPL / SPY"
+            color: "#8b5cf6"
+        options:
+          showGrid: true
+    refresh_interval: 300
+
+  # Grid layout: render metric snapshot rows as cards.
+  - id: query-grid
+    type: query-chart
+    title: Market Cap Grid
+    group: row-examples
+    layout: { x: 6, y: 30, w: 6, h: 10 }
+    description: >
+      Demonstrates the grid layout renderer. Each row becomes a card.
+    inputs:
+      query: "metric{symbol: $enabledTickers, metric: market_cap}"
+      chart:
+        type: grid
+        fields:
+          title: symbol
+          subtitle: label
+          value: value
+        options:
+          gridColumns: 3
+    refresh_interval: 300
+
+  # List layout: render metric snapshot rows as a list.
+  - id: query-list
+    type: query-chart
+    title: Market Cap List
+    group: row-examples
+    layout: { x: 0, y: 40, w: 6, h: 10 }
+    description: >
+      Demonstrates the list layout renderer. Each row becomes a list item.
+    inputs:
+      query: "metric{symbol: $enabledTickers, metric: market_cap}"
+      chart:
+        type: list
+        fields:
+          title: symbol
+          subtitle: label
+          value: value
+        options:
+          maxItems: 10
+    refresh_interval: 300
