@@ -35,7 +35,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
-      - "traefik.http.routers.stockcentral-prod.rule=Host(`${DOMAIN_PROD}`)"
+      - "traefik.http.routers.stockcentral-prod.rule=Host(`${DOMAIN_PROD}`) || Host(`finanao.com`)"
       - "traefik.http.routers.stockcentral-prod.entrypoints=websecure"
       - "traefik.http.routers.stockcentral-prod.tls=true"
       - "traefik.http.routers.stockcentral-prod.tls.certresolver=letsencrypt"
