@@ -159,11 +159,19 @@ Go to **Settings → Secrets and variables → Actions** in your GitHub repo and
 
 | Secret | Value | How to get it |
 |--------|-------|---------------|
-| `HETZNER_HOST` | Your server's public IP | `terraform output server_ip` |
-| `HETZNER_USER` | `root` | Hetzner Ubuntu images default to root |
-| `HETZNER_SSH_KEY` | Your **private** SSH key | `cat ~/.ssh/id_ed25519` — paste the full thing |
-| `ENV_FILE` | Production environment variables | See format below |
 | `GH_TOKEN` | GitHub token | See below |
+| `STAGING_HETZNER_HOST` | Staging server's public IP | Provided by your shared staging host |
+| `STAGING_HETZNER_USER` | SSH user for staging | Usually `root` |
+| `STAGING_HETZNER_SSH_KEY` | Private SSH key for staging | Paste the full private key |
+| `STAGING_ENV_FILE` | Staging environment variables | See format below |
+| `PROD_HETZNER_HOST` | Shared prod server's public IP | Provided by your shared prod host |
+| `PROD_HETZNER_USER` | SSH user for shared prod | Usually `root` |
+| `PROD_HETZNER_SSH_KEY` | Private SSH key for shared prod | Paste the full private key |
+| `PROD_ENV_FILE` | Shared prod environment variables | See format below |
+| `PROD_STANDALONE_HETZNER_HOST` | Standalone prod server's public IP | `terraform output server_ip` |
+| `PROD_STANDALONE_HETZNER_USER` | `root` | Hetzner Ubuntu images default to root |
+| `PROD_STANDALONE_HETZNER_SSH_KEY` | Your **private** SSH key | `cat ~/.ssh/id_ed25519` — paste the full thing |
+| `PROD_STANDALONE_ENV_FILE` | Standalone prod environment variables | See format below |
 
 ### ENV_FILE format
 
@@ -178,7 +186,7 @@ Use a comma-separated list to allow multiple domains. If you're not using a doma
 
 ### Creating the GH_TOKEN (Classic PAT)
 
-The server needs to pull Docker images from GitHub Container Registry (GHCR). `GITHUB_TOKEN` only works inside GitHub Actions, not on external servers.
+All environments share a single `GH_TOKEN`. The servers need it to pull Docker images from GitHub Container Registry (GHCR). `GITHUB_TOKEN` only works inside GitHub Actions, not on external servers.
 
 1. Go to **GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)**
 2. Generate new token (classic)
@@ -203,11 +211,15 @@ GitHub Actions will:
 1. Build the Go server Docker image (only if server code changed)
 2. Build the React web app + nginx Docker image (only if web code changed)
 3. Push both to GHCR
-4. SSH into your Hetzner server
-5. Pull the images and run `docker compose up -d`
-6. Run a health check against `/health`
+4. Deploy to **staging**
+5. After staging succeeds, deploy to **shared prod** (requires approval if the `production` environment has reviewers)
+6. Run health checks against each server's `/health` endpoint
 
 You can also trigger a manual deploy from **Actions → Build & Deploy → Run workflow**.
+
+### Standalone prod (manual fallback)
+
+The original standalone Hetzner server is no longer auto-deployed on `main`. To deploy to it manually, use **Actions → Build & Deploy Standalone Prod → Run workflow**. This uses the `PROD_STANDALONE_*` secrets.
 
 ### Verify it's running
 
@@ -218,7 +230,7 @@ docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f
 ```
 
-Then open `https://stocks.tribalorigin.com` in your browser.
+Then open your configured domain (e.g., `https://stocks.tribalorigin.com`) in your browser.
 
 ---
 
