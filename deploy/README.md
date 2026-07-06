@@ -172,6 +172,8 @@ Go to **Settings → Secrets and variables → Actions** in your GitHub repo and
 | `PROD_STANDALONE_HETZNER_USER` | `root` | Hetzner Ubuntu images default to root |
 | `PROD_STANDALONE_HETZNER_SSH_KEY` | Your **private** SSH key | `cat ~/.ssh/id_ed25519` — paste the full thing |
 | `PROD_STANDALONE_ENV_FILE` | Standalone prod environment variables | See format below |
+| `CF_ORIGIN_CERT` (optional) | Cloudflare Origin CA certificate | See SSL setup below |
+| `CF_ORIGIN_KEY` (optional) | Cloudflare Origin CA private key | See SSL setup below |
 
 ### ENV_FILE format
 
@@ -208,24 +210,34 @@ git push origin main
 ```
 
 GitHub Actions will:
-1. Build the Go server Docker image (only if server code changed)
-2. Build the React web app + nginx Docker image (only if web code changed)
-3. Push both to GHCR
-4. Deploy to **staging**
-5. After staging succeeds, deploy to **shared prod** (requires approval if the `production` environment has reviewers)
+1. Build the Go server Docker image
+2. Build the React web app + nginx Docker image
+3. Push both to GHCR with `:staging` and `:staging-<sha>` tags
+4. Deploy the `:staging-<sha>` images to **staging** (`stocks.staging.tribalorigin.com`)
+5. After staging succeeds, promote the exact same `:staging-<sha>` images to **shared prod** (`stocks.tribalorigin.com`)
+   - This step uses the GitHub `production` environment, so you can require reviewers before it runs.
 6. Run health checks against each server's `/health` endpoint
 
-You can also trigger a manual deploy from **Actions → Build & Deploy → Run workflow**.
+The workflow runs on pushes to `main` that touch `packages/server/**`, `packages/web/**`, `deploy/**`, or the workflow itself.
 
-### Standalone prod (manual fallback)
-
-The original standalone Hetzner server is no longer auto-deployed on `main`. To deploy to it manually, use **Actions → Build & Deploy Standalone Prod → Run workflow**. This uses the `PROD_STANDALONE_*` secrets.
+You can also trigger a manual deploy from **Actions → Build & Deploy → Run workflow**. When running manually, you can choose the production target:
+- **`shared`** (default) — deploys to the shared prod server
+- **`standalone`** — deploys to the standalone Hetzner server using `PROD_STANDALONE_*` secrets
 
 ### Verify it's running
 
+For staging:
 ```bash
-ssh root@YOUR_SERVER_IP
-cd /opt/stock-central
+ssh root@$STAGING_SERVER_IP
+cd /opt/stock-central-staging
+docker compose -f docker-compose.staging.yml ps
+docker compose -f docker-compose.staging.yml logs -f
+```
+
+For shared prod:
+```bash
+ssh root@$PROD_SERVER_IP
+cd /opt/stock-central-prod
 docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f
 ```

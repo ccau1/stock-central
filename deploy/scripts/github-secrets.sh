@@ -28,8 +28,64 @@ echo "Used by staging, shared prod, and standalone prod to pull images from GHCR
 echo ""
 
 echo ""
-echo "Standalone prod secrets (auto-managed server by Terraform):"
-echo "  Used by: Build & Deploy Standalone Prod (workflow_dispatch only)"
+echo "Staging secrets (used by deploy-staging):"
+echo "  Files copied to: /opt/stock-central-staging"
+echo "  Compose file:    deploy/docker-compose.staging.yml"
+echo ""
+
+# STAGING_HETZNER_HOST
+echo "──────────── STAGING_HETZNER_HOST ─────────────────────────────"
+echo "Staging server's public IP"
+echo ""
+
+# STAGING_HETZNER_USER
+echo "──────────── STAGING_HETZNER_USER ─────────────────────────────"
+echo "Usually 'root'"
+echo ""
+
+# STAGING_HETZNER_SSH_KEY
+echo "──────────── STAGING_HETZNER_SSH_KEY ──────────────────────────"
+echo "Paste your private SSH key here."
+echo ""
+
+# STAGING_ENV_FILE
+echo "──────────── STAGING_ENV_FILE ─────────────────────────────────"
+echo "Copy the contents of deploy/.env, adjusted for staging."
+echo "Must include at least: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, CORS_ORIGIN"
+echo ""
+
+echo ""
+echo "Shared prod secrets (used by promote-to-prod, default target):"
+echo "  Files copied to: /opt/stock-central-prod"
+echo "  Compose file:    deploy/docker-compose.prod.yml"
+echo ""
+
+# PROD_HETZNER_HOST
+echo "──────────── PROD_HETZNER_HOST ────────────────────────────────"
+echo "Shared prod server's public IP"
+echo ""
+
+# PROD_HETZNER_USER
+echo "──────────── PROD_HETZNER_USER ────────────────────────────────"
+echo "Usually 'root'"
+echo ""
+
+# PROD_HETZNER_SSH_KEY
+echo "──────────── PROD_HETZNER_SSH_KEY ─────────────────────────────"
+echo "Paste your private SSH key here."
+echo ""
+
+# PROD_ENV_FILE
+echo "──────────── PROD_ENV_FILE ────────────────────────────────────"
+echo "Copy the contents of deploy/.env, adjusted for production."
+echo "Must include at least: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, CORS_ORIGIN"
+echo ""
+
+echo ""
+echo "Standalone prod secrets (used only when workflow_dispatch target = standalone):"
+echo "  Server managed by Terraform in deploy/terraform/"
+echo "  Files copied to: /opt/stock-central-prod-standalone"
+echo "  Compose file:    deploy/docker-compose.prod-standalone.yml"
 echo ""
 
 # PROD_STANDALONE_HETZNER_HOST
@@ -60,26 +116,12 @@ echo "Copy the contents of deploy/.env (production environment file)"
 echo ""
 
 echo ""
-echo "Shared prod secrets (separate shared server):"
-echo "  Used by: Build & Deploy → deploy-prod-shared"
-echo "  Prefix: PROD_"
-echo "  Required: PROD_HETZNER_HOST, PROD_HETZNER_USER, PROD_HETZNER_SSH_KEY, PROD_ENV_FILE"
-echo ""
-
-echo ""
-echo "Staging secrets (separate staging server):"
-echo "  Used by: Build & Deploy → deploy-staging"
-echo "  Prefix: STAGING_"
-echo "  Required: STAGING_HETZNER_HOST, STAGING_HETZNER_USER, STAGING_HETZNER_SSH_KEY, STAGING_ENV_FILE"
-echo ""
-
-echo ""
-echo "Optional secrets (auto-managed server by Terraform):"
+echo "Optional secrets:"
 echo ""
 
 # CF_ORIGIN_CERT
 echo "──────────── CF_ORIGIN_CERT (optional) ────────────────────────"
-echo "If you set this, the deploy workflow will auto-copy certs to the server."
+echo "Only used for standalone prod. If set, the workflow will auto-copy certs to the server."
 echo "If you skip it, you must manually SCP certs once (see deploy/README.md)."
 echo ""
 terraform output -raw stockcentral_origin_certificate
@@ -100,7 +142,9 @@ echo "════════════════════════�
 echo ""
 echo "Notes:"
 echo "  • GH_TOKEN is shared across staging, shared prod, and standalone prod."
-echo "  • CF_ORIGIN_CERT/KEY are optional — only needed if you want CI to auto-deploy certs."
+echo "  • Shared/staging servers run behind an external Traefik reverse proxy."
+echo "    The compose files use the 'traefik' Docker network by default; override with TRAEFIK_NETWORK in the env file if needed."
+echo "  • CF_ORIGIN_CERT/KEY are optional — only needed if you want CI to auto-deploy certs to standalone prod."
 echo "    Otherwise, run 'make certs' locally after Terraform apply."
 echo "  • HCLOUD_TOKEN is optional — only needed if you run Terraform in CI."
 echo "  • ENV_FILE secrets must contain your production/staging .env values (Postgres, CORS_ORIGIN, etc.)"
