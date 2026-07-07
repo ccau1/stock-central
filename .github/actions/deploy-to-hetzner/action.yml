@@ -1,0 +1,181 @@
+name: Deploy to Hetzner
+description: |
+  Copies Docker Compose artifacts to a Hetzner server, runs the stack via SSH, and
+  optionally verifies it with a health check. Supports pre-deploy hooks and passing
+  environment variables to the remote SSH session.
+
+inputs:
+  host:
+    description: Server host.
+    required: true
+  username:
+    description: SSH username.
+    required: true
+  ssh-key:
+    description: SSH private key.
+    required: true
+  remote-path:
+    description: Target directory on the remote server.
+    required: true
+  compose-file:
+    description: Docker Compose file name used on the remote server.
+    required: true
+  files-to-copy:
+    description: |
+      Multiline list of files/directories to copy relative to the repository root.
+    required: true
+  env-file-content:
+    description: |
+      Raw `.env` content. Keys matching `protected-env-keys` are filtered out.
+    required: false
+  env-file-header:
+    description: |
+      Lines prepended verbatim to the generated `.env` file. Use for hardcoded
+      values such as `DOMAIN_STAGING` or `TRAEFIK_NETWORK`.
+    required: false
+  protected-env-keys:
+    description: Comma-separated list of keys to strip from `env-file-content`.
+    default: SERVER_IMAGE,WEB_IMAGE
+  runtime-env-vars:
+    description: |
+      Multiline `KEY=VALUE` pairs exported before `docker compose up`.
+      These values take precedence over the `.env` file.
+    required: false
+  ghcr-token:
+    description: GitHub Container Registry token used to pull private images.
+    required: true
+  ghcr-username:
+    description: GitHub Container Registry username.
+    default: ${{ github.actor }}
+  prune:
+    description: Prune dangling images and system data after deploy.
+    default: "true"
+  pre-deploy-script:
+    description: Optional shell commands run on the remote server before `docker compose up -d`.
+    required: false
+  ssh-env-vars:
+    description: |
+      Multiline `KEY=VALUE` pairs passed as environment variables to the remote
+      SSH session. Use with `pre-deploy-script` when the script needs secrets.
+    required: false
+  post-deploy-script:
+    description: Optional shell commands run on the remote server after `docker compose up -d`.
+    required: false
+  health-check-url:
+    description: Optional URL to poll after deployment succeeds.
+    required: false
+  health-check-insecure:
+    description: Skip TLS verification for the optional health check.
+    default: "false"
+  health-check-expected-status:
+    description: Expected HTTP status for the optional health check.
+    default: "200"
+  health-check-max-attempts:
+    description: Maximum health-check retry attempts.
+    default: "12"
+  health-check-interval-seconds:
+    description: Seconds between health-check attempts.
+    default: "5"
+  health-check-timeout-seconds:
+    description: Request timeout for the optional health check.
+    default: "10"
+
+runs:
+  using: composite
+  steps:
+    - name: Write remote .env file
+      if: inputs.env-file-content != ''
+      shell: bash
+      run: |
+        mkdir -p deploy
+        FILTER_KEYS="${{ inputs.protected-env-keys }}"
+        FILTER_PATTERN='^[[:space:]]*('$(echo "$FILTER_KEYS" | tr ',' '|')')='
+        cat > deploy/.env <<EOF
+        ${{ inputs.env-file-header }}
+        $(printf '%s\n' "${{ inputs.env-file-content }}" | grep -viE "$FILTER_PATTERN")
+        EOF
+
+    - name: Prepare SCP source list
+      id: sources
+      shell: bash
+      run: |
+        LIST=$(echo "${{ inputs.files-to-copy }}" | paste -sd ',' -)
+        echo "list=$LIST" >> "$GITHUB_OUTPUT"
+
+    - name: Copy files to server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ inputs.host }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.ssh-key }}
+        source: ${{ steps.sources.outputs.list }}
+        target: ${{ inputs.remote-path }}
+        strip_components: 1
+
+    - name: Prepare SSH environment variables
+      id: ssh-env
+      if: inputs.ssh-env-vars != ''
+      shell: bash
+      run: |
+        NAMES=""
+        while IFS= read -r line; do
+          [ -z "$line" ] && continue
+          key="${line%%=*}"
+          val="${line#*=}"
+          [ -z "$key" ] && continue
+          echo "$key=$val" >> "$GITHUB_ENV"
+          NAMES="${NAMES},${key}"
+        done <<< "${{ inputs.ssh-env-vars }}"
+        echo "names=${NAMES#,}" >> "$GITHUB_OUTPUT"
+
+    - name: Deploy on server
+      uses: appleboy/ssh-action@v1.0.3
+      env:
+        ACTION_PRE_DEPLOY_SCRIPT: ${{ inputs.pre-deploy-script }}
+        ACTION_POST_DEPLOY_SCRIPT: ${{ inputs.post-deploy-script }}
+      with:
+        host: ${{ inputs.host }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.ssh-key }}
+        envs: ACTION_PRE_DEPLOY_SCRIPT,ACTION_POST_DEPLOY_SCRIPT,${{ steps.ssh-env.outputs.names }}
+        script: |
+          set -e
+          cd ${{ inputs.remote-path }}
+
+          # Authenticate to GHCR so the server can pull private images
+          echo "${{ inputs.ghcr-token }}" | docker login ghcr.io -u ${{ inputs.ghcr-username }} --password-stdin
+
+          # Export runtime image overrides
+          ${{ inputs.runtime-env-vars }}
+
+          # Optional pre-deploy hook (e.g. SSL cert setup)
+          if [ -n "$ACTION_PRE_DEPLOY_SCRIPT" ]; then
+            echo "Running pre-deploy script..."
+            bash -c "$ACTION_PRE_DEPLOY_SCRIPT"
+          fi
+
+          docker compose -f ${{ inputs.compose-file }} pull
+          docker compose -f ${{ inputs.compose-file }} up -d
+
+          # Optional post-deploy hook (e.g. status/logging)
+          if [ -n "$ACTION_POST_DEPLOY_SCRIPT" ]; then
+            echo "Running post-deploy script..."
+            bash -c "$ACTION_POST_DEPLOY_SCRIPT"
+          fi
+
+          # Prune old dangling images to save disk
+          if [ "${{ inputs.prune }}" = "true" ]; then
+            docker image prune -af
+            docker system prune -f
+          fi
+
+    - name: Health check
+      if: inputs.health-check-url != ''
+      uses: ./.github/actions/health-check
+      with:
+        url: ${{ inputs.health-check-url }}
+        insecure: ${{ inputs.health-check-insecure }}
+        expected-status: ${{ inputs.health-check-expected-status }}
+        max-attempts: ${{ inputs.health-check-max-attempts }}
+        interval-seconds: ${{ inputs.health-check-interval-seconds }}
+        timeout-seconds: ${{ inputs.health-check-timeout-seconds }}

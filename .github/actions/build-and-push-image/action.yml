@@ -1,0 +1,83 @@
+name: Build and push Docker image
+description: |
+  Builds a Docker image and pushes it to a GitHub Container Registry (GHCR) with
+  GitHub Actions cache support. The image is tagged under
+  `<registry>/<repository>/<image-name>:<tag>`.
+
+inputs:
+  image-name:
+    description: Image name suffix, e.g. `server` or `web`.
+    required: true
+  context:
+    description: Docker build context path.
+    default: .
+  file:
+    description: Path to an alternate Dockerfile.
+    required: false
+  tags:
+    description: |
+      One or more image tags, one per line. Each tag is prefixed with the full
+      image base name automatically.
+    required: true
+  registry:
+    description: Container registry host.
+    default: ghcr.io
+  github-token:
+    description: Token used to log in to the registry.
+    default: ${{ github.token }}
+  push:
+    description: Whether to push the image after building.
+    default: "true"
+
+outputs:
+  image-uri:
+    description: Full image reference of the first tag.
+    value: ${{ steps.meta.outputs.uri }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to container registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ github.actor }}
+        password: ${{ inputs.github-token }}
+
+    - name: Prepare image tags
+      id: meta
+      shell: bash
+      run: |
+        IMAGE_BASE="${{ inputs.registry }}/${{ github.repository }}/${{ inputs.image-name }}"
+        FULL_TAGS=""
+        FIRST_URI=""
+        while IFS= read -r tag; do
+          tag="$(echo "$tag" | xargs)"
+          [ -z "$tag" ] && continue
+          full="${IMAGE_BASE}:${tag}"
+          if [ -z "$FULL_TAGS" ]; then
+            FULL_TAGS="$full"
+          else
+            FULL_TAGS="${FULL_TAGS}"$'\n'"$full"
+          fi
+          [ -z "$FIRST_URI" ] && FIRST_URI="$full"
+        done <<< "${{ inputs.tags }}"
+        {
+          echo "tags<<EOF"
+          echo "$FULL_TAGS"
+          echo "EOF"
+          echo "uri=$FIRST_URI"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Build and push image
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        push: ${{ inputs.push }}
+        tags: ${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

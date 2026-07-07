@@ -16,6 +16,7 @@ on:
       - 'packages/web/**'
       - 'deploy/**'
       - '.github/workflows/deploy.yml'
+      - '.github/actions/**'
   workflow_dispatch:
     inputs:
       deployment_target:
@@ -31,6 +32,21 @@ env:
   REGISTRY: ghcr.io
   IMAGE_BASE: ghcr.io/${{ github.repository }}
 
+  # App-specific deployment config. Edit these values when reusing this workflow
+  # in another repository.
+  STAGING_DOMAIN: stocks.staging.tribalorigin.com
+  STAGING_REMOTE_PATH: /opt/stock-central-staging
+  STAGING_COMPOSE_FILE: docker-compose.staging.yml
+  STAGING_HEALTH_URL: https://stocks.staging.tribalorigin.com/health
+
+  PROD_DOMAIN: stocks.tribalorigin.com
+  PROD_REMOTE_PATH: /opt/stock-central-prod
+  PROD_COMPOSE_FILE: docker-compose.prod.yml
+  PROD_HEALTH_URL: https://stocks.tribalorigin.com/health
+
+  STANDALONE_REMOTE_PATH: /opt/stock-central-prod-standalone
+  STANDALONE_COMPOSE_FILE: docker-compose.prod-standalone.yml
+
 jobs:
   build-server:
     runs-on: ubuntu-latest
@@ -40,26 +56,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build & push server
-        uses: docker/build-push-action@v5
+        uses: ./.github/actions/build-and-push-image
         with:
+          image-name: server
           context: ./packages/server
-          push: true
           tags: |
-            ${{ env.IMAGE_BASE }}/server:staging
-            ${{ env.IMAGE_BASE }}/server:staging-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            staging
+            staging-${{ github.sha }}
 
   build-web:
     runs-on: ubuntu-latest
@@ -69,27 +73,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build & push web
-        uses: docker/build-push-action@v5
+        uses: ./.github/actions/build-and-push-image
         with:
+          image-name: web
           context: .
           file: ./packages/web/Dockerfile.prod
-          push: true
           tags: |
-            ${{ env.IMAGE_BASE }}/web:staging
-            ${{ env.IMAGE_BASE }}/web:staging-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            staging
+            staging-${{ github.sha }}
 
   deploy-staging:
     needs: [build-server, build-web]
@@ -97,73 +89,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Write staging .env
-        run: |
-          mkdir -p deploy
-          cat > deploy/.env <<EOF
-          DOMAIN_STAGING=stocks.staging.tribalorigin.com
-          TRAEFIK_NETWORK=staging
-          $(printf '%s\n' "${{ secrets.STAGING_ENV_FILE }}" | grep -viE '^[[:space:]]*(SERVER_IMAGE|WEB_IMAGE|DOMAIN_STAGING|DOMAIN_PROD|TRAEFIK_NETWORK)=')
-          EOF
-
-      - name: Copy compose & nginx to staging server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Deploy to staging
+        uses: ./.github/actions/deploy-to-hetzner
         with:
           host: ${{ secrets.STAGING_HETZNER_HOST }}
           username: ${{ secrets.STAGING_HETZNER_USER }}
-          key: ${{ secrets.STAGING_HETZNER_SSH_KEY }}
-          source: "deploy/docker-compose.staging.yml,deploy/.env,deploy/nginx.dev.conf"
-          target: "/opt/stock-central-staging"
-          strip_components: 1
-
-      - name: Deploy on staging server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.STAGING_HETZNER_HOST }}
-          username: ${{ secrets.STAGING_HETZNER_USER }}
-          key: ${{ secrets.STAGING_HETZNER_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/stock-central-staging
-
-            # Authenticate to GHCR so the server can pull private images
-            echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Set image references and pull latest
+          ssh-key: ${{ secrets.STAGING_HETZNER_SSH_KEY }}
+          remote-path: ${{ env.STAGING_REMOTE_PATH }}
+          compose-file: ${{ env.STAGING_COMPOSE_FILE }}
+          files-to-copy: |
+            deploy/${{ env.STAGING_COMPOSE_FILE }}
+            deploy/.env
+            deploy/nginx.dev.conf
+          env-file-content: ${{ secrets.STAGING_ENV_FILE }}
+          env-file-header: |
+            DOMAIN_STAGING=${{ env.STAGING_DOMAIN }}
+            TRAEFIK_NETWORK=staging
+          protected-env-keys: SERVER_IMAGE,WEB_IMAGE,DOMAIN_STAGING,DOMAIN_PROD,TRAEFIK_NETWORK
+          runtime-env-vars: |
             export SERVER_IMAGE="${{ env.IMAGE_BASE }}/server:staging-${{ github.sha }}"
             export WEB_IMAGE="${{ env.IMAGE_BASE }}/web:staging-${{ github.sha }}"
-            docker compose -f docker-compose.staging.yml pull
-            docker compose -f docker-compose.staging.yml up -d
-
-            # Verify container status
+          ghcr-token: ${{ secrets.GH_TOKEN }}
+          post-deploy-script: |
             echo "Container status:"
-            docker compose -f docker-compose.staging.yml ps
-            docker compose -f docker-compose.staging.yml logs --tail 30
-
-            # Prune old dangling images to save disk
-            docker image prune -af
-            docker system prune -f
-
-      - name: Health check (staging)
-        run: |
-          HEALTH_URL="https://stocks.staging.tribalorigin.com/health"
-          echo "Testing staging health endpoint: $HEALTH_URL"
-          echo "Waiting for containers to start..."
-          for i in {1..12}; do
-            sleep 5
-            echo "Attempt $i/12: curl -fsSL --max-time 10 $HEALTH_URL"
-            HTTP_CODE=$(curl -fsSL --max-time 10 -w "%{http_code}" -o /tmp/health_response.html "$HEALTH_URL" || true)
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "Staging health check passed: $HEALTH_URL (HTTP $HTTP_CODE)"
-              exit 0
-            fi
-            echo "Attempt $i/12 failed (HTTP ${HTTP_CODE:-no response}), retrying..."
-          done
-          echo "Staging health check failed after 60 seconds: $HEALTH_URL"
-          echo "--- Last response body ---"
-          cat /tmp/health_response.html 2>/dev/null || echo "(no response body captured)"
-          echo "--- End response body ---"
-          exit 1
+            docker compose -f ${{ env.STAGING_COMPOSE_FILE }} ps
+            docker compose -f ${{ env.STAGING_COMPOSE_FILE }} logs --tail 30
+          health-check-url: ${{ env.STAGING_HEALTH_URL }}
 
   promote-to-prod:
     name: Promote to Production
@@ -175,148 +126,61 @@ jobs:
 
       # ── Shared production server (default) ────────────────────────
 
-      - name: Write shared prod .env
+      - name: Deploy to shared prod
         if: ${{ github.event.inputs.deployment_target != 'standalone' }}
-        run: |
-          mkdir -p deploy
-          cat > deploy/.env <<EOF
-          DOMAIN_PROD=stocks.tribalorigin.com
-          TRAEFIK_NETWORK=prod
-          $(printf '%s\n' "${{ secrets.PROD_ENV_FILE }}" | grep -viE '^[[:space:]]*(SERVER_IMAGE|WEB_IMAGE|DOMAIN_STAGING|DOMAIN_PROD|TRAEFIK_NETWORK)=')
-          EOF
-
-      - name: Copy compose & nginx to shared prod server
-        if: ${{ github.event.inputs.deployment_target != 'standalone' }}
-        uses: appleboy/scp-action@v0.1.7
+        uses: ./.github/actions/deploy-to-hetzner
         with:
           host: ${{ secrets.PROD_HETZNER_HOST }}
           username: ${{ secrets.PROD_HETZNER_USER }}
-          key: ${{ secrets.PROD_HETZNER_SSH_KEY }}
-          source: "deploy/docker-compose.prod.yml,deploy/.env,deploy/nginx.dev.conf"
-          target: "/opt/stock-central-prod"
-          strip_components: 1
-
-      - name: Deploy promoted image to shared prod
-        if: ${{ github.event.inputs.deployment_target != 'standalone' }}
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.PROD_HETZNER_HOST }}
-          username: ${{ secrets.PROD_HETZNER_USER }}
-          key: ${{ secrets.PROD_HETZNER_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/stock-central-prod
-
-            # Authenticate to GHCR so the server can pull private images
-            echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Promote the exact staging images built in this run
+          ssh-key: ${{ secrets.PROD_HETZNER_SSH_KEY }}
+          remote-path: ${{ env.PROD_REMOTE_PATH }}
+          compose-file: ${{ env.PROD_COMPOSE_FILE }}
+          files-to-copy: |
+            deploy/${{ env.PROD_COMPOSE_FILE }}
+            deploy/.env
+            deploy/nginx.dev.conf
+          env-file-content: ${{ secrets.PROD_ENV_FILE }}
+          env-file-header: |
+            DOMAIN_PROD=${{ env.PROD_DOMAIN }}
+            TRAEFIK_NETWORK=prod
+          protected-env-keys: SERVER_IMAGE,WEB_IMAGE,DOMAIN_STAGING,DOMAIN_PROD,TRAEFIK_NETWORK
+          runtime-env-vars: |
             export SERVER_IMAGE="${{ env.IMAGE_BASE }}/server:staging-${{ github.sha }}"
             export WEB_IMAGE="${{ env.IMAGE_BASE }}/web:staging-${{ github.sha }}"
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d
-
-            # Prune old dangling images to save disk
-            docker image prune -af
-            docker system prune -f
+          ghcr-token: ${{ secrets.GH_TOKEN }}
+          health-check-url: ${{ env.PROD_HEALTH_URL }}
 
       # ── Standalone production server (future/legacy) ──────────────
 
-      - name: Write standalone prod .env
+      - name: Deploy to standalone prod
         if: ${{ github.event.inputs.deployment_target == 'standalone' }}
-        run: |
-          mkdir -p deploy
-          cat > deploy/.env <<EOF
-          $(printf '%s\n' "${{ secrets.PROD_STANDALONE_ENV_FILE }}" | grep -viE '^[[:space:]]*(SERVER_IMAGE|WEB_IMAGE)=')
-          EOF
-
-      - name: Copy compose & nginx to standalone prod server
-        if: ${{ github.event.inputs.deployment_target == 'standalone' }}
-        uses: appleboy/scp-action@v0.1.7
+        uses: ./.github/actions/deploy-to-hetzner
         with:
           host: ${{ secrets.PROD_STANDALONE_HETZNER_HOST }}
           username: ${{ secrets.PROD_STANDALONE_HETZNER_USER }}
-          key: ${{ secrets.PROD_STANDALONE_HETZNER_SSH_KEY }}
-          source: "deploy/docker-compose.prod-standalone.yml,deploy/.env,deploy/nginx.prod-standalone.conf"
-          target: "/opt/stock-central-prod-standalone"
-          strip_components: 1
-
-      - name: Check for SSL cert secrets
-        if: ${{ github.event.inputs.deployment_target == 'standalone' }}
-        id: certs
-        run: |
-          if [ -n "${{ secrets.CF_ORIGIN_CERT }}" ]; then
-            echo "has_certs=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_certs=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Ensure SSL certs on standalone prod server
-        if: ${{ github.event.inputs.deployment_target == 'standalone' && steps.certs.outputs.has_certs == 'true' }}
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          CF_ORIGIN_CERT: ${{ secrets.CF_ORIGIN_CERT }}
-          CF_ORIGIN_KEY: ${{ secrets.CF_ORIGIN_KEY }}
-        with:
-          host: ${{ secrets.PROD_STANDALONE_HETZNER_HOST }}
-          username: ${{ secrets.PROD_STANDALONE_HETZNER_USER }}
-          key: ${{ secrets.PROD_STANDALONE_HETZNER_SSH_KEY }}
-          envs: CF_ORIGIN_CERT,CF_ORIGIN_KEY
-          script: |
-            set -e
-            mkdir -p /opt/stock-central-prod-standalone/ssl
-            printf '%s\n' "$CF_ORIGIN_CERT" > /opt/stock-central-prod-standalone/ssl/cloudflare-origin.pem
-            printf '%s\n' "$CF_ORIGIN_KEY" > /opt/stock-central-prod-standalone/ssl/cloudflare-origin.key
-            chmod 600 /opt/stock-central-prod-standalone/ssl/cloudflare-origin.key
-            chmod 644 /opt/stock-central-prod-standalone/ssl/cloudflare-origin.pem
-
-      - name: Deploy promoted image to standalone prod
-        if: ${{ github.event.inputs.deployment_target == 'standalone' }}
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.PROD_STANDALONE_HETZNER_HOST }}
-          username: ${{ secrets.PROD_STANDALONE_HETZNER_USER }}
-          key: ${{ secrets.PROD_STANDALONE_HETZNER_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/stock-central-prod-standalone
-
-            # Authenticate to GHCR so the server can pull private images
-            echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Promote the exact staging images built in this run
+          ssh-key: ${{ secrets.PROD_STANDALONE_HETZNER_SSH_KEY }}
+          remote-path: ${{ env.STANDALONE_REMOTE_PATH }}
+          compose-file: ${{ env.STANDALONE_COMPOSE_FILE }}
+          files-to-copy: |
+            deploy/${{ env.STANDALONE_COMPOSE_FILE }}
+            deploy/.env
+            deploy/nginx.prod-standalone.conf
+          env-file-content: ${{ secrets.PROD_STANDALONE_ENV_FILE }}
+          protected-env-keys: SERVER_IMAGE,WEB_IMAGE
+          runtime-env-vars: |
             export SERVER_IMAGE="${{ env.IMAGE_BASE }}/server:staging-${{ github.sha }}"
             export WEB_IMAGE="${{ env.IMAGE_BASE }}/web:staging-${{ github.sha }}"
-            docker compose -f docker-compose.prod-standalone.yml pull
-            docker compose -f docker-compose.prod-standalone.yml up -d
-
-            # Prune old dangling images to save disk
-            docker image prune -af
-            docker system prune -f
-
-      - name: Health check (prod)
-        run: |
-          if [ "${{ github.event.inputs.deployment_target }}" = "standalone" ]; then
-            HEALTH_URL="https://${{ secrets.PROD_STANDALONE_HETZNER_HOST }}/health"
-            CURL_OPTS="-fsSLk --max-time 10"
-          else
-            HEALTH_URL="https://stocks.tribalorigin.com/health"
-            CURL_OPTS="-fsSL --max-time 10"
-          fi
-          echo "Testing prod health endpoint: $HEALTH_URL"
-          echo "Waiting for containers to start..."
-          for i in {1..12}; do
-            sleep 5
-            echo "Attempt $i/12: curl $CURL_OPTS $HEALTH_URL"
-            HTTP_CODE=$(curl $CURL_OPTS -w "%{http_code}" -o /tmp/health_response.html "$HEALTH_URL" || true)
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "Prod health check passed: $HEALTH_URL (HTTP $HTTP_CODE)"
-              exit 0
+          ghcr-token: ${{ secrets.GH_TOKEN }}
+          ssh-env-vars: |
+            CF_ORIGIN_CERT=${{ secrets.CF_ORIGIN_CERT }}
+            CF_ORIGIN_KEY=${{ secrets.CF_ORIGIN_KEY }}
+          pre-deploy-script: |
+            if [ -n "$CF_ORIGIN_CERT" ]; then
+              mkdir -p ${{ env.STANDALONE_REMOTE_PATH }}/ssl
+              printf '%s\n' "$CF_ORIGIN_CERT" > ${{ env.STANDALONE_REMOTE_PATH }}/ssl/cloudflare-origin.pem
+              printf '%s\n' "$CF_ORIGIN_KEY" > ${{ env.STANDALONE_REMOTE_PATH }}/ssl/cloudflare-origin.key
+              chmod 600 ${{ env.STANDALONE_REMOTE_PATH }}/ssl/cloudflare-origin.key
+              chmod 644 ${{ env.STANDALONE_REMOTE_PATH }}/ssl/cloudflare-origin.pem
             fi
-            echo "Attempt $i/12 failed (HTTP ${HTTP_CODE:-no response}), retrying..."
-          done
-          echo "Prod health check failed after 60 seconds: $HEALTH_URL"
-          echo "--- Last response body ---"
-          cat /tmp/health_response.html 2>/dev/null || echo "(no response body captured)"
-          echo "--- End response body ---"
-          exit 1
+          health-check-url: https://${{ secrets.PROD_STANDALONE_HETZNER_HOST }}/health
+          health-check-insecure: true

@@ -1,0 +1,83 @@
+name: Health check
+description: |
+  Polls an HTTP(S) endpoint until it returns the expected status code. Useful for
+  verifying a deployment before marking a job as successful.
+
+inputs:
+  url:
+    description: URL to poll.
+    required: true
+  expected-status:
+    description: Expected HTTP status code.
+    default: "200"
+  max-attempts:
+    description: Maximum number of retry attempts.
+    default: "12"
+  interval-seconds:
+    description: Seconds to wait between attempts.
+    default: "5"
+  timeout-seconds:
+    description: Per-request timeout.
+    default: "10"
+  insecure:
+    description: Skip TLS certificate verification (`curl -k`).
+    default: "false"
+
+outputs:
+  status:
+    description: Final HTTP status code, if any.
+    value: ${{ steps.check.outputs.status }}
+  response-body:
+    description: Response body from the last request.
+    value: ${{ steps.check.outputs.body }}
+
+runs:
+  using: composite
+  steps:
+    - name: Poll health endpoint
+      id: check
+      shell: bash
+      run: |
+        if [ "${{ inputs.insecure }}" = "true" ]; then
+          CURL_OPTS="-fsSLk --max-time ${{ inputs.timeout-seconds }}"
+        else
+          CURL_OPTS="-fsSL --max-time ${{ inputs.timeout-seconds }}"
+        fi
+
+        URL="${{ inputs.url }}"
+        EXPECTED="${{ inputs.expected-status }}"
+        MAX="${{ inputs.max-attempts }}"
+        INTERVAL="${{ inputs.interval-seconds }}"
+
+        echo "Testing health endpoint: $URL"
+        echo "Waiting for containers to start..."
+
+        HTTP_CODE=""
+        for i in $(seq 1 "$MAX"); do
+          sleep "$INTERVAL"
+          HTTP_CODE=$(curl $CURL_OPTS -w "%{http_code}" -o /tmp/health_response.html "$URL" || true)
+          echo "Attempt $i/$MAX: curl $CURL_OPTS $URL (HTTP ${HTTP_CODE:-no response})"
+          if [ "$HTTP_CODE" = "$EXPECTED" ]; then
+            echo "Health check passed: $URL (HTTP $HTTP_CODE)"
+            {
+              echo "status=$HTTP_CODE"
+              echo "body<<EOF"
+              cat /tmp/health_response.html 2>/dev/null || true
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Attempt $i/$MAX failed (HTTP ${HTTP_CODE:-no response}), retrying..."
+        done
+
+        echo "Health check failed after $(( MAX * INTERVAL )) seconds: $URL"
+        echo "--- Last response body ---"
+        cat /tmp/health_response.html 2>/dev/null || echo "(no response body captured)"
+        echo "--- End response body ---"
+        {
+          echo "status=${HTTP_CODE:-none}"
+          echo "body<<EOF"
+          cat /tmp/health_response.html 2>/dev/null || true
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        exit 1
