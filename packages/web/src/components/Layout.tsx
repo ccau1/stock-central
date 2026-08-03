@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
-import { Globe, BarChart3, Search, RefreshCw, Briefcase, Calculator, ChevronDown, ChevronRight, GraduationCap } from "lucide-react";
+import { Globe, BarChart3, Search, RefreshCw, Briefcase, Calculator, ChevronDown, ChevronRight, GraduationCap, Landmark } from "lucide-react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import BottomRightDock from "./BottomRightDock";
 import RealTimeNewsBox from "./RealTimeNewsBox";
@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
       { type: "link", path: "/earnings", label: "Earnings" },
       { type: "link", path: "/real-estate-us", label: "Real Estate" },
       { type: "link", path: "/monthly-returns", label: "Monthly Returns" },
+      { type: "link", path: "/elections", label: "Elections", icon: Landmark },
     ],
   },
   {
@@ -49,6 +50,7 @@ const navItems: NavItem[] = [
         children: [
           { type: "link", path: "/calculators/compound-calculator", label: "Compound Calculator" },
           { type: "link", path: "/calculators/mortgage-calculator", label: "Mortgage Calculator" },
+          { type: "link", path: "/calculators/car-purchase-calculator", label: "Car Purchase Calculator" },
         ],
       },
     ],

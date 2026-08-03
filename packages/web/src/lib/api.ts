@@ -78,6 +78,11 @@ export interface QuarterlyEarning {
   beat_pct: number;
 }
 
+export interface UpcomingQuarterlyEarning {
+  date: string;
+  estimate: number;
+}
+
 export interface ForwardPeData {
   symbol: string;
   forward_pe: number;
@@ -94,6 +99,7 @@ export interface ForwardPeData {
   eps_estimate_q: number;
   quarter_label: string;
   earnings_history: QuarterlyEarning[];
+  earnings_upcoming: UpcomingQuarterlyEarning[];
   next_earnings_date: number;
   next_earnings_time: string;
   target_low: number;

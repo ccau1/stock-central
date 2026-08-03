@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -319,6 +321,11 @@ type QuarterlyEarning struct {
 	BeatPct  float64 `json:"beat_pct"` // (actual - estimate) / |estimate| * 100
 }
 
+type UpcomingQuarterlyEarning struct {
+	Date     string  `json:"date"`
+	Estimate float64 `json:"estimate"`
+}
+
 type QuoteMetrics struct {
 	Symbol           string  `json:"symbol"`
 	Price            float64 `json:"price"`
@@ -343,6 +350,7 @@ type QuoteMetrics struct {
 	EpsEstimateQ   float64 `json:"eps_estimate_q"`   // most recent quarter estimated EPS
 	QuarterLabel   string  `json:"quarter_label"`    // e.g. "Q3 2024"
 	EarningsHistory []QuarterlyEarning `json:"earnings_history"`
+	EarningsUpcoming []UpcomingQuarterlyEarning `json:"earnings_upcoming"`
 	// Next earnings report
 	NextEarningsDate int64  `json:"next_earnings_date"` // Unix timestamp of next earnings
 	NextEarningsTime string `json:"next_earnings_time"` // "Pre-market", "After-hours", or ""
@@ -360,7 +368,7 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 	}
 
 	u := fmt.Sprintf(
-		"https://query2.finance.yahoo.com/v10/finance/quoteSummary/%s?modules=summaryDetail,defaultKeyStatistics,financialData,price,earningsTrend,earnings&crumb=%s",
+		"https://query2.finance.yahoo.com/v10/finance/quoteSummary/%s?modules=summaryDetail,defaultKeyStatistics,financialData,price,earningsTrend,earnings,earningsHistory&crumb=%s",
 		url.QueryEscape(symbol),
 		url.QueryEscape(yahooCrumb),
 	)
@@ -426,6 +434,15 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 						} `json:"quarterly"`
 					} `json:"earningsChart"`
 				} `json:"earnings"`
+				EarningsHistory struct {
+					History []struct {
+						Period        string                  `json:"period"`
+						Quarter       *struct{ Raw int64 `json:"raw"` } `json:"quarter"`
+						EpsActual     *struct{ Raw float64 `json:"raw"` } `json:"epsActual"`
+						EpsEstimate   *struct{ Raw float64 `json:"raw"` } `json:"epsEstimate"`
+						SurprisePercent *struct{ Raw float64 `json:"raw"` } `json:"surprisePercent"`
+					} `json:"history"`
+				} `json:"earningsHistory"`
 				CalendarEvents struct {
 					Earnings struct {
 						EarningsDate []struct {
@@ -538,23 +555,129 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 			m.EpsEstimateQ = q.Estimate.Raw
 		}
 		for _, eq := range r.Earnings.EarningsChart.Quarterly {
-			if eq.Actual == nil || eq.Estimate == nil {
+			// Reported quarter: both actual and estimate present
+			if eq.Actual != nil && eq.Estimate != nil {
+				actual := eq.Actual.Raw
+				estimate := eq.Estimate.Raw
+				beatPct := 0.0
+				if estimate != 0 {
+					beatPct = ((actual - estimate) / math.Abs(estimate)) * 100
+				}
+				m.EarningsHistory = append(m.EarningsHistory, QuarterlyEarning{
+					Date:     eq.Date,
+					Actual:   actual,
+					Estimate: estimate,
+					BeatPct:  beatPct,
+				})
 				continue
 			}
-			actual := eq.Actual.Raw
-			estimate := eq.Estimate.Raw
+			// Upcoming quarter: estimate available but actual not yet reported
+			if eq.Actual == nil && eq.Estimate != nil && eq.Estimate.Raw > 0 {
+				m.EarningsUpcoming = append(m.EarningsUpcoming, UpcomingQuarterlyEarning{
+					Date:     eq.Date,
+					Estimate: eq.Estimate.Raw,
+				})
+			}
+		}
+	}
+
+	// Parse additional historical quarters from earningsHistory when available.
+	// earningsChart.quarterly only provides the last 4 quarters; earningsHistory
+	// can provide a longer history.
+	if m.QuarterLabel != "" {
+		existing := make(map[string]struct{})
+		for _, h := range m.EarningsHistory {
+			existing[h.Date] = struct{}{}
+		}
+		for _, eh := range r.EarningsHistory.History {
+			if eh.EpsActual == nil && eh.EpsEstimate == nil {
+				continue
+			}
+			offset := 0
+			if _, err := fmt.Sscanf(eh.Period, "%dq", &offset); err != nil {
+				continue
+			}
+			label := quarterLabelFromOffset(m.QuarterLabel, offset)
+			if label == "" {
+				continue
+			}
+			if _, ok := existing[label]; ok {
+				continue
+			}
+			actual := 0.0
+			if eh.EpsActual != nil {
+				actual = eh.EpsActual.Raw
+			}
+			estimate := 0.0
+			if eh.EpsEstimate != nil {
+				estimate = eh.EpsEstimate.Raw
+			}
 			beatPct := 0.0
 			if estimate != 0 {
 				beatPct = ((actual - estimate) / math.Abs(estimate)) * 100
 			}
+			existing[label] = struct{}{}
 			m.EarningsHistory = append(m.EarningsHistory, QuarterlyEarning{
-				Date:     eq.Date,
+				Date:     label,
 				Actual:   actual,
 				Estimate: estimate,
 				BeatPct:  beatPct,
 			})
 		}
 	}
+
+	// Parse forward quarterly estimates from earningsTrend when earningsChart
+	// does not include the upcoming quarter(s).
+	if m.QuarterLabel != "" {
+		existing := make(map[string]struct{})
+		for _, h := range m.EarningsHistory {
+			existing[h.Date] = struct{}{}
+		}
+		for _, u := range m.EarningsUpcoming {
+			existing[u.Date] = struct{}{}
+		}
+
+		periodOffset := map[string]int{
+			"0q":  1,
+			"+1q": 2,
+		}
+		for _, t := range r.EarningsTrend.Trend {
+			offset, ok := periodOffset[t.Period]
+			if !ok {
+				continue
+			}
+			if t.EarningsEstimate.Avg == nil || t.EarningsEstimate.Avg.Raw <= 0 {
+				continue
+			}
+			labels := nextQuarterLabels(m.QuarterLabel, offset)
+			if len(labels) == 0 {
+				continue
+			}
+			label := labels[len(labels)-1]
+			if _, exists := existing[label]; exists {
+				continue
+			}
+			existing[label] = struct{}{}
+			m.EarningsUpcoming = append(m.EarningsUpcoming, UpcomingQuarterlyEarning{
+				Date:     label,
+				Estimate: t.EarningsEstimate.Avg.Raw,
+			})
+		}
+	}
+
+	// Sort earnings history chronologically so consumers can safely take the
+	// last N entries as the most recent quarters.
+	sort.Slice(m.EarningsHistory, func(i, j int) bool {
+		qi, yi, oi := parseQuarterYear(m.EarningsHistory[i].Date)
+		qj, yj, oj := parseQuarterYear(m.EarningsHistory[j].Date)
+		if !oi || !oj {
+			return m.EarningsHistory[i].Date < m.EarningsHistory[j].Date
+		}
+		if yi != yj {
+			return yi < yj
+		}
+		return qi < qj
+	})
 
 	// Parse next earnings date
 	if len(r.CalendarEvents.Earnings.EarningsDate) > 0 {
@@ -563,6 +686,97 @@ func GetQuoteSummary(symbol string) (*QuoteMetrics, error) {
 	}
 
 	return m, nil
+}
+
+// quarterLabelFromOffset returns the quarter label that is `offset` quarters away
+// from lastReported. offset can be negative (past) or positive (future).
+func quarterLabelFromOffset(lastReported string, offset int) string {
+	q, y, ok := parseQuarterYear(lastReported)
+	if !ok {
+		return ""
+	}
+	q += offset
+	for q > 4 {
+		q -= 4
+		y++
+	}
+	for q < 1 {
+		q += 4
+		y--
+	}
+	trimmed := strings.TrimSpace(lastReported)
+	switch {
+	case regexp.MustCompile(`^Q\d`).MatchString(trimmed):
+		return fmt.Sprintf("Q%d %d", q, y)
+	case regexp.MustCompile(`^\dQ`).MatchString(trimmed):
+		return fmt.Sprintf("%dQ%d", q, y)
+	case regexp.MustCompile(`^\d{4}[-\s]*Q\d`).MatchString(trimmed):
+		return fmt.Sprintf("%d Q%d", y, q)
+	default:
+		return fmt.Sprintf("Q%d %d", q, y)
+	}
+}
+
+// parseQuarterYear parses quarter labels like "1Q2026", "Q1 2026", "2026-Q1", "Q1-2026".
+func parseQuarterYear(dateStr string) (quarter int, year int, ok bool) {
+	normalized := strings.ToUpper(strings.TrimSpace(dateStr))
+	// 1Q2026, 1Q 2026
+	if m := regexp.MustCompile(`^(\d)Q[-\s]*(\d{4})$`).FindStringSubmatch(normalized); len(m) == 3 {
+		return atoi(m[1]), atoi(m[2]), true
+	}
+	// Q1 2026, Q1-2026
+	if m := regexp.MustCompile(`^Q(\d)[-\s]*(\d{4})$`).FindStringSubmatch(normalized); len(m) == 3 {
+		return atoi(m[1]), atoi(m[2]), true
+	}
+	// 2026 Q1, 2026-Q1
+	if m := regexp.MustCompile(`^(\d{4})[-\s]*Q(\d)$`).FindStringSubmatch(normalized); len(m) == 3 {
+		return atoi(m[2]), atoi(m[1]), true
+	}
+	// 1Q26
+	if m := regexp.MustCompile(`^(\d)Q(\d{2})$`).FindStringSubmatch(normalized); len(m) == 3 {
+		year := atoi(m[2])
+		if year >= 50 {
+			year += 1900
+		} else {
+			year += 2000
+		}
+		return atoi(m[1]), year, true
+	}
+	return 0, 0, false
+}
+
+func atoi(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
+}
+
+// nextQuarterLabels returns the next `count` quarter labels after lastReported,
+// preserving the input format when possible.
+func nextQuarterLabels(lastReported string, count int) []string {
+	q, y, ok := parseQuarterYear(lastReported)
+	if !ok || count <= 0 {
+		return nil
+	}
+	labels := make([]string, count)
+	for i := 0; i < count; i++ {
+		q++
+		if q > 4 {
+			q = 1
+			y++
+		}
+		trimmed := strings.TrimSpace(lastReported)
+		switch {
+		case regexp.MustCompile(`^Q\d`).MatchString(trimmed):
+			labels[i] = fmt.Sprintf("Q%d %d", q, y)
+		case regexp.MustCompile(`^\dQ`).MatchString(trimmed):
+			labels[i] = fmt.Sprintf("%dQ%d", q, y)
+		case regexp.MustCompile(`^\d{4}[-\s]*Q\d`).MatchString(trimmed):
+			labels[i] = fmt.Sprintf("%d Q%d", y, q)
+		default:
+			labels[i] = fmt.Sprintf("Q%d %d", q, y)
+		}
+	}
+	return labels
 }
 
 // inferEarningsTime guesses whether earnings are pre-market or after-hours

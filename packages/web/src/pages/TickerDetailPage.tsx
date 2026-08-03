@@ -7,6 +7,7 @@ import CandlestickChart from "../components/CandlestickChart";
 import ArticleModal from "../components/ArticleModal";
 import TechnicalSummary from "../components/TechnicalSummary";
 import { MonthlyReturnsTable } from "../components/MonthlyReturnsTable";
+import { EarningsHistory } from "../components/EarningsHistory";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -540,6 +541,11 @@ export default function TickerDetailPage() {
             );
           })()}
         </div>
+      )}
+
+      {/* Earnings History */}
+      {fp && (
+        <EarningsHistory forwardPe={fp} />
       )}
 
       {/* News */}

@@ -81,6 +81,11 @@ type QuarterlyEarning struct {
 	BeatPct  float64 `json:"beat_pct"`
 }
 
+type UpcomingQuarterlyEarning struct {
+	Date     string  `json:"date"`
+	Estimate float64 `json:"estimate"`
+}
+
 type ForwardPeData struct {
 	Symbol           string             `json:"symbol"`
 	ForwardPe        float64            `json:"forward_pe"`
@@ -95,10 +100,11 @@ type ForwardPeData struct {
 	NumAnalysts      int                `json:"num_analysts"`
 	EpsActualQ       float64            `json:"eps_actual_q"`
 	EpsEstimateQ     float64            `json:"eps_estimate_q"`
-	QuarterLabel     string             `json:"quarter_label"`
-	EarningsHistory  []QuarterlyEarning `json:"earnings_history"`
-	NextEarningsDate int64              `json:"next_earnings_date"`
-	NextEarningsTime string             `json:"next_earnings_time"`
+	QuarterLabel     string                     `json:"quarter_label"`
+	EarningsHistory  []QuarterlyEarning         `json:"earnings_history"`
+	EarningsUpcoming []UpcomingQuarterlyEarning `json:"earnings_upcoming"`
+	NextEarningsDate int64                      `json:"next_earnings_date"`
+	NextEarningsTime string                     `json:"next_earnings_time"`
 	TargetLow        float64            `json:"target_low"`
 	TargetMean       float64            `json:"target_mean"`
 	TargetHigh       float64            `json:"target_high"`
@@ -1093,6 +1099,13 @@ func (a *API) getForwardPe(w http.ResponseWriter, r *http.Request) {
 				BeatPct:  math.Round(h.BeatPct*10) / 10,
 			}
 		}
+		upcoming := make([]UpcomingQuarterlyEarning, len(m.EarningsUpcoming))
+		for i, u := range m.EarningsUpcoming {
+			upcoming[i] = UpcomingQuarterlyEarning{
+				Date:     u.Date,
+				Estimate: math.Round(u.Estimate*100) / 100,
+			}
+		}
 		result = append(result, ForwardPeData{
 			Symbol:           sym,
 			ForwardPe:        math.Round(m.PeForward*10) / 10,
@@ -1109,6 +1122,7 @@ func (a *API) getForwardPe(w http.ResponseWriter, r *http.Request) {
 			EpsEstimateQ:     math.Round(m.EpsEstimateQ*100) / 100,
 			QuarterLabel:     m.QuarterLabel,
 			EarningsHistory:  history,
+			EarningsUpcoming: upcoming,
 			NextEarningsDate: m.NextEarningsDate,
 			NextEarningsTime: m.NextEarningsTime,
 			TargetLow:        math.Round(m.TargetLow*100) / 100,

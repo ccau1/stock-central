@@ -16,8 +16,10 @@ import WatchlistPage from "./pages/WatchlistPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import RealEstateUsPage from "./pages/RealEstateUsPage";
 import MonthlyReturnsPage from "./pages/MonthlyReturnsPage";
+import ElectionsPage from "./pages/ElectionsPage";
 import CompoundCalculatorPage from "./pages/CompoundCalculatorPage";
 import MortgageCalculatorPage from "./pages/MortgageCalculatorPage";
+import CarPurchaseCalculatorPage from "./pages/CarPurchaseCalculatorPage";
 import EducationPage from "./pages/EducationPage";
 
 const router = createBrowserRouter([
@@ -36,8 +38,10 @@ const router = createBrowserRouter([
       { path: "/portfolio", element: <PortfolioPage /> },
       { path: "/real-estate-us", element: <RealEstateUsPage /> },
       { path: "/monthly-returns", element: <MonthlyReturnsPage /> },
+      { path: "/elections", element: <ElectionsPage /> },
       { path: "/calculators/compound-calculator", element: <CompoundCalculatorPage /> },
       { path: "/calculators/mortgage-calculator", element: <MortgageCalculatorPage /> },
+      { path: "/calculators/car-purchase-calculator", element: <CarPurchaseCalculatorPage /> },
       { path: "/education", element: <EducationPage /> },
       { path: "/education/:slug", element: <EducationPage /> },
       { path: "/dashboards", element: <DashboardListPage /> },
