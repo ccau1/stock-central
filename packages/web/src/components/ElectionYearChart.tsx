@@ -51,6 +51,21 @@ export default function ElectionYearChart({
   } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const { ref: containerRef, size } = useSvgContainerSize(800, height);
+  const touchRef = useRef<{
+    mode: "none" | "pan" | "pinch";
+    startX: number;
+    initialTransform: { scaleX: number; dx: number };
+    startDist: number;
+    startMidSvgX: number;
+  }>({
+    mode: "none",
+    startX: 0,
+    initialTransform: { scaleX: 1, dx: 0 },
+    startDist: 0,
+    startMidSvgX: 0,
+  });
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
 
   const isPercent = mode === "percent";
   // Display values: percent change from the January base (100 -> 0%), or raw price.
@@ -220,6 +235,23 @@ export default function ElectionYearChart({
     };
   }
 
+  function computeZoomTransform(
+    initialTransform: { scaleX: number; dx: number },
+    svgX: number,
+    targetScaleX: number
+  ): { scaleX: number; dx: number } {
+    const baseW = defaultView.maxX - defaultView.minX;
+    const initialW = baseW / initialTransform.scaleX;
+    const initialXScale = gw / initialW;
+    const initialMinX = defaultView.minX + (baseW - initialW) / 2 + initialTransform.dx;
+    const dataX = initialMinX + (svgX - padL) / initialXScale;
+    const newW = baseW / targetScaleX;
+    const newXScale = gw / newW;
+    const newMinX = dataX - (svgX - padL) / newXScale;
+    const newDx = newMinX - defaultView.minX - (baseW - newW) / 2;
+    return { scaleX: targetScaleX, dx: newDx };
+  }
+
   function handleMouseDown(e: React.MouseEvent<SVGSVGElement>) {
     e.preventDefault();
     setDrag({
@@ -264,19 +296,10 @@ export default function ElectionYearChart({
     }
 
     const { svgX } = clientToSvgPoint(e);
-    const dataX = view.minX + (svgX - padL) / xScale;
     const factor = e.deltaY < 0 ? 1.15 : 0.87;
-
     const newScaleX = Math.min(20, Math.max(1, transform.scaleX * factor));
     if (newScaleX === transform.scaleX) return;
-
-    const baseW = defaultView.maxX - defaultView.minX;
-    const newW = baseW / newScaleX;
-    const newXScale = gw / newW;
-
-    const newDx = dataX - (svgX - padL) / newXScale - defaultView.minX - (baseW - newW) / 2;
-
-    setTransform({ scaleX: newScaleX, dx: newDx });
+    setTransform(computeZoomTransform(transform, svgX, newScaleX));
   }
 
   useEffect(() => {
@@ -300,6 +323,81 @@ export default function ElectionYearChart({
     el.addEventListener("wheel", onNativeWheel, { passive: false });
     return () => el.removeEventListener("wheel", onNativeWheel);
   }, []);
+
+  // Mobile touch handling: single-finger pan and two-finger pinch zoom.
+  // Native non-passive listeners are required so the browser doesn't scroll/zoom the page.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+
+    function getMidSvgPoint(t1: Touch, t2: Touch) {
+      const rect = svgRef.current!.getBoundingClientRect();
+      const midClientX = (t1.clientX + t2.clientX) / 2;
+      return ((midClientX - rect.left) / rect.width) * W;
+    }
+
+    function getTouchDistance(t1: Touch, t2: Touch) {
+      return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    }
+
+    function onTouchStart(e: TouchEvent) {
+      const t = touchRef.current;
+      const current = transformRef.current;
+      if (e.touches.length === 1) {
+        t.mode = "pan";
+        t.startX = e.touches[0].clientX;
+        t.initialTransform = { scaleX: current.scaleX, dx: current.dx };
+        setHoverX(null);
+      } else if (e.touches.length === 2) {
+        t.mode = "pinch";
+        t.startDist = getTouchDistance(e.touches[0], e.touches[1]);
+        t.startMidSvgX = getMidSvgPoint(e.touches[0], e.touches[1]);
+        t.initialTransform = { scaleX: current.scaleX, dx: current.dx };
+        setHoverX(null);
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      const t = touchRef.current;
+      if (t.mode === "pan" && e.touches.length === 1) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - t.startX;
+        const baseW = defaultView.maxX - defaultView.minX;
+        const w = baseW / t.initialTransform.scaleX;
+        const panXScale = gw / w;
+        const dxData = -dx / panXScale;
+        setTransform({
+          scaleX: t.initialTransform.scaleX,
+          dx: t.initialTransform.dx + dxData,
+        });
+      } else if (t.mode === "pinch" && e.touches.length === 2) {
+        e.preventDefault();
+        const newDist = getTouchDistance(e.touches[0], e.touches[1]);
+        if (t.startDist <= 0) return;
+        const ratio = newDist / t.startDist;
+        const newScaleX = Math.min(20, Math.max(1, t.initialTransform.scaleX * ratio));
+        if (newScaleX === transformRef.current.scaleX) return;
+        const midSvgX = getMidSvgPoint(e.touches[0], e.touches[1]);
+        setTransform(computeZoomTransform(t.initialTransform, midSvgX, newScaleX));
+      }
+    }
+
+    function onTouchEnd() {
+      touchRef.current.mode = "none";
+    }
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [W, gw, defaultView]);
 
   const pathData = useMemo(() => {
     return series.map((s) => {

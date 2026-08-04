@@ -24,6 +24,7 @@ import {
 import ElectionYearChart from "../components/ElectionYearChart";
 
 const TABS = [1, 2, 3, 4] as const;
+const CHART_MODES = ["percent", "price"] as const;
 
 function StatCard({
   title,
@@ -66,14 +67,25 @@ export default function ElectionsPage() {
   }, [searchParams, currentCycleYear]);
 
   const setActiveTab = (tab: number) => {
-    setSearchParams({ year: String(tab) });
+    setSearchParams({ year: String(tab), mode: chartMode });
+  };
+
+  const chartMode = useMemo(() => {
+    const modeParam = searchParams.get("mode");
+    if (modeParam && CHART_MODES.includes(modeParam as typeof CHART_MODES[number])) {
+      return modeParam as typeof CHART_MODES[number];
+    }
+    return "percent";
+  }, [searchParams]);
+
+  const setChartMode = (mode: typeof CHART_MODES[number]) => {
+    setSearchParams({ year: String(activeTab), mode });
   };
 
   const [history, setHistory] = useState<MonthCloseMap>({});
   const [rawCandles, setRawCandles] = useState<CandleInput[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [chartMode, setChartMode] = useState<"percent" | "price">("percent");
 
   const loadHistory = async (): Promise<{ closeMap: MonthCloseMap; candles: CandleInput[] }> => {
     // Daily candles are limited to ~10 years on Yahoo, so use them for the chart.
@@ -216,7 +228,7 @@ export default function ElectionsPage() {
         {!loading && !error && (
           <>
             {/* Stats grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard title="Overall" stats={stats.overall} />
               <StatCard title="First Term" stats={stats.firstTerm} colorClass="text-blue-700" />
               <StatCard title="Second Term" stats={stats.secondTerm} colorClass="text-violet-700" />
@@ -226,7 +238,7 @@ export default function ElectionsPage() {
               <StatCard title="Liberal (D)" stats={stats.liberal} colorClass="text-cyan-700" />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 title="Conservative → Conservative"
                 stats={stats.conservativeToConservative}

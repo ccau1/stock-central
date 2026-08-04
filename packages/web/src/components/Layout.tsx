@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { Globe, BarChart3, Search, RefreshCw, Briefcase, Calculator, ChevronDown, ChevronRight, GraduationCap, Landmark } from "lucide-react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import BottomRightDock from "./BottomRightDock";
-import RealTimeNewsBox from "./RealTimeNewsBox";
+import DockTabs from "./DockTabs";
 
 interface NavLink {
   type: "link";
@@ -351,7 +351,7 @@ export default function Layout() {
       </main>
 
       <BottomRightDock>
-        <RealTimeNewsBox />
+        <DockTabs />
       </BottomRightDock>
     </div>
   );

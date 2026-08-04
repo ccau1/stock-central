@@ -312,6 +312,10 @@ func ToYahooRange(rangeVal string) string {
 	switch rangeVal {
 	case "1d":
 		return "1d"
+	case "2d":
+		return "2d"
+	case "5d":
+		return "5d"
 	case "1w":
 		return "5d"
 	case "1m", "1mo":
@@ -322,6 +326,8 @@ func ToYahooRange(rangeVal string) string {
 		return "6mo"
 	case "1y":
 		return "1y"
+	case "2y":
+		return "2y"
 	case "ytd":
 		return "ytd"
 	case "yoy":

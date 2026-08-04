@@ -151,13 +151,16 @@ function NewsList({
   );
 }
 
-export default function RealTimeNewsBox() {
+interface RealTimeNewsBoxProps {
+  variant?: "full" | "desktop" | "mobile";
+}
+
+export default function RealTimeNewsBox({ variant = "full" }: RealTimeNewsBoxProps) {
   const [items, setItems] = useState<NewsStreamItem[]>([]);
   const [connected, setConnected] = useState(false);
   const [loadTime] = useState(() => getLoadTime());
   const [desktopOpen, setDesktopOpen] = useState(() => getInitialDesktopOpen());
-  const seenRef = useRef<Set<string>>(getSeenSet());
-  const [, setSeenVersion] = useState(0);
+  const [seenSet, setSeenSet] = useState<Set<string>>(() => getSeenSet());
   const esRef = useRef<EventSource | null>(null);
 
   const [modalUrl, setModalUrl] = useState<string | null>(null);
@@ -174,25 +177,22 @@ export default function RealTimeNewsBox() {
   }, [desktopOpen, mobileOpen]);
 
   const markSeen = useCallback((uuids: string[]) => {
-    let changed = false;
-    for (const id of uuids) {
-      if (!seenRef.current.has(id)) {
-        seenRef.current.add(id);
-        changed = true;
+    setSeenSet((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of uuids) {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
       }
-    }
-    if (changed) {
-      saveSeenSet(seenRef.current);
-      setSeenVersion((v) => v + 1);
-    }
+      if (changed) {
+        saveSeenSet(next);
+        return next;
+      }
+      return prev;
+    });
   }, []);
-
-  // Mark all current items as seen whenever the news list becomes visible
-  useEffect(() => {
-    if (desktopOpen || mobileOpen) {
-      markSeen(items.map((i) => i.uuid));
-    }
-  }, [desktopOpen, mobileOpen, items, markSeen]);
 
   useEffect(() => {
     const es = createNewsStream(
@@ -227,7 +227,7 @@ export default function RealTimeNewsBox() {
   }, [markSeen]);
 
   const newCount = items.filter(
-    (i) => i.published > loadTime && !seenRef.current.has(i.uuid)
+    (i) => i.published > loadTime && !seenSet.has(i.uuid)
   ).length;
 
   const openArticle = (item: NewsStreamItem) => {
@@ -237,42 +237,50 @@ export default function RealTimeNewsBox() {
     setModalPublished(new Date(item.published * 1000).toISOString());
   };
 
+  const renderDesktop = variant === "full" || variant === "desktop";
+  const renderMobile = variant === "full" || variant === "mobile";
+
   return (
     <>
-      {/* Desktop */}
-      <div className="hidden sm:block">
-        <CollapsibleBox
-          title="Real-Time News"
-          badge={newCount > 0 ? newCount : undefined}
-          defaultOpen={true}
-          storageKey="stockcentral_realtime_news_open"
-          onToggle={setDesktopOpen}
-        >
-          <NewsList items={items} connected={connected} onOpenArticle={openArticle} />
-        </CollapsibleBox>
-      </div>
+      {renderDesktop && (
+        <div className={variant === "desktop" ? "" : "hidden sm:block"}>
+          <CollapsibleBox
+            title="Real-Time News"
+            badge={newCount > 0 ? newCount : undefined}
+            defaultOpen={true}
+            storageKey="stockcentral_realtime_news_open"
+            onToggle={(open) => {
+              setDesktopOpen(open);
+              if (open) markSeen(items.map((i) => i.uuid));
+            }}
+          >
+            <NewsList items={items} connected={connected} onOpenArticle={openArticle} />
+          </CollapsibleBox>
+        </div>
+      )}
 
-      {/* Mobile button */}
-      <div className="block sm:hidden shrink-0">
-        <button
-          onClick={() => {
-            setMobileOpen(true);
-            requestAnimationFrame(() => setMobileAnimating(true));
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-full text-[11px] font-medium whitespace-nowrap"
-        >
-          <Newspaper size={12} />
-          News
-          {newCount > 0 && (
-            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px]">
-              {newCount}
-            </span>
-          )}
-        </button>
-      </div>
+      {renderMobile && (
+        <div className={variant === "mobile" ? "" : "block sm:hidden shrink-0"}>
+          <button
+            onClick={() => {
+              setMobileOpen(true);
+              markSeen(items.map((i) => i.uuid));
+              requestAnimationFrame(() => setMobileAnimating(true));
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-full text-[11px] font-medium whitespace-nowrap"
+          >
+            <Newspaper size={12} />
+            News
+            {newCount > 0 && (
+              <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px]">
+                {newCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
-      {/* Mobile modal */}
-      {mobileOpen &&
+      {renderMobile && mobileOpen &&
         createPortal(
           <div
             className={`fixed inset-0 z-[60] flex items-end justify-center sm:hidden transition-colors duration-300 ${

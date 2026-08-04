@@ -9,6 +9,7 @@ interface CollapsibleBoxProps {
   onClose?: () => void;
   badge?: string | number;
   width?: number;
+  maxHeight?: number;
   storageKey?: string;
   onToggle?: (isOpen: boolean) => void;
 }
@@ -20,6 +21,7 @@ export default function CollapsibleBox({
   onClose,
   badge,
   width = 320,
+  maxHeight = 320,
   storageKey,
   onToggle,
 }: CollapsibleBoxProps) {
@@ -86,7 +88,7 @@ export default function CollapsibleBox({
           )}
         </div>
       </div>
-      {isOpen && <div className="max-h-80 overflow-auto">{children}</div>}
+      {isOpen && <div className="overflow-auto" style={{ maxHeight }}>{children}</div>}
     </div>
   );
 }
