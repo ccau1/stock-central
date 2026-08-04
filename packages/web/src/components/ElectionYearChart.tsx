@@ -109,8 +109,11 @@ export default function ElectionYearChart({
       if (prev.size === allSeriesIds.length) {
         return new Set([id]);
       }
-      // When only the clicked item is visible, restore everything.
-      if (prev.size === 1 && prev.has(id)) {
+      // When only the clicked item is visible (ignoring hidden candlestick
+      // series), restore everything so the user never ends up with all legend
+      // items disabled.
+      const enabledLines = Array.from(prev).filter((x) => !x.startsWith("candles-"));
+      if (enabledLines.length === 1 && enabledLines[0] === id) {
         return new Set(allSeriesIds);
       }
       const next = new Set(prev);
