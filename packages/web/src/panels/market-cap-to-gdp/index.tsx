@@ -53,7 +53,7 @@ function MarketCapToGdpChart({ history }: { history: import("../../lib/api").Buf
 
   return (
     <div ref={ref} className="flex-1 min-h-0 relative">
-      <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-full">
+      <svg viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none" className="w-full h-full">
         {/* Grid lines */}
         {yTicks.map((t) => {
           const y = padTop + t * plotH;

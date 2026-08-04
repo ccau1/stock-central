@@ -23,9 +23,16 @@ interface ComparisonChartProps {
   symbols: string[];
   className?: string;
   mode?: "normalized" | "price";
+  baseline?: "zero" | "auto";
 }
 
-export default function ComparisonChart({ data, symbols, className = "", mode = "normalized" }: ComparisonChartProps) {
+export default function ComparisonChart({
+  data,
+  symbols,
+  className = "",
+  mode = "normalized",
+  baseline = "zero",
+}: ComparisonChartProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -43,15 +50,26 @@ export default function ComparisonChart({ data, symbols, className = "", mode = 
   }));
 
   const allY = series.flatMap((n) => n.points.map((p) => p.y));
-  const minY = Math.min(...allY, 0);
-  const maxY = Math.max(...allY, 0);
+  const dataMin = Math.min(...allY);
+  const dataMax = Math.max(...allY);
+
+  let minY: number;
+  let maxY: number;
+  if (baseline === "auto") {
+    const pad = (dataMax - dataMin) * 0.05 || 1;
+    minY = dataMin - pad;
+    maxY = dataMax + pad;
+  } else {
+    minY = Math.min(dataMin, 0);
+    maxY = Math.max(dataMax, 0);
+  }
   const rangeY = maxY - minY || 1;
 
   const maxLen = Math.max(...series.map((n) => n.points.length));
   const W = size.width;
   const H = size.height;
   const padL = 44;
-  const padR = 12;
+  const padR = 40;
   const padT = 12;
   const padB = 28;
   const gw = W - padL - padR;
@@ -66,7 +84,9 @@ export default function ComparisonChart({ data, symbols, className = "", mode = 
   });
 
   const gridLines = 5;
-  const gridYs = Array.from({ length: gridLines + 1 }, (_, i) => minY + (rangeY * i) / gridLines);
+  const step = rangeY / gridLines;
+  const yDecimals = step > 0 ? Math.min(3, Math.max(0, -Math.floor(Math.log10(step)))) : 0;
+  const gridYs = Array.from({ length: gridLines + 1 }, (_, i) => minY + step * i);
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current || maxLen <= 1 || W <= 0) return;
@@ -95,12 +115,12 @@ export default function ComparisonChart({ data, symbols, className = "", mode = 
   const hoverDate = hoveredData[0]?.date ?? "";
 
   function formatY(val: number) {
-    if (isPrice) return val.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    if (isPrice) return val.toLocaleString(undefined, { maximumFractionDigits: yDecimals });
     return `${val >= 0 ? "+" : ""}${val.toFixed(0)}%`;
   }
 
   function formatEndLabel(val: number) {
-    if (isPrice) return val.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    if (isPrice) return val.toLocaleString(undefined, { maximumFractionDigits: yDecimals });
     return `${val >= 0 ? "+" : ""}${val.toFixed(1)}%`;
   }
 

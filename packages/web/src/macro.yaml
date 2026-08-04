@@ -258,6 +258,15 @@ panels:
     inputs: {}
     refresh_interval: 300
 
+  - id: vxn-vix-ratio
+    type: vxn-vix-ratio
+    title: VXN / VIX Ratio
+    group: row-risk
+    layout: { x: 0, y: 8, w: 12, h: 11 }
+    description: "Ratio of Nasdaq-100 volatility (VXN) to S&P 500 volatility (VIX). Spikes above ~1.15 point to tech-led fear; readings below ~0.95 suggest broad fear or tech complacency."
+    inputs: {}
+    refresh_interval: 300
+
   # ============================================================
   # Row 84: Insider Watch
   # ============================================================
