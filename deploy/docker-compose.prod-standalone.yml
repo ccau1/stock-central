@@ -8,9 +8,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 2s
+      timeout: 3s
+      retries: 15
     restart: unless-stopped
 
   server:
@@ -21,6 +21,12 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN}
     expose:
       - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,7 +41,8 @@ services:
       - ./nginx.prod-standalone.conf:/etc/nginx/conf.d/default.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

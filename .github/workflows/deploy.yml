@@ -115,6 +115,8 @@ jobs:
             docker compose -f ${{ env.STAGING_COMPOSE_FILE }} ps
             docker compose -f ${{ env.STAGING_COMPOSE_FILE }} logs --tail 30
           health-check-url: ${{ env.STAGING_HEALTH_URL }}
+          health-check-max-attempts: 24
+          health-check-interval-seconds: 5
 
   promote-to-prod:
     name: Promote to Production
@@ -149,6 +151,8 @@ jobs:
             export WEB_IMAGE="${{ env.IMAGE_BASE }}/web:staging-${{ github.sha }}"
           ghcr-token: ${{ secrets.GH_TOKEN }}
           health-check-url: ${{ env.PROD_HEALTH_URL }}
+          health-check-max-attempts: 24
+          health-check-interval-seconds: 5
 
       # ── Standalone production server (future/legacy) ──────────────
 
@@ -184,3 +188,5 @@ jobs:
             fi
           health-check-url: https://${{ secrets.PROD_STANDALONE_HETZNER_HOST }}/health
           health-check-insecure: true
+          health-check-max-attempts: 24
+          health-check-interval-seconds: 5

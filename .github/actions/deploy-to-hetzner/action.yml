@@ -90,9 +90,11 @@ runs:
         mkdir -p deploy
         FILTER_KEYS="${{ inputs.protected-env-keys }}"
         FILTER_PATTERN='^[[:space:]]*('$(echo "$FILTER_KEYS" | tr ',' '|')')='
+        # Capture secret content in a variable first so it is not expanded by the runner shell.
+        ENV_CONTENT=$(printf '%s\n' "${{ inputs.env-file-content }}" | grep -viE "$FILTER_PATTERN")
         cat > deploy/.env <<EOF
         ${{ inputs.env-file-header }}
-        $(printf '%s\n' "${{ inputs.env-file-content }}" | grep -viE "$FILTER_PATTERN")
+        ${ENV_CONTENT}
         EOF
 
     - name: Prepare SCP source list
