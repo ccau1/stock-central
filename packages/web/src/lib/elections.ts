@@ -266,7 +266,8 @@ export function computeElectionStats(
 }
 
 export interface PathPoint {
-  monthIndex: number; // 0 = Dec prior, 1 = Jan ... 12 = Dec
+  x: number; // 0 = Jan 1, 11 = Dec 31
+  date: string; // YYYY-MM-DD
   value: number | null;
 }
 
@@ -280,38 +281,135 @@ export interface PathSeries {
   showInLegend?: boolean;
 }
 
-const YEAR_COLORS = [
-  "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
-  "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#14b8a6",
-  "#a855f7", "#6366f1", "#22c55e", "#eab308", "#d946ef",
-  "#0ea5e9", "#f43f5e", "#64748b", "#a3e635", "#fb923c",
-  "#38bdf8", "#c084fc", "#f87171", "#2dd4bf", "#94a3b8",
-];
+const REPUBLICAN_COLORS = ["#ef4444", "#f87171", "#b91c1c", "#fca5a5"];
+const DEMOCRAT_COLORS = ["#3b82f6", "#60a5fa", "#1d4ed8", "#93c5fd"];
 
 const CURRENT_YEAR_COLOR = "#f97316"; // bright orange
+const MOST_RECENT_YEAR_COLOR = "#ec4899"; // bright pink
 
-export function computeIndividualPathSeries(
+export interface CandleInput {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+function dayOfYear(dateStr: string): number {
+  const date = new Date(dateStr + "T00:00:00Z");
+  const start = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.floor((date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+function dayX(dateStr: string): number {
+  return Math.min(((dayOfYear(dateStr) - 1) / 364) * 11, 11);
+}
+
+function dateFromDoy(doy: number): string {
+  // Use a non-leap year just to turn day-of-year back into a month/day label
+  const date = new Date(Date.UTC(2023, 0, doy));
+  return date.toISOString().slice(0, 10);
+}
+
+export interface CandlePoint {
+  x: number; // 0 = Jan 1, 11 = Dec 31
+  date: string; // YYYY-MM-DD
+  month: number; // 1-12, for hover lookup
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+export interface CandleSeries {
+  year: number;
+  label: string;
+  color: string;
+  party: Party;
+  partyColor: string;
+  janClose: number;
+  candles: CandlePoint[];
+}
+
+export function computeMostRecentYearCandles(
+  candles: CandleInput[],
   monthMap: MonthCloseMap,
   cycleYear: number
+): CandleSeries | null {
+  const currentYear = new Date().getFullYear();
+  const terms = getTermContext(cycleYear);
+  const candidates = terms
+    .filter((t) => t.targetYear !== currentYear)
+    .sort((a, b) => b.targetYear - a.targetYear);
+
+  for (const term of candidates) {
+    const janClose = getClose(monthMap, term.targetYear, 1);
+    if (janClose == null || janClose === 0) continue;
+
+    const yearCandles = candles.filter((c) => c.date.slice(0, 4) === String(term.targetYear));
+    if (yearCandles.length === 0) continue;
+
+    const points: CandlePoint[] = yearCandles.map((c) => ({
+      x: dayX(c.date),
+      date: c.date,
+      month: Number(c.date.slice(5, 7)),
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+
+    return {
+      year: term.targetYear,
+      label: `${term.targetYear} – ${term.president} (${term.party[0]})`,
+      color: MOST_RECENT_YEAR_COLOR,
+      party: term.party,
+      partyColor: term.party === "Republican" ? REPUBLICAN_COLORS[0] : DEMOCRAT_COLORS[0],
+      janClose,
+      candles: points,
+    };
+  }
+  return null;
+}
+
+export function computeIndividualPathSeries(
+  candles: CandleInput[],
+  cycleYear: number,
+  mode: "percent" | "price" = "percent",
+  historicalLimit?: number
 ): PathSeries[] {
   const terms = getTermContext(cycleYear);
   const currentYear = new Date().getFullYear();
 
   const historicalSeries: PathSeries[] = [];
   let currentSeries: PathSeries | null = null;
+  const avgByDay: Record<number, number[]> = {};
+  let repIndex = 0;
+  let demIndex = 0;
+
+  function getJanClose(yearCandles: CandleInput[]): number | null {
+    const jan = yearCandles.filter((c) => c.date.slice(5, 7) === "01");
+    return jan.length > 0 ? jan[jan.length - 1].close : null;
+  }
 
   for (let i = 0; i < terms.length; i++) {
     const term = terms[i];
-    const janClose = getClose(monthMap, term.targetYear, 1);
-    if (janClose == null || janClose === 0) continue;
+    const yearCandles = candles
+      .filter((c) => c.date.slice(0, 4) === String(term.targetYear))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const janClose = getJanClose(yearCandles);
+    if (mode === "percent" && (janClose == null || janClose === 0)) continue;
+    if (yearCandles.length === 0) continue;
 
     const points: PathPoint[] = [];
-    for (let m = 1; m <= 12; m++) {
-      const close = getClose(monthMap, term.targetYear, m);
-      points.push({
-        monthIndex: m - 1,
-        value: close == null ? null : (close / janClose) * 100,
-      });
+    for (const c of yearCandles) {
+      const x = dayX(c.date);
+      const value = mode === "percent" ? (c.close / janClose!) * 100 : c.close;
+      points.push({ x, date: c.date, value });
+
+      const doy = dayOfYear(c.date);
+      if (!avgByDay[doy]) avgByDay[doy] = [];
+      avgByDay[doy].push(value);
     }
 
     const isCurrent = term.targetYear === currentYear;
@@ -320,9 +418,13 @@ export function computeIndividualPathSeries(
       label: isCurrent
         ? `${term.targetYear} – ${term.president} (${term.party[0]}) • current`
         : `${term.targetYear} – ${term.president} (${term.party[0]})`,
-      color: isCurrent ? CURRENT_YEAR_COLOR : YEAR_COLORS[i % YEAR_COLORS.length],
+      color: isCurrent
+        ? CURRENT_YEAR_COLOR
+        : term.party === "Republican"
+        ? REPUBLICAN_COLORS[repIndex++ % REPUBLICAN_COLORS.length]
+        : DEMOCRAT_COLORS[demIndex++ % DEMOCRAT_COLORS.length],
       points,
-      lineWidth: isCurrent ? 4 : 1.5,
+      lineWidth: isCurrent ? 2.5 : 1,
       opacity: isCurrent ? 1 : 0.45,
       showInLegend: isCurrent ? true : false,
     };
@@ -334,26 +436,37 @@ export function computeIndividualPathSeries(
     }
   }
 
-  // Average of all available years
-  const allYearSeries = currentSeries ? [...historicalSeries, currentSeries] : historicalSeries;
-  const avgPoints: PathPoint[] = Array.from({ length: 12 }, (_, monthIndex) => {
-    const vals = allYearSeries
-      .map((s) => s.points[monthIndex].value)
-      .filter((v): v is number => v != null && isFinite(v));
+  const sortedDoys = Object.keys(avgByDay).map(Number).sort((a, b) => a - b);
+  const avgPoints: PathPoint[] = sortedDoys.map((doy, i) => {
+    // 21-day centered moving average to smooth cross-year daily noise
+    const halfWindow = 10;
+    let sum = 0;
+    let count = 0;
+    for (let j = Math.max(0, i - halfWindow); j <= Math.min(sortedDoys.length - 1, i + halfWindow); j++) {
+      const vals = avgByDay[sortedDoys[j]];
+      sum += vals.reduce((a, b) => a + b, 0);
+      count += vals.length;
+    }
     return {
-      monthIndex,
-      value: vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null,
+      x: Math.min(((doy - 1) / 364) * 11, 11),
+      date: dateFromDoy(doy),
+      value: sum / count,
     };
   });
 
+  const displayHistorical =
+    historicalLimit != null && historicalLimit > 0
+      ? historicalSeries.slice(-historicalLimit)
+      : historicalSeries;
+
   return [
-    ...historicalSeries,
+    ...displayHistorical,
     {
       id: "average",
       label: "Average",
       color: "#111827",
       points: avgPoints,
-      lineWidth: 2.5,
+      lineWidth: 1.5,
       opacity: 1,
       showInLegend: true,
     },

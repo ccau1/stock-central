@@ -506,7 +506,7 @@ export interface PanelConfig {
   type: string;
   title: string;
   layout: PanelLayout;
-  inputs: Record<string, any>;
+  inputs: Record<string, unknown>;
   refreshInterval?: number;
   groupId?: string | null;
   description?: string;
@@ -711,6 +711,8 @@ export const dataApi = {
     fetchJSON<OptionsData[]>(`/data/options?symbols=${symbols.join(",")}`),
   getCandles: (symbol: string, range: string, interval: string) =>
     fetchJSON<CandleData[]>(`/data/candles?symbol=${encodeURIComponent(symbol)}&range=${range}&interval=${interval}`),
+  getCandlesPeriod: (symbol: string, start: number, end: number, interval: string) =>
+    fetchJSON<CandleData[]>(`/data/candles?symbol=${encodeURIComponent(symbol)}&start=${start}&end=${end}&interval=${interval}`),
   getIndicators: (symbol: string, range: string, interval: string, types: string[], params?: Record<string, string>) => {
     const query = new URLSearchParams();
     query.set("symbol", symbol);

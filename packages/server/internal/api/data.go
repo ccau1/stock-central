@@ -520,7 +520,17 @@ func (a *API) getCandles(w http.ResponseWriter, r *http.Request) {
 		interval = "1d"
 	}
 
-	candles, err := client.GetCandles(symbol, rangeVal, interval)
+	var candles []client.Candle
+	var err error
+	startStr := r.URL.Query().Get("start")
+	endStr := r.URL.Query().Get("end")
+	if startStr != "" && endStr != "" {
+		start, _ := strconv.ParseInt(startStr, 10, 64)
+		end, _ := strconv.ParseInt(endStr, 10, 64)
+		candles, err = client.GetCandlesWithPeriod(symbol, start, end, interval)
+	} else {
+		candles, err = client.GetCandles(symbol, rangeVal, interval)
+	}
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err)
 		return

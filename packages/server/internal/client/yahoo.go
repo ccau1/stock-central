@@ -188,27 +188,29 @@ func GetChart(symbol, rangeVal, interval string) ([]ChartPoint, error) {
 	return points, nil
 }
 
-func GetCandles(symbol, rangeVal, interval string) ([]Candle, error) {
+func yahooCandlesURL(symbol, rangeVal, interval string, start, end int64) string {
+	if end > 0 && start >= 0 && end > start {
+		return fmt.Sprintf(
+			"https://query1.finance.yahoo.com/v8/finance/chart/%s?period1=%d&period2=%d&interval=%s",
+			url.QueryEscape(symbol),
+			start,
+			end,
+			url.QueryEscape(interval),
+		)
+	}
 	if interval == "" {
 		interval = mapRangeToInterval(rangeVal)
 	}
 	yahooRange := ToYahooRange(rangeVal)
-	u := fmt.Sprintf(
+	return fmt.Sprintf(
 		"https://query1.finance.yahoo.com/v8/finance/chart/%s?range=%s&interval=%s",
 		url.QueryEscape(symbol),
 		url.QueryEscape(yahooRange),
 		url.QueryEscape(interval),
 	)
-	body, err := yahooFetch(u)
-	if err != nil {
-		if err := ensureYahooSession(); err == nil {
-			body, err = yahooFetch(u)
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
+}
 
+func parseCandles(body []byte, symbol string) ([]Candle, error) {
 	var resp struct {
 		Chart struct {
 			Result []struct {
@@ -263,6 +265,29 @@ func GetCandles(symbol, rangeVal, interval string) ([]Candle, error) {
 		candles = append(candles, c)
 	}
 	return candles, nil
+}
+
+func fetchCandles(u, symbol string) ([]Candle, error) {
+	body, err := yahooFetch(u)
+	if err != nil {
+		if err := ensureYahooSession(); err == nil {
+			body, err = yahooFetch(u)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return parseCandles(body, symbol)
+}
+
+func GetCandles(symbol, rangeVal, interval string) ([]Candle, error) {
+	u := yahooCandlesURL(symbol, rangeVal, interval, 0, 0)
+	return fetchCandles(u, symbol)
+}
+
+func GetCandlesWithPeriod(symbol string, start, end int64, interval string) ([]Candle, error) {
+	u := yahooCandlesURL(symbol, "", interval, start, end)
+	return fetchCandles(u, symbol)
 }
 
 func mapRangeToInterval(rangeVal string) string {

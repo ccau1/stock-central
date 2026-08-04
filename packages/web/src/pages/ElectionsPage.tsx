@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { RefreshCw, Landmark } from "lucide-react";
+import { Tooltip } from "react-tooltip";
 import { dataApi } from "../lib/api";
 import {
   CYCLE_YEAR_LABELS,
@@ -8,9 +9,12 @@ import {
   computeElectionStats,
   computeIndividualPathSeries,
   computeMonthlyStats,
+  computeMostRecentYearCandles,
   formatPct,
   getCurrentCycleYear,
   ideology,
+  type CandleInput,
+  type CandleSeries,
   type CategoryStats,
   type ElectionStats,
   type MonthCloseMap,
@@ -66,19 +70,36 @@ export default function ElectionsPage() {
   };
 
   const [history, setHistory] = useState<MonthCloseMap>({});
+  const [rawCandles, setRawCandles] = useState<CandleInput[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chartMode, setChartMode] = useState<"percent" | "price">("percent");
 
-  const loadHistory = async (): Promise<MonthCloseMap> => {
-    const candles = await dataApi.getCandles("^GSPC", "10y", "1d");
-    if (candles.length === 0) {
+  const loadHistory = async (): Promise<{ closeMap: MonthCloseMap; candles: CandleInput[] }> => {
+    // Daily candles are limited to ~10 years on Yahoo, so use them for the chart.
+    // Monthly candles go back to the index inception and are used for the stats tables.
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const [daily, monthly] = await Promise.all([
+      dataApi.getCandles("^GSPC", "10y", "1d"),
+      // Yahoo's "max" range returns quarterly candles for 1mo, so request the full
+      // available history by explicit start/end timestamps to get true monthly data.
+      dataApi.getCandlesPeriod("^GSPC", 0, nowUnix, "1mo"),
+    ]);
+    if (daily.length === 0 || monthly.length === 0) {
       throw new Error("No S&P 500 data returned");
     }
-    const points: { date: string; price: number }[] = candles.map((c) => ({
+    const points: { date: string; price: number }[] = monthly.map((c) => ({
       date: c.date.slice(0, 10),
       price: c.close,
     }));
-    return buildMonthCloseMap(points);
+    const normalizedCandles: CandleInput[] = daily.map((c) => ({
+      date: c.date.slice(0, 10),
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+    return { closeMap: buildMonthCloseMap(points), candles: normalizedCandles };
   };
 
   useEffect(() => {
@@ -86,7 +107,8 @@ export default function ElectionsPage() {
     loadHistory()
       .then((map) => {
         if (cancelled) return;
-        setHistory(map);
+        setHistory(map.closeMap);
+        setRawCandles(map.candles);
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -103,7 +125,9 @@ export default function ElectionsPage() {
     setLoading(true);
     setError(null);
     try {
-      setHistory(await loadHistory());
+      const map = await loadHistory();
+      setHistory(map.closeMap);
+      setRawCandles(map.candles);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load S&P 500 history");
     } finally {
@@ -112,7 +136,16 @@ export default function ElectionsPage() {
   };
 
   const stats = useMemo<ElectionStats>(() => computeElectionStats(history, activeTab), [history, activeTab]);
-  const pathSeries = useMemo<PathSeries[]>(() => computeIndividualPathSeries(history, activeTab), [history, activeTab]);
+  const mostRecentCandles = useMemo<CandleSeries | null>(
+    () => computeMostRecentYearCandles(rawCandles, history, activeTab),
+    [rawCandles, history, activeTab]
+  );
+  // Show the latest 2 completed years plus the current year (when applicable) on the chart,
+  // while the stats/monthly tables use the full history.
+  const pathSeries = useMemo<PathSeries[]>(
+    () => computeIndividualPathSeries(rawCandles, activeTab, chartMode, 2),
+    [rawCandles, activeTab, chartMode]
+  );
   const monthlyStats = useMemo<MonthlyStat[]>(() => computeMonthlyStats(history, activeTab), [history, activeTab]);
 
   const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -191,14 +224,14 @@ export default function ElectionsPage() {
               <StatCard title="Party Change" stats={stats.partyChange} colorClass="text-amber-700" />
               <StatCard title="Conservative (R)" stats={stats.conservative} colorClass="text-red-700" />
               <StatCard title="Liberal (D)" stats={stats.liberal} colorClass="text-cyan-700" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 title="Conservative → Conservative"
                 stats={stats.conservativeToConservative}
                 colorClass="text-red-700"
               />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <StatCard title="Conservative → Liberal" stats={stats.conservativeToLiberal} colorClass="text-red-700" />
               <StatCard title="Liberal → Liberal" stats={stats.liberalToLiberal} colorClass="text-cyan-700" />
               <StatCard title="Liberal → Conservative" stats={stats.liberalToConservative} colorClass="text-cyan-700" />
@@ -206,13 +239,39 @@ export default function ElectionsPage() {
 
             {/* Chart */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <h2 className="text-sm font-bold text-gray-900 mb-1">
-                S&P 500 paths for each {CYCLE_YEAR_LABELS[activeTab]}
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
+                <h2 className="text-sm font-bold text-gray-900">
+                  S&P 500 paths for each {CYCLE_YEAR_LABELS[activeTab]}
+                </h2>
+                <div className="flex items-center gap-1 p-0.5 bg-gray-100 rounded-lg">
+                  <button
+                    onClick={() => setChartMode("percent")}
+                    className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
+                      chartMode === "percent"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    % change
+                  </button>
+                  <button
+                    onClick={() => setChartMode("price")}
+                    className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
+                      chartMode === "price"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Price
+                  </button>
+                </div>
+              </div>
               <p className="text-[11px] text-gray-500 mb-4">
-                Each thin line is one calendar year in this cycle bucket, shown as percent change from the January close. The thick black line is the average.
+                {chartMode === "percent"
+                  ? "Each thin line is one calendar year in this cycle bucket, shown as daily percent change from the January close. The thick black line is the daily average. The most recent completed year is shown as both a line and daily candlesticks."
+                  : "Each thin line is one calendar year in this cycle bucket, shown as actual S&P 500 daily closes. The thick black line is the daily average across all years. The most recent completed year is shown as both a line and daily candlesticks."}
               </p>
-              <ElectionYearChart key={activeTab} series={pathSeries} labels={monthLabels} height={420} />
+              <ElectionYearChart key={activeTab} series={pathSeries} candles={mostRecentCandles} labels={monthLabels} mode={chartMode} height={420} />
             </div>
 
             {/* Monthly stats */}
@@ -226,6 +285,12 @@ export default function ElectionsPage() {
                 </p>
               </div>
               <div className="overflow-x-auto">
+                <Tooltip
+                  id="monthly-row"
+                  place="left"
+                  className="!bg-gray-900 !text-white !text-[11px] !px-2.5 !py-1.5 !rounded-lg !z-[9999] !shadow-lg"
+                  classNameArrow="!bg-gray-900"
+                />
                 <table className="w-full text-[11px]">
                   <thead className="bg-gray-50">
                     <tr>
@@ -237,21 +302,32 @@ export default function ElectionsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-b border-gray-50">
+                    <tr
+                      className="border-b border-gray-50"
+                      data-tooltip-id="monthly-row"
+                      data-tooltip-content="Avg return from Jan close"
+                    >
                       {monthlyStats.map((m) => (
                         <td key={`${m.month}-avg`} className="px-2 py-2 text-center font-medium text-gray-700">
                           {formatPct(m.avgReturn)}
                         </td>
                       ))}
                     </tr>
-                    <tr className="border-b border-gray-50">
+                    <tr
+                      className="border-b border-gray-50"
+                      data-tooltip-id="monthly-row"
+                      data-tooltip-content="% of years positive"
+                    >
                       {monthlyStats.map((m) => (
                         <td key={`${m.month}-pos`} className="px-2 py-2 text-center text-gray-500">
-                          {m.positivePct != null ? `${(m.positivePct * 100).toFixed(0)}% pos` : "–"}
+                          {m.positivePct != null ? `${(m.positivePct * 100).toFixed(0)}%` : "–"}
                         </td>
                       ))}
                     </tr>
-                    <tr>
+                    <tr
+                      data-tooltip-id="monthly-row"
+                      data-tooltip-content="Observed min / max"
+                    >
                       {monthlyStats.map((m) => (
                         <td key={`${m.month}-range`} className="px-2 py-2 text-center text-[10px] text-gray-400">
                           {m.min != null ? `${formatPct(m.min, 0)} / ${formatPct(m.max, 0)}` : "–"}
