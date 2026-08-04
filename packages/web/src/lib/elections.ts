@@ -279,6 +279,10 @@ export interface PathSeries {
   lineWidth?: number;
   opacity?: number;
   showInLegend?: boolean;
+  year?: number;
+  party?: Party;
+  termOrder?: 1 | 2;
+  prevParty?: Party | null;
 }
 
 const REPUBLICAN_COLORS = ["#ef4444", "#f87171", "#b91c1c", "#fca5a5"];
@@ -334,12 +338,13 @@ export interface CandleSeries {
 export function computeMostRecentYearCandles(
   candles: CandleInput[],
   monthMap: MonthCloseMap,
-  cycleYear: number
+  cycleYear: number,
+  enabledYears?: Set<number>
 ): CandleSeries | null {
   const currentYear = new Date().getFullYear();
   const terms = getTermContext(cycleYear);
   const candidates = terms
-    .filter((t) => t.targetYear !== currentYear)
+    .filter((t) => t.targetYear !== currentYear && (!enabledYears || enabledYears.has(t.targetYear)))
     .sort((a, b) => b.targetYear - a.targetYear);
 
   for (const term of candidates) {
@@ -361,7 +366,9 @@ export function computeMostRecentYearCandles(
 
     return {
       year: term.targetYear,
-      label: `${term.targetYear} – ${term.president} (${term.party[0]})`,
+      label: `${term.targetYear} – ${term.president} (${term.party[0]}, ${
+        term.termOrder === 1 ? "1st" : "2nd"
+      } term)`,
       color: MOST_RECENT_YEAR_COLOR,
       party: term.party,
       partyColor: term.party === "Republican" ? REPUBLICAN_COLORS[0] : DEMOCRAT_COLORS[0],
@@ -415,9 +422,9 @@ export function computeIndividualPathSeries(
     const isCurrent = term.targetYear === currentYear;
     const series: PathSeries = {
       id: `year-${term.targetYear}`,
-      label: isCurrent
-        ? `${term.targetYear} – ${term.president} (${term.party[0]}) • current`
-        : `${term.targetYear} – ${term.president} (${term.party[0]})`,
+      label: `${term.targetYear} – ${term.president} (${term.party[0]}, ${
+        term.termOrder === 1 ? "1st" : "2nd"
+      } term)${isCurrent ? " • current" : ""}`,
       color: isCurrent
         ? CURRENT_YEAR_COLOR
         : term.party === "Republican"
@@ -425,8 +432,12 @@ export function computeIndividualPathSeries(
         : DEMOCRAT_COLORS[demIndex++ % DEMOCRAT_COLORS.length],
       points,
       lineWidth: isCurrent ? 2.5 : 1,
-      opacity: isCurrent ? 1 : 0.45,
+      opacity: 1,
       showInLegend: isCurrent ? true : false,
+      year: term.targetYear,
+      party: term.party,
+      termOrder: term.termOrder,
+      prevParty: term.prevParty,
     };
 
     if (isCurrent) {

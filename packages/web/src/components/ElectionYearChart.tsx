@@ -5,6 +5,8 @@ import type { CandlePoint, CandleSeries, PathPoint, PathSeries } from "../lib/el
 interface ElectionYearChartProps {
   series: PathSeries[];
   candles?: CandleSeries | null;
+  enabledIds?: Set<string>;
+  setEnabledIds?: React.Dispatch<React.SetStateAction<Set<string>>>;
   className?: string;
   height?: number;
   labels?: string[];
@@ -37,6 +39,8 @@ interface View {
 export default function ElectionYearChart({
   series,
   candles,
+  enabledIds,
+  setEnabledIds,
   className = "",
   height = 360,
   labels = DEFAULT_LABELS,
@@ -68,6 +72,68 @@ export default function ElectionYearChart({
   transformRef.current = transform;
 
   const isPercent = mode === "percent";
+
+  // Track which series are currently visible on the chart.
+  const allSeriesIds = useMemo(() => {
+    const ids = series.map((s) => s.id);
+    if (candles) ids.push(`candles-${candles.year}`);
+    return ids;
+  }, [series, candles]);
+
+  const isControlled = enabledIds !== undefined && setEnabledIds !== undefined;
+  const [internalEnabledIds, setInternalEnabledIds] = useState<Set<string>>(new Set(allSeriesIds));
+  const [hoveredLegendId, setHoveredLegendId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isControlled) setInternalEnabledIds(new Set(allSeriesIds));
+    setHoveredLegendId(null);
+  }, [allSeriesIds, isControlled]);
+
+  const effectiveEnabledIds = isControlled ? enabledIds! : internalEnabledIds;
+  const effectiveSetEnabledIds = isControlled ? setEnabledIds! : setInternalEnabledIds;
+
+  const visibleSeries = useMemo(
+    () => series.filter((s) => effectiveEnabledIds.has(s.id)),
+    [series, effectiveEnabledIds]
+  );
+  const visibleCandles = useMemo(
+    () => (candles && effectiveEnabledIds.has(`candles-${candles.year}`) ? candles : null),
+    [candles, effectiveEnabledIds]
+  );
+
+  const allEnabled = effectiveEnabledIds.size === allSeriesIds.length && allSeriesIds.length > 0;
+
+  function toggleId(id: string) {
+    effectiveSetEnabledIds((prev) => {
+      // When everything is visible, clicking an item isolates it.
+      if (prev.size === allSeriesIds.length) {
+        return new Set([id]);
+      }
+      // When only the clicked item is visible, restore everything.
+      if (prev.size === 1 && prev.has(id)) {
+        return new Set(allSeriesIds);
+      }
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    effectiveSetEnabledIds(new Set(allSeriesIds));
+  }
+
+  function dimOpacity(base: number | undefined, id: string) {
+    const baseOpacity = base ?? 1;
+    if (!hoveredLegendId || hoveredLegendId === id) return baseOpacity;
+    return baseOpacity * 0.25;
+  }
+  const hoveredYear = useMemo(() => {
+    if (!hoveredLegendId) return null;
+    const found = series.find((s) => s.id === hoveredLegendId);
+    return found?.year ?? null;
+  }, [hoveredLegendId, series]);
   // Display values: percent change from the January base (100 -> 0%), or raw price.
   const toDisplay = useCallback(
     (val: number) => (isPercent ? val - 100 : val),
@@ -84,7 +150,7 @@ export default function ElectionYearChart({
     let max = isPercent ? 0 : -Infinity;
     let has = false;
 
-    for (const s of series) {
+    for (const s of visibleSeries) {
       for (const p of s.points) {
         if (p.value == null) continue;
         const v = toDisplay(p.value);
@@ -98,10 +164,10 @@ export default function ElectionYearChart({
       }
     }
 
-    if (candles) {
-      for (const c of candles.candles) {
-        const high = toCandleDisplay(c.high, candles.janClose);
-        const low = toCandleDisplay(c.low, candles.janClose);
+    if (visibleCandles) {
+      for (const c of visibleCandles.candles) {
+        const high = toCandleDisplay(c.high, visibleCandles.janClose);
+        const low = toCandleDisplay(c.low, visibleCandles.janClose);
         if (!has) {
           min = max = high;
           has = true;
@@ -117,7 +183,7 @@ export default function ElectionYearChart({
     }
     const pad = (max - min) * 0.1 || 5;
     return { minY: min - pad, maxY: max + pad };
-  }, [series, candles, isPercent, toCandleDisplay, toDisplay]);
+  }, [visibleSeries, visibleCandles, isPercent, toCandleDisplay, toDisplay]);
 
   const maxX = Math.max(labels.length - 1, 1);
 
@@ -137,7 +203,7 @@ export default function ElectionYearChart({
       let max = isPercent ? 0 : -Infinity;
       let has = false;
 
-      for (const s of series) {
+      for (const s of visibleSeries) {
         for (const p of s.points) {
           if (p.value == null) continue;
           if (p.x >= minXv && p.x <= maxXv) {
@@ -153,11 +219,11 @@ export default function ElectionYearChart({
         }
       }
 
-      if (candles) {
-        for (const c of candles.candles) {
+      if (visibleCandles) {
+        for (const c of visibleCandles.candles) {
           if (c.x >= minXv && c.x <= maxXv) {
-            const high = toCandleDisplay(c.high, candles.janClose);
-            const low = toCandleDisplay(c.low, candles.janClose);
+            const high = toCandleDisplay(c.high, visibleCandles.janClose);
+            const low = toCandleDisplay(c.low, visibleCandles.janClose);
             if (!has) {
               min = max = high;
               has = true;
@@ -194,7 +260,7 @@ export default function ElectionYearChart({
 
     const { minY, maxY } = computeVisibleYRange(minX, viewMaxX);
     return { minX, maxX: viewMaxX, minY, maxY };
-  }, [candles, defaultView, isPercent, maxX, series, toCandleDisplay, toDisplay, transform]);
+  }, [visibleCandles, defaultView, isPercent, maxX, visibleSeries, toCandleDisplay, toDisplay, transform]);
 
   const W = size.width;
   const H = size.height;
@@ -308,7 +374,8 @@ export default function ElectionYearChart({
       setDrag(null);
     }
     window.addEventListener("mouseup", onMouseUp);
-    return () => window.removeEventListener("mouseup", onMouseUp);
+
+  return () => window.removeEventListener("mouseup", onMouseUp);
   }, [drag]);
 
   // Prevent the browser's Ctrl/Cmd+wheel zoom (and page scroll) from leaving the chart.
@@ -400,7 +467,7 @@ export default function ElectionYearChart({
   }, [W, gw, defaultView]);
 
   const pathData = useMemo(() => {
-    return series.map((s) => {
+    return visibleSeries.map((s) => {
       let d = "";
       let started = false;
       s.points.forEach((p) => {
@@ -421,7 +488,7 @@ export default function ElectionYearChart({
         opacity: s.opacity ?? 1,
       };
     });
-  }, [series, toDisplay, toSvg]);
+  }, [visibleSeries, toDisplay, toSvg]);
 
   type HoverLineItem = {
     type: "line";
@@ -430,6 +497,7 @@ export default function ElectionYearChart({
     color: string;
     date: string;
     value: number;
+    year?: number;
   };
   type HoverCandleItem = {
     type: "candle";
@@ -438,12 +506,13 @@ export default function ElectionYearChart({
     color: string;
     date: string;
     ohlc: CandlePoint;
+    year?: number;
   };
   type HoverItem = HoverLineItem | HoverCandleItem;
 
   const hoverData = useMemo<HoverItem[]>(() => {
     if (hoverX == null) return [];
-    const base: HoverLineItem[] = series
+    const base: HoverLineItem[] = visibleSeries
       .map((s) => {
         let closest: PathPoint | null = null;
         let closestDist = Infinity;
@@ -463,32 +532,41 @@ export default function ElectionYearChart({
           color: s.color,
           date: closest.date,
           value: closest.value,
+          year: s.year,
         };
       })
       .filter(Boolean) as HoverLineItem[];
-    if (!candles) return base;
-    let nearestCandle: CandlePoint | null = null;
-    let nearestDist = Infinity;
-    for (const c of candles.candles) {
-      const dist = Math.abs(c.x - hoverX);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestCandle = c;
+    const items: HoverItem[] = [...base];
+    if (visibleCandles) {
+      let nearestCandle: CandlePoint | null = null;
+      let nearestDist = Infinity;
+      for (const c of visibleCandles.candles) {
+        const dist = Math.abs(c.x - hoverX);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestCandle = c;
+        }
+      }
+      if (nearestCandle) {
+        items.push({
+          type: "candle",
+          id: `candles-${visibleCandles.year}`,
+          label: visibleCandles.label,
+          color: visibleCandles.color,
+          date: nearestCandle.date,
+          ohlc: nearestCandle,
+          year: visibleCandles.year,
+        });
       }
     }
-    if (!nearestCandle) return base;
-    return [
-      ...base,
-      {
-        type: "candle",
-        id: `candles-${candles.year}`,
-        label: candles.label,
-        color: candles.color,
-        date: nearestCandle.date,
-        ohlc: nearestCandle,
-      },
-    ];
-  }, [hoverX, series, candles]);
+    // Legend / hover order: Average first, then descending by year.
+    items.sort((a, b) => {
+      if (a.id === "average") return -1;
+      if (b.id === "average") return 1;
+      return (b.year ?? 0) - (a.year ?? 0);
+    });
+    return items;
+  }, [hoverX, visibleSeries, visibleCandles]);
 
   function formatDateLabel(dateStr: string): string {
     const d = new Date(dateStr + "T00:00:00Z");
@@ -500,49 +578,86 @@ export default function ElectionYearChart({
     return formatDateLabel(hoverData[0].date);
   }, [hoverData]);
 
-  const individualCount = series.filter((s) => s.id !== "average").length;
-  const legendSeries = series.filter((s) => s.showInLegend && s.id !== "average");
-
   const yDigits = view.maxY - view.minY < 5 ? 1 : 0;
   const formatY = (y: number) =>
     isPercent
       ? `${y >= 0 ? "+" : ""}${y.toFixed(yDigits)}%`
       : y.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
+  const legendItems = useMemo(() => {
+    const items: { id: string; label: string; color: string; year: number }[] = [];
+    for (const s of series) {
+      if (s.id === "average" || s.year == null) continue;
+      items.push({ id: s.id, label: s.label, color: s.color, year: s.year });
+    }
+    items.sort((a, b) => b.year - a.year);
+    return items;
+  }, [series]);
+
+  function LegendToggle({
+    id,
+    label,
+    color,
+  }: {
+    id: string;
+    label: string;
+    color: string;
+  }) {
+    const enabled = effectiveEnabledIds.has(id);
+    const dim = hoveredLegendId != null && hoveredLegendId !== id;
+    return (
+      <button
+        type="button"
+        onClick={() => toggleId(id)}
+        onMouseEnter={() => setHoveredLegendId(id)}
+        onMouseLeave={() => setHoveredLegendId(null)}
+        aria-pressed={enabled}
+        className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded border transition-opacity ${
+          enabled ? "" : "bg-gray-100 text-gray-400 line-through border-gray-200"
+        }`}
+        style={
+          enabled
+            ? {
+                color,
+                borderColor: color + "40",
+                backgroundColor: color + "15",
+                opacity: dim ? 0.5 : 1,
+              }
+            : { opacity: dim ? 0.5 : 1 }
+        }
+      >
+        <span
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: enabled ? color : "#9ca3af" }}
+        />
+        {label}
+      </button>
+    );
+  }
   return (
     <div className={`flex flex-col ${className}`}>
       {/* Legend / summary */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded border bg-gray-100 text-gray-700 border-gray-200">
-          <span className="w-2 h-2 rounded-full bg-gray-900" />
-          Average
-        </span>
-        {legendSeries.map((s) => (
-          <span
-            key={s.id}
-            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded border"
-            style={{ color: s.color, borderColor: s.color + "40", backgroundColor: s.color + "15" }}
-          >
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-            {s.label}
-          </span>
+        <LegendToggle id="average" label="Average" color="#111827" />
+
+        {legendItems.map((item) => (
+          <LegendToggle
+            key={item.id}
+            id={item.id}
+            label={item.label}
+            color={item.color}
+          />
         ))}
-        {candles && (
-          <span
-            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded border"
-            style={{
-              color: candles.color,
-              borderColor: candles.color + "40",
-              backgroundColor: candles.color + "15",
-            }}
+
+        {!allEnabled && (
+          <button
+            onClick={selectAll}
+            className="text-[10px] font-medium px-2 py-1 rounded border border-transparent text-blue-600 hover:text-blue-700 hover:bg-blue-50"
           >
-            <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: candles.color }} />
-            {candles.label}
-          </span>
+            Select all
+          </button>
         )}
-        {individualCount > 0 && (
-          <span className="text-[10px] text-gray-400">+{individualCount} individual years overlaid</span>
-        )}
+
         <button
           onClick={() => setTransform({ scaleX: 1, dx: 0 })}
           className="ml-auto text-[10px] font-medium px-2 py-1 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
@@ -620,74 +735,109 @@ export default function ElectionYearChart({
                 fill="none"
                 stroke={p.color}
                 strokeWidth={p.lineWidth}
-                opacity={p.opacity}
+                opacity={dimOpacity(p.opacity, p.id)}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             ))}
 
             {/* Candlesticks for the most recent completed year */}
-            {candles && (
+            {visibleCandles && (
               <g>
-                {candles.candles.map((c) => {
-                  const openD = toCandleDisplay(c.open, candles.janClose);
-                  const highD = toCandleDisplay(c.high, candles.janClose);
-                  const lowD = toCandleDisplay(c.low, candles.janClose);
-                  const closeD = toCandleDisplay(c.close, candles.janClose);
-                  const { sx, sy: syOpen } = toSvg(c.x, openD);
-                  const { sy: syClose } = toSvg(c.x, closeD);
-                  const { sy: syHigh } = toSvg(c.x, highD);
-                  const { sy: syLow } = toSvg(c.x, lowD);
-                  let bodyTopY = Math.min(syOpen, syClose);
-                  let bodyBottomY = Math.max(syOpen, syClose);
-                  if (bodyBottomY - bodyTopY < 1) {
-                    const mid = (bodyTopY + bodyBottomY) / 2;
-                    bodyTopY = mid - 0.5;
-                    bodyBottomY = mid + 0.5;
-                  }
-                  const bodyHeight = bodyBottomY - bodyTopY;
-                  const dayWidth = (xScale * 11) / candles.candles.length;
-                  const bodyWidth = Math.max(1.5, dayWidth * 0.5);
-                  const isUp = c.close >= c.open;
-                  const color = isUp ? "#22c55e" : "#ef4444";
-                  return (
-                    <g key={c.x}>
-                      <line x1={sx} y1={syHigh} x2={sx} y2={syLow} stroke={color} strokeWidth={1} />
-                      <rect
-                        x={sx - bodyWidth / 2}
-                        y={bodyTopY}
-                        width={bodyWidth}
-                        height={bodyHeight}
-                        fill={color}
-                        fillOpacity={0.85}
-                        stroke={color}
-                        strokeWidth={1}
-                        rx={1}
-                      />
-                    </g>
-                  );
-                })}
-
-                {/* Party-colored underline for the most recent completed year */}
                 {(() => {
-                  const first = candles.candles[0];
-                  const last = candles.candles[candles.candles.length - 1];
-                  const lowDs = candles.candles.map((c) => toCandleDisplay(c.low, candles.janClose));
-                  const minLow = Math.min(...lowDs);
-                  const lineY = minLow - 2;
-                  const { sx: x1, sy: y1 } = toSvg(first.x, lineY);
-                  const { sx: x2, sy: y2 } = toSvg(last.x, lineY);
+                  const candleDim =
+                    hoveredLegendId != null &&
+                    hoveredYear !== visibleCandles.year;
                   return (
-                    <line
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke={candles.partyColor}
-                      strokeWidth={1}
-                      strokeLinecap="round"
-                      opacity={0.5}
-                    />
+                    <>
+                      {visibleCandles.candles.map((c) => {
+                        const openD = toCandleDisplay(
+                          c.open,
+                          visibleCandles.janClose
+                        );
+                        const highD = toCandleDisplay(
+                          c.high,
+                          visibleCandles.janClose
+                        );
+                        const lowD = toCandleDisplay(
+                          c.low,
+                          visibleCandles.janClose
+                        );
+                        const closeD = toCandleDisplay(
+                          c.close,
+                          visibleCandles.janClose
+                        );
+                        const { sx, sy: syOpen } = toSvg(c.x, openD);
+                        const { sy: syClose } = toSvg(c.x, closeD);
+                        const { sy: syHigh } = toSvg(c.x, highD);
+                        const { sy: syLow } = toSvg(c.x, lowD);
+                        let bodyTopY = Math.min(syOpen, syClose);
+                        let bodyBottomY = Math.max(syOpen, syClose);
+                        if (bodyBottomY - bodyTopY < 1) {
+                          const mid = (bodyTopY + bodyBottomY) / 2;
+                          bodyTopY = mid - 0.5;
+                          bodyBottomY = mid + 0.5;
+                        }
+                        const bodyHeight = bodyBottomY - bodyTopY;
+                        const dayWidth =
+                          (xScale * 11) / visibleCandles.candles.length;
+                        const bodyWidth = Math.max(1.5, dayWidth * 0.5);
+                        const isUp = c.close >= c.open;
+                        const color = isUp ? "#22c55e" : "#ef4444";
+                        return (
+                          <g key={c.x}>
+                            <line
+                              x1={sx}
+                              y1={syHigh}
+                              x2={sx}
+                              y2={syLow}
+                              stroke={color}
+                              strokeWidth={1}
+                              strokeOpacity={candleDim ? 0.25 : 1}
+                            />
+                            <rect
+                              x={sx - bodyWidth / 2}
+                              y={bodyTopY}
+                              width={bodyWidth}
+                              height={bodyHeight}
+                              fill={color}
+                              fillOpacity={candleDim ? 0.2 : 0.85}
+                              stroke={color}
+                              strokeWidth={1}
+                              rx={1}
+                            />
+                          </g>
+                        );
+                      })}
+
+                      {/* Party-colored underline for the most recent completed year */}
+                      {(() => {
+                        const first = visibleCandles.candles[0];
+                        const last =
+                          visibleCandles.candles[
+                            visibleCandles.candles.length - 1
+                          ];
+                        const lowDs = visibleCandles.candles.map((c) =>
+                          toCandleDisplay(c.low, visibleCandles.janClose)
+                        );
+                        const minLow = Math.min(...lowDs);
+                        const lineY = minLow - 2;
+                        const { sx: x1, sy: y1 } = toSvg(first.x, lineY);
+                        const { sx: x2, sy: y2 } = toSvg(last.x, lineY);
+                        return (
+                          <line
+                            x1={x1}
+                            y1={y1}
+                            x2={x2}
+                            y2={y2}
+                            stroke={visibleCandles.partyColor}
+                            strokeWidth={1}
+                            strokeLinecap="round"
+                            opacity={candleDim ? 0.5 * 0.25 : 0.5}
+                          />
+                        );
+                      })()}
+                    </>
                   );
                 })()}
               </g>
@@ -709,7 +859,7 @@ export default function ElectionYearChart({
 
             {/* Hover dots */}
             {hoverX != null &&
-              series.map((s) => {
+              visibleSeries.map((s) => {
                 let closest: PathPoint | null = null;
                 let closestDist = Infinity;
                 for (const p of s.points) {
@@ -722,7 +872,16 @@ export default function ElectionYearChart({
                 }
                 if (!closest || closest.value == null) return null;
                 const { sx, sy } = toSvg(closest.x, toDisplay(closest.value));
-                return <circle key={s.id} cx={sx} cy={sy} r={3} fill={s.color} />;
+                return (
+                  <circle
+                    key={s.id}
+                    cx={sx}
+                    cy={sy}
+                    r={3}
+                    fill={s.color}
+                    opacity={dimOpacity(1, s.id)}
+                  />
+                );
               })}
           </g>
         </svg>

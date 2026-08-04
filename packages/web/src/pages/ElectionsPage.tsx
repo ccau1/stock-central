@@ -26,6 +26,15 @@ import ElectionYearChart from "../components/ElectionYearChart";
 const TABS = [1, 2, 3, 4] as const;
 const CHART_MODES = ["percent", "price"] as const;
 
+type LineFilter = "sameParty" | "partyChange" | "firstTerm" | "secondTerm";
+
+const LINE_FILTERS: { key: LineFilter; label: string }[] = [
+  { key: "sameParty", label: "Consecutive party" },
+  { key: "partyChange", label: "Changed party" },
+  { key: "firstTerm", label: "First term" },
+  { key: "secondTerm", label: "Second term" },
+];
+
 function StatCard({
   title,
   stats,
@@ -88,11 +97,12 @@ export default function ElectionsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadHistory = async (): Promise<{ closeMap: MonthCloseMap; candles: CandleInput[] }> => {
-    // Daily candles are limited to ~10 years on Yahoo, so use them for the chart.
-    // Monthly candles go back to the index inception and are used for the stats tables.
+    // Yahoo's period endpoint gives daily candles back to 1970 for ^GSPC, so use them
+    // for the chart. Monthly candles go back to the index inception and are used for the
+    // stats tables.
     const nowUnix = Math.floor(Date.now() / 1000);
     const [daily, monthly] = await Promise.all([
-      dataApi.getCandles("^GSPC", "10y", "1d"),
+      dataApi.getCandlesPeriod("^GSPC", 0, nowUnix, "1d"),
       // Yahoo's "max" range returns quarterly candles for 1mo, so request the full
       // available history by explicit start/end timestamps to get true monthly data.
       dataApi.getCandlesPeriod("^GSPC", 0, nowUnix, "1mo"),
@@ -148,17 +158,105 @@ export default function ElectionsPage() {
   };
 
   const stats = useMemo<ElectionStats>(() => computeElectionStats(history, activeTab), [history, activeTab]);
-  const mostRecentCandles = useMemo<CandleSeries | null>(
+  const overallMostRecentCandles = useMemo<CandleSeries | null>(
     () => computeMostRecentYearCandles(rawCandles, history, activeTab),
     [rawCandles, history, activeTab]
   );
-  // Show the latest 2 completed years plus the current year (when applicable) on the chart,
+  // Show the latest 4 completed years plus the current year (when applicable) on the chart,
   // while the stats/monthly tables use the full history.
   const pathSeries = useMemo<PathSeries[]>(
-    () => computeIndividualPathSeries(rawCandles, activeTab, chartMode, 2),
+    () => computeIndividualPathSeries(rawCandles, activeTab, chartMode, 4),
     [rawCandles, activeTab, chartMode]
   );
   const monthlyStats = useMemo<MonthlyStat[]>(() => computeMonthlyStats(history, activeTab), [history, activeTab]);
+
+  const currentYear = new Date().getFullYear();
+  const [enabledIds, setEnabledIds] = useState<Set<string>>(new Set());
+  const [activeLineFilter, setActiveLineFilter] = useState<LineFilter | null>(null);
+
+  // Reset visibility to everything when the cycle year or chart mode changes.
+  useEffect(() => {
+    const ids = new Set(pathSeries.map((s) => s.id));
+    if (overallMostRecentCandles) ids.add(`candles-${overallMostRecentCandles.year}`);
+    setEnabledIds(ids);
+    setActiveLineFilter(null);
+  }, [pathSeries, overallMostRecentCandles]);
+
+  // The candlestick year follows the latest enabled completed year (never the current year).
+  const enabledHistoricalYears = useMemo(() => {
+    const years = new Set<number>();
+    for (const s of pathSeries) {
+      if (s.year && s.year !== currentYear && enabledIds.has(s.id)) years.add(s.year);
+    }
+    return years;
+  }, [pathSeries, enabledIds, currentYear]);
+
+  const mostRecentCandles = useMemo<CandleSeries | null>(
+    () => computeMostRecentYearCandles(rawCandles, history, activeTab, enabledHistoricalYears),
+    [rawCandles, history, activeTab, enabledHistoricalYears]
+  );
+
+  // Keep the candle toggle in sync with the dynamic candle year. Whenever the most recent
+  // enabled completed year changes, enable the corresponding candle (and remove stale ones).
+  useEffect(() => {
+    if (!mostRecentCandles) return;
+    const newCandleId = `candles-${mostRecentCandles.year}`;
+    setEnabledIds((prev) => {
+      if (prev.has(newCandleId)) return prev;
+      const next = new Set(prev);
+      Array.from(prev)
+        .filter((id) => id.startsWith("candles-"))
+        .forEach((id) => next.delete(id));
+      next.add(newCandleId);
+      return next;
+    });
+  }, [mostRecentCandles]);
+
+  function latestEnabledCompletedYear(ids: Set<string>) {
+    let latest = 0;
+    for (const s of pathSeries) {
+      if (s.year && s.year !== currentYear && ids.has(s.id) && s.year > latest) latest = s.year;
+    }
+    return latest || null;
+  }
+
+  function computeFilterIds(filter: LineFilter) {
+    const ids = new Set<string>();
+    ids.add("average");
+    for (const s of pathSeries) {
+      if (s.id === "average") continue;
+      let include = false;
+      if (filter === "sameParty" && s.party && s.prevParty && s.party === s.prevParty) include = true;
+      if (filter === "partyChange" && s.party && s.prevParty && s.party !== s.prevParty) include = true;
+      if (filter === "firstTerm" && s.termOrder === 1) include = true;
+      if (filter === "secondTerm" && s.termOrder === 2) include = true;
+      if (include) ids.add(s.id);
+    }
+    const candleYear = latestEnabledCompletedYear(ids);
+    if (candleYear) ids.add(`candles-${candleYear}`);
+    return ids;
+  }
+
+  function applyFilter(filter: LineFilter) {
+    if (activeLineFilter === filter) {
+      setActiveLineFilter(null);
+      const ids = new Set(pathSeries.map((s) => s.id));
+      if (overallMostRecentCandles) ids.add(`candles-${overallMostRecentCandles.year}`);
+      setEnabledIds(ids);
+      return;
+    }
+    setActiveLineFilter(filter);
+    setEnabledIds(computeFilterIds(filter));
+  }
+
+  // If the user manually toggles legend items, clear the active quick filter.
+  useEffect(() => {
+    if (!activeLineFilter) return;
+    const expected = computeFilterIds(activeLineFilter);
+    if (expected.size !== enabledIds.size || !Array.from(expected).every((id) => enabledIds.has(id))) {
+      setActiveLineFilter(null);
+    }
+  }, [enabledIds, activeLineFilter, pathSeries, overallMostRecentCandles]);
 
   const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -283,7 +381,37 @@ export default function ElectionsPage() {
                   ? "Each thin line is one calendar year in this cycle bucket, shown as daily percent change from the January close. The thick black line is the daily average. The most recent completed year is shown as both a line and daily candlesticks."
                   : "Each thin line is one calendar year in this cycle bucket, shown as actual S&P 500 daily closes. The thick black line is the daily average across all years. The most recent completed year is shown as both a line and daily candlesticks."}
               </p>
-              <ElectionYearChart key={activeTab} series={pathSeries} candles={mostRecentCandles} labels={monthLabels} mode={chartMode} height={420} />
+
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="text-[11px] text-gray-500">Quick filters:</span>
+                {LINE_FILTERS.map((f) => {
+                  const active = activeLineFilter === f.key;
+                  return (
+                    <button
+                      key={f.key}
+                      onClick={() => applyFilter(f.key)}
+                      className={`text-[10px] font-medium px-2 py-1 rounded border transition-colors ${
+                        active
+                          ? "bg-gray-900 text-white border-gray-900"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <ElectionYearChart
+                key={activeTab}
+                series={pathSeries}
+                candles={mostRecentCandles}
+                enabledIds={enabledIds}
+                setEnabledIds={setEnabledIds}
+                labels={monthLabels}
+                mode={chartMode}
+                height={420}
+              />
             </div>
 
             {/* Monthly stats */}
