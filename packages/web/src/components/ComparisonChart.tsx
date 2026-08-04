@@ -130,7 +130,7 @@ export default function ComparisonChart({
   }
 
   return (
-    <div className={`h-full flex flex-col ${className}`}>
+    <div className={`relative h-full flex flex-col ${className}`}>
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 mb-3">
         {series.map((n) => (
@@ -263,23 +263,22 @@ export default function ComparisonChart({
       </div>
 
       {/* Hover data panel */}
-      <div
-        className="mt-2 pt-2 border-t border-gray-100 min-h-[3.25rem] max-h-[4.5rem] overflow-y-auto transition-opacity duration-150"
-        style={{ opacity: hoverIndex != null && hoveredData.length > 0 ? 1 : 0 }}
-      >
-        <div className="text-[10px] text-gray-400 font-medium mb-1.5">{hoverDate}</div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          {hoveredData.map((d) => (
-            <div key={d.sym} className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: d.color }} />
-              <span className="text-[11px] font-semibold text-gray-700">{d.sym}</span>
-              <span className={`text-[11px] font-medium ${!isPrice && d.y >= 0 ? "text-green-600" : !isPrice && d.y < 0 ? "text-red-600" : "text-gray-600"}`}>
-                {formatHover(d.y)}
-              </span>
-            </div>
-          ))}
+      {hoverIndex != null && hoveredData.length > 0 && (
+        <div className="absolute top-0 right-0 px-3 py-2 bg-white/95 border-b border-l border-gray-100 max-h-[4.5rem] overflow-y-auto z-10 rounded-bl-lg">
+          <div className="text-[10px] text-gray-400 font-medium mb-1">{hoverDate}</div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {hoveredData.map((d) => (
+              <div key={d.sym} className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: d.color }} />
+                <span className="text-[11px] font-semibold text-gray-700">{d.sym}</span>
+                <span className={`text-[11px] font-medium ${!isPrice && d.y >= 0 ? "text-green-600" : !isPrice && d.y < 0 ? "text-red-600" : "text-gray-600"}`}>
+                  {formatHover(d.y)}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

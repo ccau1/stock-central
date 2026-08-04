@@ -80,24 +80,28 @@ export function VxnVixRatioPanel({
       description={description}
     >
       {error && <PanelError message={error} />}
-      <div className="flex items-center gap-4 px-3 py-2 mb-1">
-        <div>
-          <div className="text-2xl font-bold text-gray-800">{current.toFixed(2)}</div>
+      <div className="h-full flex flex-col">
+        <div className="flex items-center gap-4 px-3 py-2 mb-1">
+          <div>
+            <div className="text-2xl font-bold text-gray-800">{current.toFixed(2)}</div>
+          </div>
+          <div
+            className={`text-sm font-semibold ${
+              change >= 0 ? "text-red-500" : "text-green-600"
+            }`}
+          >
+            {change >= 0 ? "+" : ""}
+            {change.toFixed(2)} ({changePct >= 0 ? "+" : ""}
+            {changePct.toFixed(1)}%)
+          </div>
+          <div className={`text-sm font-semibold ${sentimentColor}`}>{sentiment}</div>
         </div>
-        <div
-          className={`text-sm font-semibold ${
-            change >= 0 ? "text-red-500" : "text-green-600"
-          }`}
-        >
-          {change >= 0 ? "+" : ""}
-          {change.toFixed(2)} ({changePct >= 0 ? "+" : ""}
-          {changePct.toFixed(1)}%)
-        </div>
-        <div className={`text-sm font-semibold ${sentimentColor}`}>{sentiment}</div>
+        {ratioData && (
+          <div className="flex-1 min-h-0">
+            <ComparisonChart data={ratioData} symbols={[RATIO_KEY]} mode="price" baseline="auto" />
+          </div>
+        )}
       </div>
-      {ratioData && (
-        <ComparisonChart data={ratioData} symbols={[RATIO_KEY]} mode="price" baseline="auto" />
-      )}
     </PanelContainer>
   );
 }
