@@ -140,7 +140,7 @@ jobs:
           files-to-copy: |
             deploy/${{ env.PROD_COMPOSE_FILE }}
             deploy/.env
-            deploy/nginx.dev.conf
+            deploy/nginx.conf
           env-file-content: ${{ secrets.PROD_ENV_FILE }}
           env-file-header: |
             DOMAIN_PROD=${{ env.PROD_DOMAIN }}
