@@ -1,6 +1,11 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DataFrame, ChartConfig, ChartSeries } from "../lib/query/types";
-import { useSvgContainerSize } from "../hooks/useSvgContainerSize";
+import { useSvgChartScale } from "../hooks/useSvgChartScale";
+import { useSvgHover } from "../hooks/useSvgHover";
+import { SvgChartGrid } from "../components/svg/SvgChartGrid";
+import { SvgZeroLine } from "../components/svg/SvgZeroLine";
+import { SvgHoverLine } from "../components/svg/SvgHoverLine";
+import { SvgLegend } from "../components/svg/SvgLegend";
 
 const DEFAULT_COLORS = [
   "#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6",
@@ -13,9 +18,6 @@ interface LineAreaBarChartProps {
 }
 
 export default function LineAreaBarChart({ df, config }: LineAreaBarChartProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const { ref: containerRef, size } = useSvgContainerSize(800, 320);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [hoveredSeries, setHoveredSeries] = useState<string | null>(null);
 
   const xColumn = config.x ?? df.columns[0]?.name ?? "date";
@@ -43,52 +45,21 @@ export default function LineAreaBarChart({ df, config }: LineAreaBarChartProps) 
     return <div className="flex h-full items-center justify-center text-sm text-slate-500">No series configured.</div>;
   }
 
-  const W = size.width;
-  const H = size.height;
-  const padL = 48;
-  const padR = 12;
-  const padT = 16;
-  const padB = 36;
-  const gw = Math.max(W - padL - padR, 0);
-  const gh = Math.max(H - padT - padB, 0);
-  const rangeY = maxY - minY || 1;
-
   const n = xValues.length;
   const bandCount = series.length || 1;
-  const xScale = n > 1 ? gw / (n - 1) : gw;
-  const yScale = gh / rangeY;
-  const barGroupWidth = n > 0 ? gw / n : 0;
-  const barWidth = barGroupWidth > 0 ? Math.min(12, (barGroupWidth - 4) / bandCount) : 0;
 
-  const toSvg = (i: number, y: number) => ({
-    sx: n > 1 ? padL + i * xScale : padL + gw / 2,
-    sy: padT + (maxY - y) * yScale,
+  const scale = useSvgChartScale({
+    defaultHeight: 320,
+    padding: { left: 48, right: 12, top: 16, bottom: 36 },
+    xDomain: [0, Math.max(n - 1, 0)],
+    yDomain: [minY, maxY],
   });
 
-  const gridLines = 5;
-  const gridYs = Array.from({ length: gridLines + 1 }, (_, i) => minY + (rangeY * i) / gridLines);
+  const hover = useSvgHover({ scale, mode: "index", maxIndex: Math.max(n - 1, 0) });
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current || n <= 1 || W <= 0) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    let idx = Math.round((svgX - padL) / xScale);
-    idx = Math.max(0, Math.min(idx, n - 1));
-    setHoverIndex(idx);
-  };
-
-  const handleMouseLeave = () => setHoverIndex(null);
-
-  const hoverData = hoverIndex != null
-    ? series
-        .map((s) => {
-          const v = s.points[hoverIndex];
-          return v != null && !Number.isNaN(v)
-            ? { key: s.key, label: s.label, color: s.color, value: v, x: xValues[hoverIndex] }
-            : null;
-        })
-        .filter(Boolean) as { key: string; label: string; color: string; value: number; x: string }[]
-    : [];
+  const gw = scale.plotArea.width;
+  const barGroupWidth = n > 0 ? gw / n : 0;
+  const barWidth = barGroupWidth > 0 ? Math.min(12, (barGroupWidth - 4) / bandCount) : 0;
 
   function formatY(val: number) {
     if (normalized) return `${val >= 0 ? "+" : ""}${val.toFixed(0)}%`;
@@ -100,7 +71,7 @@ export default function LineAreaBarChart({ df, config }: LineAreaBarChartProps) 
     let d = "";
     s.points.forEach((y, i) => {
       if (y == null || Number.isNaN(y)) return;
-      const { sx, sy } = toSvg(i, y);
+      const { sx, sy } = scale.toSvg(i, y);
       d += d ? ` L ${sx} ${sy}` : `M ${sx} ${sy}`;
     });
     return d;
@@ -112,56 +83,72 @@ export default function LineAreaBarChart({ df, config }: LineAreaBarChartProps) 
     const firstIdx = s.points.findIndex((y) => y != null && !Number.isNaN(y));
     const lastIdx = s.points.length - 1 - [...s.points].reverse().findIndex((y) => y != null && !Number.isNaN(y));
     if (firstIdx < 0 || lastIdx < firstIdx) return "";
-    const p1 = toSvg(firstIdx, minY);
-    const p2 = toSvg(lastIdx, minY);
+    const p1 = scale.toSvg(firstIdx, minY);
+    const p2 = scale.toSvg(lastIdx, minY);
     return `${lineD} L ${p2.sx} ${p2.sy} L ${p1.sx} ${p1.sy} Z`;
   }
 
+  const hoverData = hover.hoverIndex != null
+    ? series
+        .map((s) => {
+          const v = s.points[hover.hoverIndex!];
+          return v != null && !Number.isNaN(v)
+            ? { key: s.key, label: s.label, color: s.color, value: v, x: xValues[hover.hoverIndex!] }
+            : null;
+        })
+        .filter(Boolean) as { key: string; label: string; color: string; value: number; x: string }[]
+    : [];
+
+  const legendItems = series.map((s) => ({ key: s.key, label: s.label, color: s.color, marker: "line" as const }));
+
+  // Mobile: single-finger touch drives hover.
+  const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    hover.handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY } as React.MouseEvent<SVGSVGElement>);
+  };
+
   return (
-    <div ref={containerRef} className="flex h-full flex-col">
+    <div ref={scale.containerRef} className="flex h-full flex-col">
       {config.options?.showLegend !== false && (
-        <div className="flex flex-wrap items-center gap-3 px-1 pb-2">
-          {series.map((s) => (
-            <button
-              key={s.key}
-              className={`flex items-center gap-1.5 text-xs transition-opacity ${hoveredSeries && hoveredSeries !== s.key ? "opacity-40" : "opacity-100"}`}
-              onMouseEnter={() => setHoveredSeries(s.key)}
-              onMouseLeave={() => setHoveredSeries(null)}
-            >
-              <span className="inline-block h-0.5 w-4 rounded" style={{ backgroundColor: s.color }} />
-              <span className="text-slate-300">{s.label}</span>
-            </button>
-          ))}
-        </div>
+        <SvgLegend
+          items={legendItems}
+          hoveredKey={hoveredSeries}
+          onHover={setHoveredSeries}
+          className="px-1 pb-2"
+        />
       )}
 
       <div className="relative flex-1 min-h-0">
-        <svg ref={svgRef} className="h-full w-full" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
-          {/* Grid lines */}
-          {config.options?.showGrid !== false && gridYs.map((y, i) => {
-            const sy = padT + (maxY - y) * yScale;
-            return (
-              <g key={i}>
-                <line x1={padL} y1={sy} x2={W - padR} y2={sy} stroke="#334155" strokeOpacity={0.4} strokeDasharray="2,2" />
-                <text x={padL - 6} y={sy + 3} textAnchor="end" fontSize={10} fill="#94a3b8">{formatY(y)}</text>
-              </g>
-            );
-          })}
+        <svg
+          ref={scale.svgRef}
+          className="h-full w-full touch-pan-x"
+          onMouseMove={hover.handleMouseMove}
+          onMouseLeave={hover.handleMouseLeave}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={hover.handleMouseLeave}
+        >
+          {config.options?.showGrid !== false && (
+            <SvgChartGrid
+              scale={scale}
+              formatY={formatY}
+              stroke="#334155"
+              strokeOpacity={0.4}
+              strokeDasharray="2,2"
+              labelFill="#94a3b8"
+            />
+          )}
 
-          {/* Zero line */}
-          {minY < 0 && maxY > 0 && (() => {
-            const sy = padT + (maxY - 0) * yScale;
-            return <line x1={padL} y1={sy} x2={W - padR} y2={sy} stroke="#64748b" strokeWidth={1} />;
-          })()}
+          <SvgZeroLine scale={scale} stroke="#64748b" strokeDasharray={undefined} />
 
           {/* Bars */}
           {series.map((s) =>
             s.style === "bar"
               ? s.points.map((y, i) => {
                   if (y == null || Number.isNaN(y)) return null;
-                  const { sx } = toSvg(i, y);
-                  const y0 = padT + (maxY - 0) * yScale;
-                  const yPos = padT + (maxY - y) * yScale;
+                  const { sx } = scale.toSvg(i, y);
+                  const y0 = scale.toSvg(0, 0).sy;
+                  const yPos = scale.toSvg(i, y).sy;
                   const xOffset = (series.indexOf(s) - (series.length - 1) / 2) * barWidth;
                   return (
                     <rect
@@ -204,27 +191,25 @@ export default function LineAreaBarChart({ df, config }: LineAreaBarChartProps) 
             ) : null
           )}
 
-          {/* Hover crosshair */}
-          {hoverIndex != null && n > 1 && (() => {
-            const { sx } = toSvg(hoverIndex, maxY);
-            return (
-              <line
-                x1={sx}
-                y1={padT}
-                x2={sx}
-                y2={H - padB}
-                stroke="#94a3b8"
-                strokeWidth={1}
-                strokeDasharray="4,4"
-              />
-            );
-          })()}
+          <SvgHoverLine
+            svgX={hover.hoverSvgX}
+            top={scale.padding.top}
+            bottom={scale.size.height - scale.padding.bottom}
+            stroke="#94a3b8"
+          />
 
           {/* X-axis labels */}
           {n > 0 && [0, Math.floor(n / 2), n - 1].map((i) => {
-            const { sx } = toSvg(i, minY);
+            const { sx } = scale.toSvg(i, minY);
             return (
-              <text key={i} x={sx} y={H - padB + 16} textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"} fontSize={10} fill="#94a3b8">
+              <text
+                key={i}
+                x={sx}
+                y={scale.size.height - scale.padding.bottom + 16}
+                textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
+                fontSize={10}
+                fill="#94a3b8"
+              >
                 {xValues[i]}
               </text>
             );

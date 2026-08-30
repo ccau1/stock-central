@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { createChart, CandlestickSeries, CrosshairMode } from "lightweight-charts";
-import type { IChartApi, ISeriesApi } from "lightweight-charts";
+import { CandlestickSeries } from "lightweight-charts";
+import type { ISeriesApi } from "lightweight-charts";
 import { X } from "lucide-react";
 import { dataApi, type CandleData } from "../lib/api";
 import { formatPct } from "../lib/monthlyReturns";
+import { useLightweightChart } from "../hooks/useLightweightChart";
+import { sortByTime } from "../lib/chartTime";
+import { candlestickSeriesOptions } from "../lib/chartStyles";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -26,9 +29,9 @@ export default function MonthlyCandlesModal({
   open,
   onClose,
 }: MonthlyCandlesModalProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+
+  const { containerRef, chartRef } = useLightweightChart();
 
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,71 +84,39 @@ export default function MonthlyCandlesModal({
     };
   }, [open, symbol]);
 
-  // Initialize chart.
+  // Add candlestick series once the shared chart is ready.
   useEffect(() => {
-    if (!containerRef.current) return;
-    const chart = createChart(containerRef.current, {
-      layout: { background: { color: "#ffffff" }, textColor: "#6b7280" },
-      grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
-      rightPriceScale: { borderColor: "#e5e7eb" },
-      timeScale: { borderColor: "#e5e7eb", timeVisible: false },
-      crosshair: { mode: CrosshairMode.Normal },
-      autoSize: true,
-      handleScale: { mouseWheel: false, pinch: true },
-    });
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
-    });
-    chartRef.current = chart;
+    const chart = chartRef.current;
+    if (!chart) return;
+    const series = chart.addSeries(CandlestickSeries, candlestickSeriesOptions);
     seriesRef.current = series;
-
-    const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) return;
-      e.preventDefault();
-      const timeScale = chart.timeScale();
-      const range = timeScale.getVisibleLogicalRange();
-      if (!range) return;
-      const zoomFactor = Math.exp(-e.deltaY * 0.001 * 2.5);
-      const center = (range.from + range.to) / 2;
-      const halfSpan = (range.to - range.from) / 2;
-      const newHalfSpan = Math.max(2, halfSpan * zoomFactor);
-      timeScale.setVisibleLogicalRange({ from: center - newHalfSpan, to: center + newHalfSpan });
-    };
-    const container = containerRef.current;
-    container.addEventListener("wheel", onWheel, { passive: false });
-
     return () => {
-      container.removeEventListener("wheel", onWheel);
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
+      if (seriesRef.current) {
+        chart.removeSeries(seriesRef.current);
+        seriesRef.current = null;
+      }
     };
-  }, []);
+  }, [chartRef]);
 
   // Update candle data.
   useEffect(() => {
     if (!seriesRef.current) return;
     if (monthCandles.length > 0) {
-      const data = monthCandles
-        .map((c) => ({
+      const data = sortByTime(
+        monthCandles.map((c) => ({
           time: c.date.slice(0, 10),
           open: c.open,
           high: c.high,
           low: c.low,
           close: c.close,
         }))
-        .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      );
       seriesRef.current.setData(data);
       chartRef.current?.timeScale().fitContent();
     } else {
       seriesRef.current.setData([]);
     }
-  }, [monthCandles]);
+  }, [monthCandles, chartRef]);
 
   // Close on Escape.
   useEffect(() => {

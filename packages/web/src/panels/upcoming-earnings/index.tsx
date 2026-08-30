@@ -2,6 +2,11 @@ import { useState, useMemo } from "react";
 import type { PanelProps, PanelDefinition } from "../_core/types";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
+import {
+  getEarningsSessionKey,
+  formatUsClockTime,
+  formatUsDateShort,
+} from "../../lib/usTime";
 
 const PRESETS = [
   { label: "$50B", value: 50_000_000_000 },
@@ -19,60 +24,8 @@ function formatLargeNum(n: number): string {
   return `$${n.toLocaleString()}`;
 }
 
-function getEarningsSessionDate(ts: number, time: string): Date {
-  // Parse the timestamp in Eastern Time (US market timezone)
-  const etFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  });
-  const parts = etFormatter.formatToParts(new Date(ts * 1000));
-  const partMap: Record<string, number> = {};
-  for (const p of parts) {
-    if (p.type === "year" || p.type === "month" || p.type === "day") {
-      partMap[p.type] = parseInt(p.value);
-    }
-  }
-  let year = partMap.year;
-  let month = partMap.month - 1;
-  let day = partMap.day;
-
-  // For after-hours earnings, show the next trading session date
-  // (the day the market reacts to the report)
-  if (time === "After-hours") {
-    const d = new Date(year, month, day);
-    d.setDate(d.getDate() + 1);
-    // Skip weekend: Saturday → Monday, Sunday → Monday
-    if (d.getDay() === 6) d.setDate(d.getDate() + 2);
-    if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-    year = d.getFullYear();
-    month = d.getMonth();
-    day = d.getDate();
-  }
-
-  return new Date(year, month, day);
-}
-
-function formatEarningsClockTime(ts: number): string {
-  try {
-    return new Date(ts * 1000).toLocaleTimeString("en-US", {
-      timeZone: "America/New_York",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }) + " ET";
-  } catch {
-    return "";
-  }
-}
-
 function formatDate(ts: number, time: string): string {
-  return getEarningsSessionDate(ts, time).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  return formatUsDateShort(getEarningsSessionKey(ts, time));
 }
 
 function timeBadgeClass(time: string): string {
@@ -93,15 +46,13 @@ export function UpcomingEarningsPanel({ title, refreshKey, onRefresh, onExpand, 
     if (!data) return [];
     const map = new Map<string, typeof data>();
     for (const item of data) {
-      const dateKey = getEarningsSessionDate(item.earnings_date, item.earnings_time).toDateString();
+      const dateKey = getEarningsSessionKey(item.earnings_date, item.earnings_time);
       if (!map.has(dateKey)) {
         map.set(dateKey, []);
       }
       map.get(dateKey)!.push(item);
     }
-    return Array.from(map.entries()).sort((a, b) => {
-      return new Date(a[0]).getTime() - new Date(b[0]).getTime();
-    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [data]);
 
   if (loading && !data) {
@@ -152,7 +103,7 @@ export function UpcomingEarningsPanel({ title, refreshKey, onRefresh, onExpand, 
                             item.earnings_time
                           )}`}
                         >
-                          {formatEarningsClockTime(item.earnings_date) || item.earnings_time || "TBD"}
+                          {formatUsClockTime(item.earnings_date) || item.earnings_time || "TBD"}
                         </span>
                       </div>
                       <div className="text-[10px] text-gray-500 truncate">{item.name}</div>

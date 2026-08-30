@@ -19,6 +19,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       CORS_ORIGIN: ${CORS_ORIGIN}
+      TZ: America/New_York
     expose:
       - "8000"
     healthcheck:

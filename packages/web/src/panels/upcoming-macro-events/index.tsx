@@ -5,26 +5,17 @@ import type { PanelProps, PanelDefinition } from "../_core/types";
 import type { MacroEvent } from "../../lib/api";
 import { dataApi } from "../../lib/api";
 import { PanelContainer, PanelError, PanelLoading, usePanelData } from "../_core";
+import { formatUsDateShort, formatUsDateFull, daysUntilUsDate } from "../../lib/usTime";
 
 function formatEventDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diff = Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
+  const diff = daysUntilUsDate(dateStr);
   if (diff === 0) return "Today";
   if (diff === 1) return "Tomorrow";
-  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return formatUsDateShort(dateStr);
 }
 
 function formatEventDateFull(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  return formatUsDateFull(dateStr);
 }
 
 function impactColor(impact: string): string {

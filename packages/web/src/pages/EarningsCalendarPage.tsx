@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { RefreshCw, ChevronDown, Calendar } from "lucide-react";
 import { dataApi } from "../lib/api";
 import type { UpcomingEarningsEntry, HeatmapUniverse } from "../lib/api";
+import { formatUsClockTime, formatUsDateShort, daysUntilUsTs } from "../lib/usTime";
 
 const universeFallbacks: HeatmapUniverse[] = [
   { id: "sp500", name: "S&P 500" },
@@ -20,31 +21,15 @@ function formatMarketCap(v: number): string {
   return `$${v.toFixed(0)}`;
 }
 
-function formatEarningsClockTime(ts: number): string {
-  try {
-    return new Date(ts * 1000).toLocaleTimeString("en-US", {
-      timeZone: "America/New_York",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }) + " ET";
-  } catch {
-    return "";
-  }
+function formatDate(ts: number): string {
+  return formatUsDateShort(ts);
 }
 
 function daysUntil(ts: number): string {
-  const now = Date.now();
-  const diff = ts * 1000 - now;
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  if (days < 0) return "Today";
-  if (days === 0) return "Today";
-  if (days === 1) return "Tomorrow";
-  return `in ${days}d`;
-}
-
-function formatDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const diff = daysUntilUsTs(ts);
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  return `in ${diff}d`;
 }
 
 export default function EarningsCalendarPage() {
@@ -193,7 +178,7 @@ export default function EarningsCalendarPage() {
                             {e.earnings_time === "Pre-market" ? "Pre" : "Post"}
                           </span>
                           <span className="text-[10px] text-gray-600">
-                            {formatEarningsClockTime(e.earnings_date) || e.earnings_time || "TBD"}
+                            {formatUsClockTime(e.earnings_date) || e.earnings_time || "TBD"}
                           </span>
                         </div>
                         <div className="text-[10px] text-gray-400">{daysUntil(e.earnings_date)}</div>

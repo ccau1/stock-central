@@ -2824,13 +2824,22 @@ func (a *API) getUpcomingEarnings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().Unix()
+	// Use the start of the current US/Eastern day as the cutoff so the
+	// calendar always includes today's earnings regardless of server timezone.
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err)
+		return
+	}
+	now := time.Now().In(loc)
+	cutoff := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).Unix()
+
 	var result []UpcomingEarningsEntry
 	for _, q := range quotes {
 		if q.MarketCap < minMarketCap {
 			continue
 		}
-		if q.EarningsDate <= 0 || q.EarningsDate < now {
+		if q.EarningsDate <= 0 || q.EarningsDate < cutoff {
 			continue
 		}
 		result = append(result, UpcomingEarningsEntry{

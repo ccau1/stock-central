@@ -25,6 +25,7 @@ services:
       CORS_ORIGIN: "http://localhost:5173"
       LOG_LEVEL: debug
       FRED_API_KEY: ${FRED_API_KEY:-}
+      TZ: America/New_York
     ports:
       - "8000:8000"
     depends_on:

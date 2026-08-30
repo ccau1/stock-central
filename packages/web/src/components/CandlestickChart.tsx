@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import {
-  createChart,
-  CandlestickSeries,
-  LineSeries,
-  HistogramSeries,
-  CrosshairMode,
-} from "lightweight-charts";
+import { CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import { dataApi, type CandleData, type IndicatorSeries, type FormulaResponse } from "../lib/api";
 import { RefreshCw, X, Activity, BarChart3, Pencil, Eye, EyeOff, Settings, Plus } from "lucide-react";
+import { useLightweightChart } from "../hooks/useLightweightChart";
+import { toChartTime, sortByTime } from "../lib/chartTime";
+import { CANDLE_COLORS, candlestickSeriesOptions } from "../lib/chartStyles";
 
 const INTERVALS = [
   { label: "1m", value: "1m", defaultRange: "1d", yahooInterval: "1m" },
@@ -139,26 +136,6 @@ function FormulaDocs() {
   );
 }
 
-function toChartTime(dateStr: string, interval: IntervalValue): any {
-  const d = new Date(dateStr);
-  if (interval === "1d" || interval === "1w" || interval === "1mo") {
-    const year = d.getUTCFullYear();
-    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(d.getUTCDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-  return Math.floor(d.getTime() / 1000);
-}
-
-function sortByTime<T extends { time: string | number }>(data: T[]): T[] {
-  return [...data].sort((a, b) => {
-    if (typeof a.time === "string" && typeof b.time === "string") {
-      return a.time.localeCompare(b.time);
-    }
-    return (a.time as number) - (b.time as number);
-  });
-}
-
 function getYahooInterval(interval: IntervalValue): string {
   return INTERVALS.find((i) => i.value === interval)?.yahooInterval ?? interval;
 }
@@ -210,10 +187,19 @@ export default function CandlestickChart({ symbol }: { symbol: string }) {
   const [docsModalOpen, setDocsModalOpen] = useState(false);
   const [editingIndicator, setEditingIndicator] = useState<IndicatorToggle | null>(null);
 
-  const mainContainerRef = useRef<HTMLDivElement>(null);
-  const oscContainerRef = useRef<HTMLDivElement>(null);
-  const mainChartRef = useRef<any>(null);
-  const oscChartRef = useRef<any>(null);
+  const mainChart = useLightweightChart({
+    timeVisible: interval !== "1d" && interval !== "1w" && interval !== "1mo",
+  });
+  const oscChart = useLightweightChart({
+    timeVisible: interval !== "1d" && interval !== "1w" && interval !== "1mo",
+    hideTimeScale: true,
+  });
+
+  const mainChartRef = mainChart.chartRef;
+  const oscChartRef = oscChart.chartRef;
+  const mainContainerRef = mainChart.containerRef;
+  const oscContainerRef = oscChart.containerRef;
+
   const seriesRef = useRef<{
     candlestick: any;
     volume: any;
@@ -314,96 +300,36 @@ export default function CandlestickChart({ symbol }: { symbol: string }) {
     fetchFormulas();
   }, [fetchFormulas]);
 
-  // Initialize main chart
+  // Add main chart series once the shared hook has created the chart.
   useEffect(() => {
-    if (!mainContainerRef.current) return;
-    const chart = createChart(mainContainerRef.current, {
-      layout: { background: { color: "#ffffff" }, textColor: "#6b7280" },
-      grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
-      rightPriceScale: { borderColor: "#e5e7eb" },
-      timeScale: { borderColor: "#e5e7eb", timeVisible: interval !== "1d" && interval !== "1w" && interval !== "1mo" },
-      crosshair: { mode: CrosshairMode.Normal },
-      autoSize: true,
-      handleScale: { mouseWheel: false, pinch: true },
-    });
-    mainChartRef.current = chart;
-
-    const candlestick = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e", downColor: "#ef4444",
-      borderUpColor: "#22c55e", borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e", wickDownColor: "#ef4444",
-    });
+    const chart = mainChartRef.current;
+    if (!chart) return;
+    const candlestick = chart.addSeries(CandlestickSeries, candlestickSeriesOptions);
     const volume = chart.addSeries(HistogramSeries, {
-      color: "#9ca3af", priceFormat: { type: "volume" }, priceScaleId: "",
+      color: CANDLE_COLORS.volume,
+      priceFormat: { type: "volume" },
+      priceScaleId: "",
     });
     volume.priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
 
     seriesRef.current.candlestick = candlestick;
     seriesRef.current.volume = volume;
 
-    const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) return;
-      e.preventDefault();
-      const timeScale = chart.timeScale();
-      const range = timeScale.getVisibleLogicalRange();
-      if (!range) return;
-      const zoomSpeed = 2.5;
-      const zoomFactor = Math.exp(-e.deltaY * 0.001 * zoomSpeed);
-      const center = (range.from + range.to) / 2;
-      const halfSpan = (range.to - range.from) / 2;
-      const newHalfSpan = Math.max(2, halfSpan * zoomFactor);
-      timeScale.setVisibleLogicalRange({ from: center - newHalfSpan, to: center + newHalfSpan });
-    };
-    const container = mainContainerRef.current;
-    container?.addEventListener("wheel", onWheel, { passive: false });
-
     return () => {
-      container?.removeEventListener("wheel", onWheel);
-      chart.remove();
-      mainChartRef.current = null;
       seriesRef.current.candlestick = null;
       seriesRef.current.volume = null;
       seriesRef.current.overlays.clear();
     };
-  }, [interval]);
+  }, [mainChartRef, interval]);
 
-  // Initialize oscillator chart (always create the div, but we'll lazy-init the chart)
+  // Add oscillator chart series once the shared hook has created the chart.
   useEffect(() => {
-    if (!oscContainerRef.current) return;
-    const chart = createChart(oscContainerRef.current, {
-      layout: { background: { color: "#ffffff" }, textColor: "#6b7280" },
-      grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
-      rightPriceScale: { borderColor: "#e5e7eb" },
-      timeScale: { borderColor: "#e5e7eb", timeVisible: interval !== "1d" && interval !== "1w" && interval !== "1mo", visible: false },
-      crosshair: { mode: CrosshairMode.Normal },
-      autoSize: true,
-      handleScale: { mouseWheel: false, pinch: true },
-    });
-    oscChartRef.current = chart;
-
-    const onWheelOsc = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) return;
-      e.preventDefault();
-      const timeScale = chart.timeScale();
-      const range = timeScale.getVisibleLogicalRange();
-      if (!range) return;
-      const zoomSpeed = 2.5;
-      const zoomFactor = Math.exp(-e.deltaY * 0.001 * zoomSpeed);
-      const center = (range.from + range.to) / 2;
-      const halfSpan = (range.to - range.from) / 2;
-      const newHalfSpan = Math.max(2, halfSpan * zoomFactor);
-      timeScale.setVisibleLogicalRange({ from: center - newHalfSpan, to: center + newHalfSpan });
-    };
-    const oscContainer = oscContainerRef.current;
-    oscContainer?.addEventListener("wheel", onWheelOsc, { passive: false });
-
+    const chart = oscChartRef.current;
+    if (!chart) return;
     return () => {
-      oscContainer?.removeEventListener("wheel", onWheelOsc);
-      chart.remove();
-      oscChartRef.current = null;
       seriesRef.current.oscillator.clear();
     };
-  }, [interval]);
+  }, [oscChartRef, interval]);
 
   // Update candlestick data
   useEffect(() => {
@@ -417,7 +343,7 @@ export default function CandlestickChart({ symbol }: { symbol: string }) {
     const volumeData = sortByTime(candles.map((c) => ({
       time: toChartTime(c.date, interval),
       value: c.volume,
-      color: c.close >= c.open ? "#22c55e66" : "#ef444466",
+      color: c.close >= c.open ? CANDLE_COLORS.volumeUp : CANDLE_COLORS.volumeDown,
     })));
     seriesRef.current.volume.setData(volumeData as any);
 

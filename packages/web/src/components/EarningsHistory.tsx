@@ -1,6 +1,10 @@
-import { useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { ForwardPeData, UpcomingQuarterlyEarning } from "../lib/api";
-import { useSvgContainerSize } from "../hooks/useSvgContainerSize";
+import { useSvgChartScale } from "../hooks/useSvgChartScale";
+import { useSvgHover } from "../hooks/useSvgHover";
+import { SvgChartGrid } from "./svg/SvgChartGrid";
+import { SvgZeroLine } from "./svg/SvgZeroLine";
+import { SvgHoverLine } from "./svg/SvgHoverLine";
 import { CheckCircle2, XCircle, MinusCircle, CalendarClock } from "lucide-react";
 
 interface EarningsHistoryProps {
@@ -71,10 +75,6 @@ const ACTUAL_COLOR = "#2563eb"; // blue-600
 const ESTIMATE_COLOR = "#f59e0b"; // amber-500
 
 function EarningsLineChart({ points }: { points: ChartPoint[] }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const { ref: containerRef, size } = useSvgContainerSize(800, 220);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-
   if (points.length < 2) return null;
 
   const estimates = points.map((p) => p.estimate).filter((v): v is number => v != null);
@@ -85,45 +85,25 @@ function EarningsLineChart({ points }: { points: ChartPoint[] }) {
   const minY = Math.min(...allValues);
   const maxY = Math.max(...allValues);
   const rangeY = maxY - minY || 1;
-  // Add padding so points aren't touching edges
   const paddedMin = minY - rangeY * 0.12;
   const paddedMax = maxY + rangeY * 0.12;
-  const paddedRange = paddedMax - paddedMin || 1;
-
-  const W = size.width;
-  const H = size.height;
-  const padL = 48;
-  const padR = 16;
-  const padT = 12;
-  const padB = 36;
-  const gw = Math.max(W - padL - padR, 0);
-  const gh = Math.max(H - padT - padB, 0);
 
   const n = points.length;
-  const xScale = n > 1 ? gw / (n - 1) : gw / 2;
 
-  const toSvg = (x: number, y: number) => ({
-    sx: padL + x * xScale,
-    sy: padT + (paddedMax - y) * (gh / paddedRange),
+  const scale = useSvgChartScale({
+    defaultHeight: 220,
+    padding: { left: 48, right: 16, top: 12, bottom: 36 },
+    xDomain: [0, Math.max(n - 1, 0)],
+    yDomain: [paddedMin, paddedMax],
   });
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current || n <= 1 || W <= 0) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    let idx = Math.round((svgX - padL) / xScale);
-    if (idx < 0) idx = 0;
-    if (idx >= n) idx = n - 1;
-    setHoverIndex(idx);
-  };
-
-  const handleMouseLeave = () => setHoverIndex(null);
+  const hover = useSvgHover({ scale, mode: "index", maxIndex: Math.max(n - 1, 0) });
 
   const buildPath = (values: (number | null)[]) => {
     let d = "";
     values.forEach((v, i) => {
       if (v == null) return;
-      const { sx, sy } = toSvg(i, v);
+      const { sx, sy } = scale.toSvg(i, v);
       d += `${d ? " L" : "M"} ${sx} ${sy}`;
     });
     return d;
@@ -132,10 +112,14 @@ function EarningsLineChart({ points }: { points: ChartPoint[] }) {
   const actualPath = buildPath(points.map((p) => p.actual));
   const estimatePath = buildPath(points.map((p) => p.estimate));
 
-  const gridLines = 3;
-  const gridYs = Array.from({ length: gridLines + 1 }, (_, i) => paddedMin + (paddedRange * i) / gridLines);
+  const hovered = hover.hoverIndex != null ? points[hover.hoverIndex] : null;
 
-  const hovered = hoverIndex != null ? points[hoverIndex] : null;
+  // Mobile: single-finger touch drives hover.
+  const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    hover.handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY } as React.MouseEvent<SVGSVGElement>);
+  };
 
   return (
     <div className="flex flex-col h-64 mb-4">
@@ -158,39 +142,18 @@ function EarningsLineChart({ points }: { points: ChartPoint[] }) {
         </span>
       </div>
 
-      <div ref={containerRef} className="flex-1 min-h-0">
+      <div ref={scale.containerRef} className="flex-1 min-h-0">
         <svg
-          ref={svgRef}
-          viewBox={`0 0 ${W} ${H}`}
-          className="w-full h-full"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
+          ref={scale.svgRef}
+          viewBox={`0 0 ${scale.size.width} ${scale.size.height}`}
+          className="w-full h-full touch-pan-x"
+          onMouseMove={hover.handleMouseMove}
+          onMouseLeave={hover.handleMouseLeave}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={hover.handleMouseLeave}
         >
-          {/* Grid lines */}
-          {gridYs.map((y, i) => {
-            const { sy } = toSvg(0, y);
-            return (
-              <g key={i}>
-                <line x1={padL} y1={sy} x2={W - padR} y2={sy} stroke="#e5e7eb" strokeWidth="1" />
-                <text x={padL - 8} y={sy + 3} textAnchor="end" fontSize="10" fill="#9ca3af">
-                  {y.toFixed(2)}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Zero line */}
-          {paddedMin < 0 && paddedMax > 0 && (
-            <line
-              x1={padL}
-              y1={toSvg(0, 0).sy}
-              x2={W - padR}
-              y2={toSvg(0, 0).sy}
-              stroke="#9ca3af"
-              strokeWidth="1"
-              strokeDasharray="4,4"
-            />
-          )}
+          <SvgChartGrid scale={scale} formatY={(y) => y.toFixed(2)} count={3} />
+          <SvgZeroLine scale={scale} />
 
           {/* Estimate line (dashed) */}
           {estimatePath && (
@@ -220,8 +183,8 @@ function EarningsLineChart({ points }: { points: ChartPoint[] }) {
 
           {/* Dots */}
           {points.map((p, i) => {
-            const est = p.estimate != null ? toSvg(i, p.estimate) : null;
-            const act = p.actual != null ? toSvg(i, p.actual) : null;
+            const est = p.estimate != null ? scale.toSvg(i, p.estimate) : null;
+            const act = p.actual != null ? scale.toSvg(i, p.actual) : null;
             return (
               <g key={i}>
                 {est && (
@@ -250,12 +213,12 @@ function EarningsLineChart({ points }: { points: ChartPoint[] }) {
 
           {/* X-axis labels */}
           {points.map((p, i) => {
-            const { sx } = toSvg(i, 0);
+            const { sx } = scale.toSvg(i, 0);
             return (
               <text
                 key={`label-${i}`}
                 x={sx}
-                y={H - padB + 14}
+                y={scale.size.height - scale.padding.bottom + 14}
                 textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
                 fontSize="9"
                 fill="#6b7280"
@@ -265,19 +228,11 @@ function EarningsLineChart({ points }: { points: ChartPoint[] }) {
             );
           })}
 
-          {/* Hover vertical line */}
-          {hoverIndex != null && (
-            <line
-              x1={toSvg(hoverIndex, 0).sx}
-              y1={padT}
-              x2={toSvg(hoverIndex, 0).sx}
-              y2={H - padB}
-              stroke="#d1d5db"
-              strokeWidth="1"
-              strokeDasharray="4,4"
-              opacity={0.8}
-            />
-          )}
+          <SvgHoverLine
+            svgX={hover.hoverSvgX}
+            top={scale.padding.top}
+            bottom={scale.size.height - scale.padding.bottom}
+          />
         </svg>
       </div>
 
@@ -385,7 +340,7 @@ export function EarningsHistory({ forwardPe }: EarningsHistoryProps) {
             </thead>
             <tbody>
               {(() => {
-                const rows: React.ReactNode[] = [];
+                const rows: ReactNode[] = [];
                 // Show furthest-future upcoming quarter first, then nearer ones
                 [...upcomingList].reverse().forEach((u, i) => {
                   rows.push(
